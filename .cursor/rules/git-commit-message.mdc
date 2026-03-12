@@ -1,0 +1,33 @@
+---
+description: Git 提交信息必须使用中文，格式为 type: 中文描述
+alwaysApply: true
+---
+
+# Git 提交信息规范
+
+在本项目中，所有由 AI 生成或建议的 Git 提交信息（commit message）必须遵守以下规则：
+
+## 格式
+
+- **必须使用中文**描述变更内容。
+- **格式**：`<type>: <中文描述>`
+- type 使用英文（小写），描述使用中文。
+
+## 常用 type
+
+- `feat`: 新功能
+- `fix`: 修复 bug
+- `docs`: 文档
+- `style`: 格式（不影响代码运行）
+- `refactor`: 重构
+- `perf`: 性能
+- `test`: 测试
+- `chore`: 构建/工具/依赖等
+
+## 示例
+
+- ✅ `feat: 添加用户登录接口`
+- ✅ `fix: 修复列表分页总数错误`
+- ✅ `docs: 更新 API 说明`
+- ❌ `feat: add user login`（描述未用中文）
+- ❌ `新功能：用户登录`（未使用 type: 描述 格式）

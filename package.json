@@ -1,0 +1,35 @@
+{
+  "name": "swell-lobster",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "workspaces": [
+    "apps/*"
+  ],
+  "engines": {
+    "node": ">=20.20.0"
+  },
+  "scripts": {
+    "prepare": "husky",
+    "lint": "npm run lint --prefix apps/web-ui",
+    "lint:fix": "npm run lint:fix --prefix apps/web-ui",
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,css,md,mdx}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,css,md,mdx}\""
+  },
+  "devDependencies": {
+    "@commitlint/cli": "^19.6.0",
+    "@commitlint/config-conventional": "^19.6.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^15.4.3",
+    "prettier": "^3.4.2"
+  },
+  "lint-staged": {
+    "apps/web-ui/**/*.{ts,tsx,js,jsx,json,css,md}": [
+      "prettier --write",
+      "node scripts/lint-staged-web-ui.mjs"
+    ],
+    "*.{json,md,mdx}": [
+      "prettier --write"
+    ]
+  }
+}

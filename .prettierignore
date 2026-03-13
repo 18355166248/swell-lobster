@@ -1,0 +1,19 @@
+# Dependencies & build
+node_modules
+**/dist
+**/.vite
+**/coverage
+**/.next
+**/build
+
+# Lockfiles & generated
+package-lock.json
+pnpm-lock.yaml
+yarn.lock
+*.min.js
+*.min.css
+
+# Misc
+.git
+.cursor
+identity/runtime

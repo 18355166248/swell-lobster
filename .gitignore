@@ -85,8 +85,8 @@ apps/**/.vite/
 apps/**/src-tauri/target/
 apps/**/tsconfig.tsbuildinfo
 # Tauri resources - 构建产物，不应提交（保留 .gitkeep 使空目录入库）
-apps/setup-center/src-tauri/resources/openakita-server/*
-!apps/setup-center/src-tauri/resources/openakita-server/.gitkeep
+apps/setup-center/src-tauri/resources/swell-lobster-server/*
+!apps/setup-center/src-tauri/resources/swell-lobster-server/.gitkeep
 apps/setup-center/src-tauri/resources/modules/
 
 # Data (keep structure)
@@ -106,7 +106,7 @@ identity/runtime/user.summary.md
 identity/runtime/persona.custom.md
 
 # skills/ 目录全部是内置技能，需要被 git 完整跟踪。
-# 用户通过技能市场安装的技能存放在 ~/.openakita/workspaces/default/skills/，
+# 用户通过技能市场安装的技能存放在 ~/.swell-lobster/workspaces/default/skills/，
 # 不在仓库目录内，无需 ignore。
 
 # Plugins (keep structure)
@@ -159,7 +159,7 @@ indentity_compiler.txt
 *_report*.py
 create_report*.py
 fix_report.py
-!src/openakita/api/routes/bug_report.py
+!src/swell-lobster/api/routes/bug_report.py
 
 # Image classification scripts (temporary)
 classify_*.py
@@ -184,8 +184,8 @@ generate_vision_tasks.py
 
 # Temporary documents
 Microsoft_BitNet_*.docx
-OPENAKITA_PROJECT_STATUS.txt
-openakita_project_summary.md
+swell-lobster_PROJECT_STATUS.txt
+swell-lobster_project_summary.md
 CLASSIFICATION_SYSTEM.md
 classification_report.json
 skills_list.md
@@ -224,7 +224,7 @@ apps/setup-center/android/app/src/main/assets/public/
 apps/setup-center/android/app/src/main/assets/capacitor.config.json
 $null
 botpy.log*
-OPENAKITA_RESEARCH_REPORT.md
-openakita-release.keystore
+swell-lobster_RESEARCH_REPORT.md
+swell-lobster-release.keystore
 ppt_build/
 

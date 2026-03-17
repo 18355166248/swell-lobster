@@ -17,6 +17,11 @@ def _default_identity_dir() -> Path:
     return root / "identity"
 
 
+def _default_project_root() -> Path:
+    """项目根目录，用于 data/、.env 等。"""
+    return Path(__file__).resolve().parent.parent.parent
+
+
 class Settings(BaseSettings):
     """应用配置"""
 
@@ -30,6 +35,11 @@ class Settings(BaseSettings):
     identity_dir: Path = Field(
         default_factory=_default_identity_dir,
         description="Identity 文件目录（SOUL/AGENT/USER/MEMORY）",
+    )
+
+    project_root: Path = Field(
+        default_factory=_default_project_root,
+        description="项目根目录（data/、.env 等）",
     )
 
     agent_name: str = Field(default="Swell-Lobster", description="Agent 名称")

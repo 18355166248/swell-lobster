@@ -21,6 +21,8 @@ dependencies = [
     "pydantic>=2.5.0",
     "pydantic-settings>=2.1.0",
     "python-dotenv>=1.0.0",
+    "fastapi>=0.110.0",
+    "uvicorn>=0.27.0",
 ]
 
 [project.optional-dependencies]
@@ -30,10 +32,7 @@ dev = [
     "ruff>=0.1.9",
     "mypy>=1.8.0",
 ]
-api = [
-    "fastapi>=0.110.0",
-    "uvicorn>=0.27.0",
-]
+api = []  # fastapi/uvicorn 已并入默认依赖
 llm = [
     "anthropic>=0.40.0",
     "openai>=1.0.0",

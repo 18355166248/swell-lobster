@@ -1,22 +1,22 @@
-import { Outlet, Link } from 'react-router';
-import { ROUTES } from '../router';
+import { Outlet, useLocation } from 'react-router';
+import { Sidebar } from '../components/Sidebar';
+import { Topbar } from '../components/Topbar';
 
 export function RootLayout() {
+  const location = useLocation();
+  const pathname = location.pathname;
+
   return (
-    <div className="min-h-screen flex flex-col bg-stone-50">
-      <header className="border-b border-stone-200 bg-white/80 backdrop-blur">
-        <nav className="mx-auto max-w-4xl px-4 py-3 flex items-center gap-6">
-          <Link
-            to={ROUTES.HOME}
-            className="text-lg font-semibold text-stone-800 hover:text-stone-600"
-          >
-            SwellLobster
-          </Link>
-        </nav>
-      </header>
-      <main className="flex-1 mx-auto w-full max-w-4xl px-4 py-8">
-        <Outlet />
-      </main>
+    <div className="min-h-screen flex bg-stone-100">
+      <aside className="w-56 flex-shrink-0 flex flex-col bg-stone-800 text-stone-200">
+        <Sidebar currentPath={pathname} />
+      </aside>
+      <div className="flex-1 flex flex-col min-w-0 bg-white border-l border-stone-200 overflow-hidden">
+        <Topbar />
+        <main className="flex-1 overflow-auto">
+          <Outlet />
+        </main>
+      </div>
     </div>
   );
 }

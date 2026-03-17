@@ -40,6 +40,10 @@ XimaLobster 是一款**开源多 Agent AI 助手**——不只是聊天，而是
 
 若你希望在 **Swell-Lobster** 仓库内从零搭建类似的 Python 后端（与 XimaLobster 多功能架构对齐），可参考：[Python 项目初始化与分批建设规划](PYTHON_PROJECT_INIT_AND_ROADMAP.md)。该文档包含初始化规划、目录与依赖、与 identity/docs 的衔接、以及后续分批阶段（Identity、核心执行链、工具与技能、通道与 API、记忆与进化）的路线图与学习顺序建议。
 
+### 1.5 对标 OpenAkita 桌面端功能与菜单
+
+若要在 Swell-Lobster 中实现与 OpenAkita 一致的桌面端效果（左侧菜单：聊天、消息通道、技能、MCP、计划任务、记忆管理、状态面板、Token 统计 + 配置及其二级菜单），可参考：[Swell-Lobster 对标 OpenAkita 功能与菜单开发规划](../docs/openakita-style-feature-plan.md)。该文档包含菜单结构、阶段 0～6 开发划分、任务表及实施顺序建议。
+
 ---
 
 ## 二、整体架构与请求主流程

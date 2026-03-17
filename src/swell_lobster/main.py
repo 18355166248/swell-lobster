@@ -43,5 +43,17 @@ def run(
     )
 
 
+@app.command()
+def serve(
+    host: str = typer.Option("127.0.0.1", "--host", "-h", help="API 监听地址"),
+    port: int = typer.Option(18900, "--port", "-p", help="API 监听端口"),
+) -> None:
+    """启动 HTTP API 服务（FastAPI），供前端配置与聊天等使用。"""
+    import uvicorn
+    from swell_lobster.api.server import app
+    console.print(f"[green]API 启动: http://{host}:{port}[/green]")
+    uvicorn.run(app, host=host, port=port)
+
+
 if __name__ == "__main__":
     app()

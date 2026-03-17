@@ -21,13 +21,13 @@ XimaLobster 是一款**开源多 Agent AI 助手**——不只是聊天，而是
 
 ### 1.2 技术栈一览
 
-| 层级 | 技术 |
-|------|------|
-| **Backend** | Python 3.11+，FastAPI，asyncio，aiosqlite |
+| 层级         | 技术                                                    |
+| ------------ | ------------------------------------------------------- |
+| **Backend**  | Python 3.11+，FastAPI，asyncio，aiosqlite               |
 | **Frontend** | React 18，TypeScript，Vite 6（在 `apps/setup-center/`） |
-| **Desktop** | Tauri 2.x（Rust 壳） |
-| **LLM** | Anthropic Claude、OpenAI 兼容 API（30+ 服务商） |
-| **IM 通道** | Telegram、Feishu、DingTalk、WeCom、QQ、OneBot |
+| **Desktop**  | Tauri 2.x（Rust 壳）                                    |
+| **LLM**      | Anthropic Claude、OpenAI 兼容 API（30+ 服务商）         |
+| **IM 通道**  | Telegram、Feishu、DingTalk、WeCom、QQ、OneBot           |
 
 ### 1.3 建议前置知识
 
@@ -35,6 +35,10 @@ XimaLobster 是一款**开源多 Agent AI 助手**——不只是聊天，而是
 - **FastAPI**：路由、依赖注入、请求/响应
 - **React 基础**：组件、状态、Hooks（若要看前端）
 - **Rust / Tauri**：若要看桌面壳与前后端桥接，需一点概念即可
+
+### 1.4 Python 子项目与从 0 搭建
+
+若你希望在 **Swell-Lobster** 仓库内从零搭建类似的 Python 后端（与 XimaLobster 多功能架构对齐），可参考：[Python 项目初始化与分批建设规划](PYTHON_PROJECT_INIT_AND_ROADMAP.md)。该文档包含初始化规划、目录与依赖、与 identity/docs 的衔接、以及后续分批阶段（Identity、核心执行链、工具与技能、通道与 API、记忆与进化）的路线图与学习顺序建议。
 
 ---
 
@@ -220,17 +224,17 @@ flowchart TB
 
 按「我想理解…」快速跳到推荐文档与源码：
 
-| 主题 | 推荐文档 | 推荐源码 |
-|------|----------|----------|
-| 系统提示词从哪来 | [prompt_structure.md](prompt_structure.md)、[architecture.md](architecture.md) | `prompt/`、`core/identity.py` |
-| 单轮对话如何执行 | [architecture.md](architecture.md) | `core/agent.py`、`brain.py`、`ralph.py`、`reasoning_engine.py` |
-| 工具如何被调用 | [tool-system-architecture.md](tool-system-architecture.md)、[skill-loading-architecture.md](skill-loading-architecture.md) | `tools/`、`skills/` |
-| 记忆如何存储与检索 | [memory_architecture.md](memory_architecture.md) | `memory/` |
-| 多 Agent 如何协作 | [multi-agent-architecture.md](multi-agent-architecture.md) | `agents/` |
-| IM 消息如何接入 | [im-channels.md](im-channels.md)、[im-channel-setup-tutorial.md](im-channel-setup-tutorial.md) | `channels/` |
-| HTTP API 有哪些 | — | `api/server.py`、`api/routes/*.py` |
-| 桌面端如何与后端通信 | [desktop-app-guide.md](desktop-app-guide.md) | `apps/setup-center/src-tauri`、`src/App.tsx` |
-| 身份与策略配置 | [prompt_structure.md](prompt_structure.md)、[configuration.md](configuration.md) | `identity/`、`POLICIES.yaml` |
+| 主题                 | 推荐文档                                                                                                                   | 推荐源码                                                       |
+| -------------------- | -------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| 系统提示词从哪来     | [prompt_structure.md](prompt_structure.md)、[architecture.md](architecture.md)                                             | `prompt/`、`core/identity.py`                                  |
+| 单轮对话如何执行     | [architecture.md](architecture.md)                                                                                         | `core/agent.py`、`brain.py`、`ralph.py`、`reasoning_engine.py` |
+| 工具如何被调用       | [tool-system-architecture.md](tool-system-architecture.md)、[skill-loading-architecture.md](skill-loading-architecture.md) | `tools/`、`skills/`                                            |
+| 记忆如何存储与检索   | [memory_architecture.md](memory_architecture.md)                                                                           | `memory/`                                                      |
+| 多 Agent 如何协作    | [multi-agent-architecture.md](multi-agent-architecture.md)                                                                 | `agents/`                                                      |
+| IM 消息如何接入      | [im-channels.md](im-channels.md)、[im-channel-setup-tutorial.md](im-channel-setup-tutorial.md)                             | `channels/`                                                    |
+| HTTP API 有哪些      | —                                                                                                                          | `api/server.py`、`api/routes/*.py`                             |
+| 桌面端如何与后端通信 | [desktop-app-guide.md](desktop-app-guide.md)                                                                               | `apps/setup-center/src-tauri`、`src/App.tsx`                   |
+| 身份与策略配置       | [prompt_structure.md](prompt_structure.md)、[configuration.md](configuration.md)                                           | `identity/`、`POLICIES.yaml`                                   |
 
 ---
 
@@ -321,4 +325,4 @@ npm run tauri dev
 
 ---
 
-*文档维护：若模块或文档路径有变更，请同步更新本学习路线中的链接与章节。*
+_文档维护：若模块或文档路径有变更，请同步更新本学习路线中的链接与章节。_

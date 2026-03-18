@@ -1,16 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { apiGet, apiPost } from '../../../api/base';
-import { SharedDialog } from '../../../components/ui';
-
-type EndpointItem = {
-  name?: string;
-  model?: string;
-  api_type?: string;
-  base_url?: string;
-  api_key_env?: string;
-  priority?: number;
-  enabled?: boolean;
-};
+import { AddEndpointDialog } from './AddEndpointDialog';
+import type { EndpointFormData, EndpointItem } from './types';
 
 type EndpointsResponse = {
   endpoints: EndpointItem[];
@@ -75,6 +66,35 @@ export function ConfigLLMPage() {
     }
   };
 
+  const handleAddEndpoint = useCallback(async (data: EndpointFormData) => {
+    setError(null);
+    if (data.api_key_value && data.api_key_env) {
+      try {
+        await apiPost('/api/config/env', { entries: { [data.api_key_env]: data.api_key_value } });
+      } catch (e) {
+        setError(e instanceof Error ? e.message : '写入 API Key 失败');
+      }
+    }
+    const newItem: EndpointItem = {
+      name: data.name,
+      model: data.model,
+      api_type: data.api_type,
+      base_url: data.base_url,
+      api_key_env: data.api_key_env,
+      priority: data.priority,
+      enabled: data.enabled !== false,
+      provider: data.provider,
+      capabilities: data.capabilities,
+      max_tokens: data.max_tokens,
+      context_window: data.context_window,
+      timeout: data.timeout,
+      rpm_limit: data.rpm_limit,
+    };
+    setEndpoints((prev) =>
+      [...prev, newItem].sort((a, b) => (a.priority ?? 999) - (b.priority ?? 999))
+    );
+  }, []);
+
   if (loading) {
     return (
       <div className="p-6">
@@ -100,33 +120,13 @@ export function ConfigLLMPage() {
         >
           + 添加端点
         </button>
-        <SharedDialog
+        <AddEndpointDialog
           open={addEndpointOpen}
           onOpenChange={setAddEndpointOpen}
-          title="添加端点"
-          description="配置新的 LLM 端点，填写名称、模型与 API 信息。"
-          footer={
-            <>
-              <button
-                type="button"
-                onClick={() => setAddEndpointOpen(false)}
-                className="px-3 py-1.5 border border-stone-300 text-stone-700 rounded hover:bg-stone-100"
-              >
-                取消
-              </button>
-              <button
-                type="button"
-                className="px-3 py-1.5 bg-blue-600 text-white rounded hover:bg-blue-700"
-              >
-                确定
-              </button>
-            </>
-          }
-        >
-          <p className="text-stone-600 text-sm">
-            此处可放置表单内容，例如端点名称、模型、Base URL、API Key 等。
-          </p>
-        </SharedDialog>
+          onConfirm={handleAddEndpoint}
+          existingNames={endpoints.map((e) => String(e.name ?? '')).filter(Boolean)}
+          endpointCount={endpoints.length}
+        />
       </div>
       <div className="mt-2 border border-stone-200 rounded overflow-hidden">
         <table className="w-full text-sm">

@@ -8,6 +8,18 @@
   </head>
   <body>
     <div id="root"></div>
+    <script>
+      (function () {
+        var k = 'swell-lobster-theme';
+        try {
+          var v = localStorage.getItem(k);
+          if (v === 'dark') document.documentElement.classList.add('dark');
+          else if (v === 'light') document.documentElement.classList.add('light');
+          else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches)
+            document.documentElement.classList.add('dark');
+        } catch (e) {}
+      })();
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

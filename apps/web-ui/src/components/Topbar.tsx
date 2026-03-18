@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { getApiBase, apiGet } from '../api/base';
+import { ThemeToggle } from './ThemeToggle';
 
 export function Topbar() {
   const [status, setStatus] = useState<'unknown' | 'healthy' | 'error'>('unknown');
@@ -25,9 +26,9 @@ export function Topbar() {
   }, []);
 
   return (
-    <header className="flex items-center justify-between px-4 py-2 border-b border-stone-200 bg-white/90">
-      <div className="flex items-center gap-3 text-sm">
-        <span className="text-stone-600">default</span>
+    <header className="flex items-center justify-between px-4 py-2 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+      <div className="flex items-center gap-3 text-sm text-muted-foreground">
+        <span>default</span>
         <span className="flex items-center gap-1.5">
           <span
             className={`inline-block w-2 h-2 rounded-full ${
@@ -35,18 +36,19 @@ export function Topbar() {
                 ? 'bg-green-500'
                 : status === 'error'
                   ? 'bg-red-500'
-                  : 'bg-stone-400'
+                  : 'bg-muted-foreground/60'
             }`}
           />
           {status === 'healthy' ? '运行中' : status === 'error' ? '未连接' : '检查中...'}
         </span>
-        {endpointCount !== null && <span className="text-stone-500">{endpointCount} 端点</span>}
+        {endpointCount !== null && <span>{endpointCount} 端点</span>}
       </div>
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-3">
+        <ThemeToggle />
         <button
           type="button"
           onClick={refresh}
-          className="px-2 py-1 text-stone-600 hover:bg-stone-100 rounded text-sm"
+          className="px-2 py-1 text-muted-foreground hover:text-foreground hover:bg-muted rounded text-sm transition-colors"
         >
           刷新
         </button>
@@ -54,7 +56,7 @@ export function Topbar() {
           href={getApiBase()}
           target="_blank"
           rel="noopener noreferrer"
-          className="text-stone-500 hover:text-stone-700 text-xs"
+          className="text-muted-foreground hover:text-foreground text-xs transition-colors"
         >
           API: {getApiBase()}
         </a>

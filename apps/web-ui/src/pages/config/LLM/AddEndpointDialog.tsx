@@ -264,6 +264,11 @@ export function AddEndpointDialog({
     resetForm();
   }, [open, resetForm]);
 
+  const inputClass =
+    'w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background transition-shadow';
+  const labelClass = 'block text-sm font-medium text-foreground';
+  const hintClass = 'text-xs text-muted-foreground';
+
   return (
     <SharedDialog
       open={open}
@@ -278,7 +283,7 @@ export function AddEndpointDialog({
             <button
               type="button"
               onClick={() => onOpenChange(false)}
-              className="px-3 py-1.5 border border-stone-300 text-stone-700 rounded hover:bg-stone-100 text-sm"
+              className="px-4 py-2 rounded-lg border border-border bg-transparent text-foreground text-sm font-medium hover:bg-muted transition-colors"
             >
               取消
             </button>
@@ -287,7 +292,7 @@ export function AddEndpointDialog({
                 type="button"
                 onClick={testConnection}
                 disabled={!canTest || connTesting}
-                className="px-3 py-1.5 border border-stone-300 text-stone-700 rounded hover:bg-stone-100 text-sm disabled:opacity-50"
+                className="px-4 py-2 rounded-lg border border-border bg-transparent text-foreground text-sm font-medium hover:bg-muted disabled:opacity-50 transition-colors"
               >
                 {connTesting ? '测试中…' : '测试连接'}
               </button>
@@ -295,31 +300,31 @@ export function AddEndpointDialog({
                 type="button"
                 onClick={handleSubmit}
                 disabled={!canSubmit}
-                className="px-3 py-1.5 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm disabled:opacity-50"
+                className="px-4 py-2 rounded-lg bg-accent text-accent-foreground text-sm font-medium hover:opacity-90 disabled:opacity-50 transition-opacity"
               >
                 确定
               </button>
             </div>
           </div>
           {missing.length > 0 && (
-            <p className="text-[10px] text-stone-500 w-full text-right mt-1">
+            <p className={`text-xs ${hintClass} w-full text-right mt-1`}>
               缺少：{missing.join('、')}
             </p>
           )}
         </>
       }
     >
-      <div className="space-y-4 overflow-y-auto min-h-0 flex-1 pr-1">
+      <div className="space-y-5 overflow-y-auto min-h-0 flex-1 pr-1">
         {/* 服务商 */}
-        <div className="space-y-1.5">
-          <label className="block text-sm font-medium text-stone-800">
+        <div className="space-y-2">
+          <label className={labelClass}>
             服务商
             {!isCustomOrLocal && (
-              <span className="ml-1.5 text-[11px] font-normal text-stone-500">
+              <span className={`ml-1.5 ${hintClass}`}>
                 API 地址：{effectiveBaseUrl || '—'}{' '}
                 <button
                   type="button"
-                  className="text-blue-600 hover:underline"
+                  className="text-accent hover:underline focus:outline-none"
                   onClick={() => setBaseUrlExpanded((v) => !v)}
                 >
                   {baseUrlExpanded ? '收起' : '配置'}
@@ -333,7 +338,7 @@ export function AddEndpointDialog({
               setProviderSlug(e.target.value);
               setBaseUrlExpanded(false);
             }}
-            className="w-full px-3 py-2 border border-stone-300 rounded text-sm bg-white text-stone-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className={inputClass}
           >
             {providers.map((p) => (
               <option key={p.slug} value={p.slug}>
@@ -345,12 +350,9 @@ export function AddEndpointDialog({
 
         {/* API 地址 */}
         {showBaseUrl && (
-          <div className="space-y-1.5">
-            <label className="block text-sm font-medium text-stone-800">
-              API 地址{' '}
-              <span className="text-[11px] font-normal text-stone-500">
-                以 http:// 或 https:// 开头
-              </span>
+          <div className="space-y-2">
+            <label className={labelClass}>
+              API 地址 <span className={hintClass}>以 http:// 或 https:// 开头</span>
             </label>
             <input
               type="url"
@@ -360,19 +362,17 @@ export function AddEndpointDialog({
                 setBaseUrlTouched(true);
               }}
               placeholder={selectedProvider?.default_base_url || 'https://api.example.com/v1'}
-              className="w-full px-3 py-2 border border-stone-300 rounded text-sm bg-white text-stone-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className={inputClass}
             />
           </div>
         )}
 
         {/* API Key */}
-        <div className="space-y-1.5">
-          <label className="block text-sm font-medium text-stone-800">
+        <div className="space-y-2">
+          <label className={labelClass}>
             API Key
             {isLocalProvider(selectedProvider) && (
-              <span className="ml-1 text-[11px] font-normal text-stone-500">
-                （本地服务可留空）
-              </span>
+              <span className={`ml-1 ${hintClass}`}>（本地服务可留空）</span>
             )}
           </label>
           <input
@@ -380,26 +380,26 @@ export function AddEndpointDialog({
             value={apiKeyValue}
             onChange={(e) => setApiKeyValue(e.target.value)}
             placeholder={isLocalProvider(selectedProvider) ? '可选' : '输入调用大模型的 API Key'}
-            className="w-full px-3 py-2 border border-stone-300 rounded text-sm bg-white text-stone-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className={inputClass}
           />
         </div>
 
         {/* 选择模型 */}
-        <div className="space-y-1.5">
-          <label className="block text-sm font-medium text-stone-800">
+        <div className="space-y-2">
+          <label className={labelClass}>
             选择模型{' '}
-            <span className="text-[11px] font-normal text-stone-500">
+            <span className={hintClass}>
               可手动输入或
               <button
                 type="button"
-                className="text-blue-600 hover:underline ml-0.5 disabled:opacity-50"
+                className="text-accent hover:underline ml-0.5 disabled:opacity-50 focus:outline-none"
                 onClick={fetchModels}
                 disabled={modelsLoading || !effectiveBaseUrl}
               >
                 {modelsLoading ? '拉取中…' : '拉取模型列表'}
               </button>
               {models.length > 0 && (
-                <span className="text-stone-400">（已拉取 {models.length} 个）</span>
+                <span className="text-muted-foreground">（已拉取 {models.length} 个）</span>
               )}
             </span>
           </label>
@@ -409,7 +409,7 @@ export function AddEndpointDialog({
             onChange={(e) => setSelectedModelId(e.target.value)}
             list="add-ep-model-list"
             placeholder={models.length > 0 ? '输入或选择模型 ID' : '例如 gpt-4o、claude-3-5-sonnet'}
-            className="w-full px-3 py-2 border border-stone-300 rounded text-sm bg-white text-stone-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className={inputClass}
           />
           <datalist id="add-ep-model-list">
             {models.map((m) => (
@@ -419,8 +419,8 @@ export function AddEndpointDialog({
         </div>
 
         {/* 端点名称 */}
-        <div className="space-y-1.5">
-          <label className="block text-sm font-medium text-stone-800">端点名称</label>
+        <div className="space-y-2">
+          <label className={labelClass}>端点名称</label>
           <input
             type="text"
             value={endpointName}
@@ -429,13 +429,13 @@ export function AddEndpointDialog({
               setEndpointName(e.target.value);
             }}
             placeholder={`${selectedProvider?.slug ?? 'ep'}-${selectedModelId || 'model'}`}
-            className="w-full px-3 py-2 border border-stone-300 rounded text-sm bg-white text-stone-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className={inputClass}
           />
         </div>
 
         {/* 模型能力 */}
-        <div className="space-y-1.5">
-          <label className="block text-sm font-medium text-stone-800">模型能力</label>
+        <div className="space-y-2">
+          <label className={labelClass}>模型能力</label>
           <div className="flex flex-wrap gap-2">
             {CAPABILITY_OPTIONS.map((c) => {
               const on = capSelected.includes(c.k);
@@ -454,10 +454,10 @@ export function AddEndpointDialog({
                     });
                   }}
                   className={
-                    'inline-flex items-center justify-center h-8 px-3.5 rounded-md border text-sm font-medium cursor-pointer transition-colors ' +
+                    'inline-flex items-center justify-center h-9 px-4 rounded-lg border text-sm font-medium cursor-pointer transition-colors ' +
                     (on
-                      ? 'border-blue-600 bg-blue-600 text-white hover:bg-blue-700'
-                      : 'border-stone-300 bg-transparent text-stone-600 hover:bg-stone-100')
+                      ? 'border-accent bg-accent text-accent-foreground hover:opacity-90'
+                      : 'border-border bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground')
                   }
                 >
                   {c.name}
@@ -468,49 +468,48 @@ export function AddEndpointDialog({
         </div>
 
         {/* 高级参数 */}
-        <div className="rounded-lg border border-stone-200 overflow-hidden">
+        <div className="rounded-xl border border-border overflow-hidden bg-muted/30">
           <button
             type="button"
             onClick={() => setAdvancedOpen((v) => !v)}
-            className="w-full cursor-pointer flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium text-stone-600 list-none select-none hover:text-stone-800 text-left bg-transparent border-0"
+            className="w-full cursor-pointer flex items-center gap-2 px-4 py-3 text-sm font-medium text-foreground hover:bg-muted/50 transition-colors text-left border-0"
           >
             <span
-              className="inline-block w-4 h-4 transition-transform"
+              className="inline-block w-4 h-4 transition-transform duration-200"
               style={{ transform: advancedOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}
+              aria-hidden
             >
               ▼
             </span>
             高级参数
           </button>
           {advancedOpen && (
-            <div className="border-t border-stone-200 px-4 py-3 space-y-3">
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <label className="block text-sm font-medium text-stone-700">API 类型</label>
+            <div className="border-t border-border px-4 py-4 space-y-4 bg-card/50">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className={labelClass}>API 类型</label>
                   <select
                     value={apiType}
                     onChange={(e) => setApiType(e.target.value as 'openai' | 'anthropic')}
-                    className="w-full px-3 py-2 border border-stone-300 rounded text-sm bg-white text-stone-800"
+                    className={inputClass}
                   >
                     <option value="openai">openai</option>
                     <option value="anthropic">anthropic</option>
                   </select>
                 </div>
-                <div className="space-y-1.5">
-                  <label className="block text-sm font-medium text-stone-700">优先级</label>
+                <div className="space-y-2">
+                  <label className={labelClass}>优先级</label>
                   <input
                     type="number"
                     min={1}
                     value={endpointPriority}
                     onChange={(e) => setEndpointPriority(Number(e.target.value) || 1)}
-                    className="w-full px-3 py-2 border border-stone-300 rounded text-sm bg-white text-stone-800"
+                    className={inputClass}
                   />
                 </div>
               </div>
-              <div className="space-y-1.5">
-                <label className="block text-sm font-medium text-stone-700">
-                  API Key 环境变量名
-                </label>
+              <div className="space-y-2">
+                <label className={labelClass}>API Key 环境变量名</label>
                 <input
                   type="text"
                   value={apiKeyEnv}
@@ -519,26 +518,24 @@ export function AddEndpointDialog({
                     setApiKeyEnv(e.target.value);
                   }}
                   placeholder="例如 OPENAI_API_KEY"
-                  className="w-full px-3 py-2 border border-stone-300 rounded text-sm bg-white text-stone-800"
+                  className={inputClass}
                 />
               </div>
-              <div className="space-y-1.5">
-                <label className="block text-sm font-medium text-stone-700">
-                  最大 Token 数{' '}
-                  <span className="text-[11px] font-normal text-stone-500">0 表示不限制</span>
+              <div className="space-y-2">
+                <label className={labelClass}>
+                  最大 Token 数 <span className={hintClass}>0 表示不限制</span>
                 </label>
                 <input
                   type="number"
                   min={0}
                   value={maxTokens || ''}
                   onChange={(e) => setMaxTokens(Math.max(0, parseInt(e.target.value, 10) || 0))}
-                  className="w-full px-3 py-2 border border-stone-300 rounded text-sm bg-white text-stone-800"
+                  className={inputClass}
                 />
               </div>
-              <div className="space-y-1.5">
-                <label className="block text-sm font-medium text-stone-700">
-                  上下文窗口{' '}
-                  <span className="text-[11px] font-normal text-stone-500">建议 1024 以上</span>
+              <div className="space-y-2">
+                <label className={labelClass}>
+                  上下文窗口 <span className={hintClass}>建议 1024 以上</span>
                 </label>
                 <input
                   type="number"
@@ -549,11 +546,11 @@ export function AddEndpointDialog({
                       Math.max(1024, parseInt(e.target.value, 10) || DEFAULT_CONTEXT_WINDOW)
                     )
                   }
-                  className="w-full px-3 py-2 border border-stone-300 rounded text-sm bg-white text-stone-800"
+                  className={inputClass}
                 />
               </div>
-              <div className="space-y-1.5">
-                <label className="block text-sm font-medium text-stone-700">超时（秒）</label>
+              <div className="space-y-2">
+                <label className={labelClass}>超时（秒）</label>
                 <input
                   type="number"
                   min={10}
@@ -561,20 +558,19 @@ export function AddEndpointDialog({
                   onChange={(e) =>
                     setTimeoutSec(Math.max(10, parseInt(e.target.value, 10) || DEFAULT_TIMEOUT))
                   }
-                  className="w-full px-3 py-2 border border-stone-300 rounded text-sm bg-white text-stone-800"
+                  className={inputClass}
                 />
               </div>
-              <div className="space-y-1.5">
-                <label className="block text-sm font-medium text-stone-700">
-                  RPM 限制{' '}
-                  <span className="text-[11px] font-normal text-stone-500">0 表示不限制</span>
+              <div className="space-y-2">
+                <label className={labelClass}>
+                  RPM 限制 <span className={hintClass}>0 表示不限制</span>
                 </label>
                 <input
                   type="number"
                   min={0}
                   value={rpmLimit || ''}
                   onChange={(e) => setRpmLimit(Math.max(0, parseInt(e.target.value, 10) || 0))}
-                  className="w-full px-3 py-2 border border-stone-300 rounded text-sm bg-white text-stone-800"
+                  className={inputClass}
                 />
               </div>
             </div>
@@ -585,10 +581,10 @@ export function AddEndpointDialog({
         {connTestResult && (
           <div
             className={
-              'rounded-lg px-3 py-2 text-xs ' +
+              'rounded-lg px-4 py-3 text-sm ' +
               (connTestResult.ok
-                ? 'bg-emerald-50 border border-emerald-200 text-emerald-700'
-                : 'bg-red-50 border border-red-200 text-red-700')
+                ? 'bg-emerald-500/10 dark:bg-emerald-500/20 border border-emerald-500/30 text-emerald-700 dark:text-emerald-400'
+                : 'bg-red-500/10 dark:bg-red-500/20 border border-red-500/30 text-red-700 dark:text-red-400')
             }
           >
             {connTestResult.ok

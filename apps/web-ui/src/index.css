@@ -14,6 +14,20 @@
   --social-bg: rgba(244, 243, 236, 0.5);
   --shadow: rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
 
+  /* 语义化变量（供 Tailwind 与组件使用） */
+  --background: #ffffff;
+  --foreground: #0a0a0a;
+  --muted: #f4f4f5;
+  --muted-foreground: #71717a;
+  --input: #e4e4e7;
+  --ring: #aa3bff;
+  --accent-foreground: #ffffff;
+  --sidebar: #27272a;
+  --sidebar-foreground: #fafafa;
+  --sidebar-border: #3f3f46;
+  --card: #ffffff;
+  --card-foreground: #0a0a0a;
+
   --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
   --heading: system-ui, 'Segoe UI', Roboto, sans-serif;
   --mono: ui-monospace, Consolas, monospace;
@@ -33,8 +47,9 @@
   }
 }
 
+/* 深色模式：由 ThemeSync 在 html 上添加 .dark class 或系统偏好 */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not(.light) {
     --text: #9ca3af;
     --text-h: #f3f4f6;
     --bg: #16171d;
@@ -45,11 +60,53 @@
     --accent-border: rgba(192, 132, 252, 0.5);
     --social-bg: rgba(47, 48, 58, 0.5);
     --shadow: rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
+    --background: #09090b;
+    --foreground: #fafafa;
+    --muted: #27272a;
+    --muted-foreground: #a1a1aa;
+    --input: #3f3f46;
+    --ring: #c084fc;
+    --accent-foreground: #ffffff;
+    --sidebar: #18181b;
+    --sidebar-foreground: #fafafa;
+    --sidebar-border: #3f3f46;
+    --card: #18181b;
+    --card-foreground: #fafafa;
   }
 
   #social .button-icon {
     filter: invert(1) brightness(2);
   }
+}
+
+/* 用户显式选择深色时的变量（优先于媒体查询） */
+.dark {
+  --text: #9ca3af;
+  --text-h: #f3f4f6;
+  --bg: #16171d;
+  --border: #2e303a;
+  --code-bg: #1f2028;
+  --accent: #c084fc;
+  --accent-bg: rgba(192, 132, 252, 0.15);
+  --accent-border: rgba(192, 132, 252, 0.5);
+  --social-bg: rgba(47, 48, 58, 0.5);
+  --shadow: rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
+  --background: #09090b;
+  --foreground: #fafafa;
+  --muted: #27272a;
+  --muted-foreground: #a1a1aa;
+  --input: #3f3f46;
+  --ring: #c084fc;
+  --accent-foreground: #ffffff;
+  --sidebar: #18181b;
+  --sidebar-foreground: #fafafa;
+  --sidebar-border: #3f3f46;
+  --card: #18181b;
+  --card-foreground: #fafafa;
+}
+
+.dark #social .button-icon {
+  filter: invert(1) brightness(2);
 }
 
 #root {

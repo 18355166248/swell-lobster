@@ -98,25 +98,27 @@ export function ConfigLLMPage() {
   if (loading) {
     return (
       <div className="p-6">
-        <p className="text-stone-600">加载中...</p>
+        <p className="text-muted-foreground">加载中...</p>
       </div>
     );
   }
 
   return (
     <div className="p-6 max-w-4xl">
-      <h1 className="text-2xl font-bold text-stone-800">LLM 端点</h1>
-      <p className="mt-1 text-stone-600 text-sm">配置 AI 模型端点，支持主备自动切换</p>
+      <h1 className="text-2xl font-bold text-foreground">LLM 端点</h1>
+      <p className="mt-1 text-muted-foreground text-sm">配置 AI 模型端点，支持主备自动切换</p>
       {error && (
-        <div className="mt-3 px-3 py-2 bg-red-50 text-red-700 rounded text-sm">{error}</div>
+        <div className="mt-3 px-3 py-2 bg-red-500/10 dark:bg-red-500/20 border border-red-500/30 text-red-700 dark:text-red-400 rounded-lg text-sm">
+          {error}
+        </div>
       )}
 
       <div className="mt-6 flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-stone-800">主端点</h2>
+        <h2 className="text-lg font-semibold text-foreground">主端点</h2>
         <button
           type="button"
           onClick={() => setAddEndpointOpen(true)}
-          className="px-3 py-1.5 bg-blue-600 text-white text-sm rounded hover:bg-blue-700"
+          className="px-4 py-2 bg-accent text-accent-foreground text-sm font-medium rounded-lg hover:opacity-90 transition-opacity"
         >
           + 添加端点
         </button>
@@ -128,39 +130,39 @@ export function ConfigLLMPage() {
           endpointCount={endpoints.length}
         />
       </div>
-      <div className="mt-2 border border-stone-200 rounded overflow-hidden">
+      <div className="mt-2 border border-border rounded-xl overflow-hidden bg-card">
         <table className="w-full text-sm">
-          <thead className="bg-stone-100 text-left">
+          <thead className="bg-muted/60 text-left">
             <tr>
-              <th className="px-3 py-2 font-medium text-stone-700">端点</th>
-              <th className="px-3 py-2 font-medium text-stone-700">模型</th>
-              <th className="px-3 py-2 font-medium text-stone-700">Key</th>
-              <th className="px-3 py-2 font-medium text-stone-700">Priority</th>
+              <th className="px-4 py-3 font-medium text-foreground">端点</th>
+              <th className="px-4 py-3 font-medium text-foreground">模型</th>
+              <th className="px-4 py-3 font-medium text-foreground">Key</th>
+              <th className="px-4 py-3 font-medium text-foreground">Priority</th>
             </tr>
           </thead>
           <tbody>
             {endpoints.length === 0 ? (
               <tr>
-                <td colSpan={4} className="px-3 py-4 text-stone-500 text-center">
+                <td colSpan={4} className="px-4 py-6 text-muted-foreground text-center">
                   暂无端点，点击上方按钮添加
                 </td>
               </tr>
             ) : (
               endpoints.map((ep, i) => (
-                <tr key={i} className="border-t border-stone-200">
-                  <td className="px-3 py-2">{ep.name ?? '-'}</td>
-                  <td className="px-3 py-2">{ep.model ?? '-'}</td>
-                  <td className="px-3 py-2">
+                <tr key={i} className="border-t border-border">
+                  <td className="px-4 py-3 text-foreground">{ep.name ?? '-'}</td>
+                  <td className="px-4 py-3 text-foreground">{ep.model ?? '-'}</td>
+                  <td className="px-4 py-3">
                     {ep.api_key_env ? (
                       <span
                         className="inline-block w-2 h-2 rounded-full bg-green-500"
                         title="已配置"
                       />
                     ) : (
-                      '-'
+                      <span className="text-muted-foreground">-</span>
                     )}
                   </td>
-                  <td className="px-3 py-2">{ep.priority ?? 1}</td>
+                  <td className="px-4 py-3 text-foreground">{ep.priority ?? 1}</td>
                 </tr>
               ))
             )}
@@ -169,19 +171,21 @@ export function ConfigLLMPage() {
       </div>
 
       <div className="mt-8">
-        <h2 className="text-lg font-semibold text-stone-800">提示词编译模型</h2>
-        <p className="mt-1 text-stone-600 text-sm">用于预处理指令的轻量模型，建议使用快速小模型</p>
-        <div className="mt-2 px-4 py-6 border border-dashed border-stone-200 rounded text-center text-stone-500 text-sm">
+        <h2 className="text-lg font-semibold text-foreground">提示词编译模型</h2>
+        <p className="mt-1 text-muted-foreground text-sm">
+          用于预处理指令的轻量模型，建议使用快速小模型
+        </p>
+        <div className="mt-2 px-4 py-6 border border-dashed border-border rounded-xl text-center text-muted-foreground text-sm">
           暂无端点，点击上方「+ 添加端点」添加
         </div>
       </div>
 
       <div className="mt-6">
-        <h2 className="text-lg font-semibold text-stone-800">语音识别端点 (STT)</h2>
-        <p className="mt-1 text-stone-600 text-sm">
+        <h2 className="text-lg font-semibold text-foreground">语音识别端点 (STT)</h2>
+        <p className="mt-1 text-muted-foreground text-sm">
           在线语音识别服务，支持 OpenAI Whisper / DashScope 等
         </p>
-        <div className="mt-2 px-4 py-6 border border-dashed border-stone-200 rounded text-center text-stone-500 text-sm">
+        <div className="mt-2 px-4 py-6 border border-dashed border-border rounded-xl text-center text-muted-foreground text-sm">
           暂无端点，点击上方「+ 添加端点」添加
         </div>
       </div>
@@ -191,7 +195,7 @@ export function ConfigLLMPage() {
           type="button"
           onClick={handleSave}
           disabled={saving}
-          className="px-4 py-2 border border-stone-300 text-stone-700 rounded hover:bg-stone-100 disabled:opacity-50"
+          className="px-4 py-2 border border-border bg-transparent text-foreground rounded-lg font-medium hover:bg-muted disabled:opacity-50 transition-colors"
         >
           {saving ? '保存中...' : '保存配置'}
         </button>
@@ -199,7 +203,7 @@ export function ConfigLLMPage() {
           type="button"
           onClick={handleApplyRestart}
           disabled={reloading}
-          className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+          className="px-4 py-2 bg-accent text-accent-foreground rounded-lg font-medium hover:opacity-90 disabled:opacity-50 transition-opacity"
         >
           {reloading ? '应用中...' : '应用并重启'}
         </button>

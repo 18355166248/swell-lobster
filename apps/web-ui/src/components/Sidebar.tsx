@@ -24,17 +24,17 @@ const configNav = [
 function navLinkClass({ isActive }: { isActive: boolean }) {
   return `block px-4 py-2.5 text-sm rounded-md transition-colors ${
     isActive
-      ? 'bg-stone-700 text-white font-medium'
-      : 'text-stone-300 hover:bg-stone-700/50 hover:text-white'
+      ? 'bg-sidebar-foreground/15 text-sidebar-foreground font-medium'
+      : 'text-sidebar-foreground/80 hover:bg-sidebar-foreground/10 hover:text-sidebar-foreground'
   }`;
 }
 
 export function Sidebar({ currentPath }: { currentPath: string }) {
   return (
     <>
-      <div className="p-4 border-b border-stone-700">
-        <div className="font-semibold text-white text-lg">SwellLobster</div>
-        <div className="text-xs text-stone-400 mt-0.5">桌面终端</div>
+      <div className="p-4 border-b border-sidebar-border">
+        <div className="font-semibold text-sidebar-foreground text-lg">SwellLobster</div>
+        <div className="text-xs text-sidebar-foreground/60 mt-0.5">桌面终端</div>
       </div>
       <nav className="flex-1 overflow-y-auto py-3 px-2">
         {mainNav.map(({ path, label }) => (
@@ -42,8 +42,8 @@ export function Sidebar({ currentPath }: { currentPath: string }) {
             {label}
           </NavLink>
         ))}
-        <div className="mt-4 pt-3 border-t border-stone-700">
-          <div className="px-4 py-2 text-xs font-medium text-stone-500 uppercase tracking-wider">
+        <div className="mt-4 pt-3 border-t border-sidebar-border">
+          <div className="px-4 py-2 text-xs font-medium text-sidebar-foreground/50 uppercase tracking-wider">
             配置
           </div>
           {configNav.map(({ path, label }) => (
@@ -53,7 +53,7 @@ export function Sidebar({ currentPath }: { currentPath: string }) {
           ))}
         </div>
       </nav>
-      <div className="p-3 border-t border-stone-700 text-xs text-stone-500">
+      <div className="p-3 border-t border-sidebar-border text-xs text-sidebar-foreground/50">
         <div>Desktop v0.1.0</div>
         <div className="mt-1">Backend -</div>
       </div>

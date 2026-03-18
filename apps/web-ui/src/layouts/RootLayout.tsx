@@ -7,11 +7,11 @@ export function RootLayout() {
   const pathname = location.pathname;
 
   return (
-    <div className="min-h-screen flex bg-stone-100">
-      <aside className="w-56 flex-shrink-0 flex flex-col bg-stone-800 text-stone-200">
+    <div className="min-h-screen flex bg-muted/50 dark:bg-background">
+      <aside className="w-56 flex-shrink-0 flex flex-col bg-sidebar text-sidebar-foreground border-r border-sidebar-border">
         <Sidebar currentPath={pathname} />
       </aside>
-      <div className="flex-1 flex flex-col min-w-0 bg-white border-l border-stone-200 overflow-hidden">
+      <div className="flex-1 flex flex-col min-w-0 bg-background border-l border-border overflow-hidden">
         <Topbar />
         <main className="flex-1 overflow-auto">
           <Outlet />

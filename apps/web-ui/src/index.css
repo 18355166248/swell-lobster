@@ -110,3 +110,100 @@ code {
   padding: 4px 8px;
   background: var(--code-bg);
 }
+
+/* ========== 公共弹窗组件 (SharedDialog) ========== */
+.shared-dialog-content {
+  --dialog-bg: var(--bg);
+  background: var(--dialog-bg) !important;
+  border: 1px solid var(--border) !important;
+  box-shadow:
+    var(--shadow),
+    0 0 0 1px var(--border) !important;
+  border-radius: 12px;
+  animation: shared-dialog-in 0.2s ease-out;
+}
+
+@keyframes shared-dialog-in {
+  from {
+    opacity: 0;
+    transform: scale(0.97) translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.shared-dialog-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 4px;
+}
+
+.shared-dialog-title {
+  font-family: var(--heading);
+  font-weight: 600;
+  font-size: 1.125rem;
+  letter-spacing: -0.01em;
+  color: var(--text-h) !important;
+  margin: 0;
+  line-height: 1.35;
+  flex: 1;
+}
+
+.shared-dialog-close {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  margin: -4px -4px 0 0;
+  font-size: 1.25rem;
+  line-height: 1;
+  color: var(--text);
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition:
+    color 0.15s ease,
+    background-color 0.15s ease;
+}
+
+.shared-dialog-close:hover {
+  color: var(--text-h);
+  background: var(--accent-bg);
+}
+
+.shared-dialog-close:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.shared-dialog-description {
+  font-size: 0.875rem;
+  color: var(--text) !important;
+  margin: 0 0 12px;
+  line-height: 1.45;
+}
+
+.shared-dialog-body {
+  padding-top: 4px;
+  font-size: 0.9375rem;
+  color: var(--text);
+  line-height: 1.5;
+}
+
+.shared-dialog-footer {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+}

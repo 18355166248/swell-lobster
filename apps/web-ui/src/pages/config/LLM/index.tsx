@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { apiGet, apiPost } from '../../../api/base';
+import { SharedDialog } from '../../../components/ui';
 
 type EndpointItem = {
   name?: string;
@@ -27,6 +28,7 @@ export function ConfigLLMPage() {
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [reloading, setReloading] = useState(false);
+  const [addEndpointOpen, setAddEndpointOpen] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -93,10 +95,38 @@ export function ConfigLLMPage() {
         <h2 className="text-lg font-semibold text-stone-800">主端点</h2>
         <button
           type="button"
+          onClick={() => setAddEndpointOpen(true)}
           className="px-3 py-1.5 bg-blue-600 text-white text-sm rounded hover:bg-blue-700"
         >
           + 添加端点
         </button>
+        <SharedDialog
+          open={addEndpointOpen}
+          onOpenChange={setAddEndpointOpen}
+          title="添加端点"
+          description="配置新的 LLM 端点，填写名称、模型与 API 信息。"
+          footer={
+            <>
+              <button
+                type="button"
+                onClick={() => setAddEndpointOpen(false)}
+                className="px-3 py-1.5 border border-stone-300 text-stone-700 rounded hover:bg-stone-100"
+              >
+                取消
+              </button>
+              <button
+                type="button"
+                className="px-3 py-1.5 bg-blue-600 text-white rounded hover:bg-blue-700"
+              >
+                确定
+              </button>
+            </>
+          }
+        >
+          <p className="text-stone-600 text-sm">
+            此处可放置表单内容，例如端点名称、模型、Base URL、API Key 等。
+          </p>
+        </SharedDialog>
       </div>
       <div className="mt-2 border border-stone-200 rounded overflow-hidden">
         <table className="w-full text-sm">

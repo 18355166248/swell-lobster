@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { apiPost } from '../../../api/base';
-import { SharedDialog } from '../../../components/ui';
+import { Input, Select, SharedDialog } from '../../../components/ui';
 import { BUILTIN_PROVIDERS, CAPABILITY_OPTIONS } from './constants';
 import type { EndpointFormData, ListedModel, ProviderInfo } from './types';
 
@@ -43,7 +43,6 @@ export function AddEndpointDialog({
   const [endpointName, setEndpointName] = useState('');
   const [endpointNameTouched, setEndpointNameTouched] = useState(false);
   const [capSelected, setCapSelected] = useState<string[]>(['text']);
-  const [capTouched, setCapTouched] = useState(false);
   const [endpointPriority, setEndpointPriority] = useState(1);
   const [maxTokens, setMaxTokens] = useState(0);
   const [contextWindow, setContextWindow] = useState(DEFAULT_CONTEXT_WINDOW);
@@ -248,7 +247,6 @@ export function AddEndpointDialog({
     setSelectedModelId('');
     setModels([]);
     setCapSelected(['text']);
-    setCapTouched(false);
     setEndpointPriority(endpointCount === 0 ? 1 : endpointCount + 1);
     setMaxTokens(0);
     setContextWindow(DEFAULT_CONTEXT_WINDOW);
@@ -264,8 +262,6 @@ export function AddEndpointDialog({
     resetForm();
   }, [open, resetForm]);
 
-  const inputClass =
-    'w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background transition-shadow';
   const labelClass = 'block text-sm font-medium text-foreground';
   const hintClass = 'text-xs text-muted-foreground';
 
@@ -307,9 +303,7 @@ export function AddEndpointDialog({
             </div>
           </div>
           {missing.length > 0 && (
-            <p className={`text-xs ${hintClass} w-full text-right mt-1`}>
-              缺少：{missing.join('、')}
-            </p>
+            <p className={`text-xs ${hintClass} text-right mt-1`}>缺少：{missing.join('、')}</p>
           )}
         </>
       }
@@ -332,20 +326,14 @@ export function AddEndpointDialog({
               </span>
             )}
           </label>
-          <select
+          <Select
             value={providerSlug}
-            onChange={(e) => {
-              setProviderSlug(e.target.value);
+            onValueChange={(v) => {
+              setProviderSlug(v);
               setBaseUrlExpanded(false);
             }}
-            className={inputClass}
-          >
-            {providers.map((p) => (
-              <option key={p.slug} value={p.slug}>
-                {p.name}
-              </option>
-            ))}
-          </select>
+            options={providers.map((p) => ({ value: p.slug, label: p.name }))}
+          />
         </div>
 
         {/* API 地址 */}
@@ -354,7 +342,7 @@ export function AddEndpointDialog({
             <label className={labelClass}>
               API 地址 <span className={hintClass}>以 http:// 或 https:// 开头</span>
             </label>
-            <input
+            <Input
               type="url"
               value={baseUrl}
               onChange={(e) => {
@@ -362,7 +350,6 @@ export function AddEndpointDialog({
                 setBaseUrlTouched(true);
               }}
               placeholder={selectedProvider?.default_base_url || 'https://api.example.com/v1'}
-              className={inputClass}
             />
           </div>
         )}
@@ -375,12 +362,11 @@ export function AddEndpointDialog({
               <span className={`ml-1 ${hintClass}`}>（本地服务可留空）</span>
             )}
           </label>
-          <input
+          <Input
             type="password"
             value={apiKeyValue}
             onChange={(e) => setApiKeyValue(e.target.value)}
             placeholder={isLocalProvider(selectedProvider) ? '可选' : '输入调用大模型的 API Key'}
-            className={inputClass}
           />
         </div>
 
@@ -403,13 +389,12 @@ export function AddEndpointDialog({
               )}
             </span>
           </label>
-          <input
+          <Input
             type="text"
             value={selectedModelId}
             onChange={(e) => setSelectedModelId(e.target.value)}
             list="add-ep-model-list"
             placeholder={models.length > 0 ? '输入或选择模型 ID' : '例如 gpt-4o、claude-3-5-sonnet'}
-            className={inputClass}
           />
           <datalist id="add-ep-model-list">
             {models.map((m) => (
@@ -421,7 +406,7 @@ export function AddEndpointDialog({
         {/* 端点名称 */}
         <div className="space-y-2">
           <label className={labelClass}>端点名称</label>
-          <input
+          <Input
             type="text"
             value={endpointName}
             onChange={(e) => {
@@ -429,7 +414,6 @@ export function AddEndpointDialog({
               setEndpointName(e.target.value);
             }}
             placeholder={`${selectedProvider?.slug ?? 'ep'}-${selectedModelId || 'model'}`}
-            className={inputClass}
           />
         </div>
 
@@ -444,7 +428,6 @@ export function AddEndpointDialog({
                   key={c.k}
                   type="button"
                   onClick={() => {
-                    setCapTouched(true);
                     setCapSelected((prev) => {
                       const set = new Set(prev);
                       if (set.has(c.k)) set.delete(c.k);
@@ -488,29 +471,28 @@ export function AddEndpointDialog({
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <label className={labelClass}>API 类型</label>
-                  <select
+                  <Select
                     value={apiType}
-                    onChange={(e) => setApiType(e.target.value as 'openai' | 'anthropic')}
-                    className={inputClass}
-                  >
-                    <option value="openai">openai</option>
-                    <option value="anthropic">anthropic</option>
-                  </select>
+                    onValueChange={(v) => setApiType(v as 'openai' | 'anthropic')}
+                    options={[
+                      { value: 'openai', label: 'openai' },
+                      { value: 'anthropic', label: 'anthropic' },
+                    ]}
+                  />
                 </div>
                 <div className="space-y-2">
                   <label className={labelClass}>优先级</label>
-                  <input
+                  <Input
                     type="number"
                     min={1}
                     value={endpointPriority}
                     onChange={(e) => setEndpointPriority(Number(e.target.value) || 1)}
-                    className={inputClass}
                   />
                 </div>
               </div>
               <div className="space-y-2">
                 <label className={labelClass}>API Key 环境变量名</label>
-                <input
+                <Input
                   type="text"
                   value={apiKeyEnv}
                   onChange={(e) => {
@@ -518,26 +500,24 @@ export function AddEndpointDialog({
                     setApiKeyEnv(e.target.value);
                   }}
                   placeholder="例如 OPENAI_API_KEY"
-                  className={inputClass}
                 />
               </div>
               <div className="space-y-2">
                 <label className={labelClass}>
                   最大 Token 数 <span className={hintClass}>0 表示不限制</span>
                 </label>
-                <input
+                <Input
                   type="number"
                   min={0}
                   value={maxTokens || ''}
                   onChange={(e) => setMaxTokens(Math.max(0, parseInt(e.target.value, 10) || 0))}
-                  className={inputClass}
                 />
               </div>
               <div className="space-y-2">
                 <label className={labelClass}>
                   上下文窗口 <span className={hintClass}>建议 1024 以上</span>
                 </label>
-                <input
+                <Input
                   type="number"
                   min={1024}
                   value={contextWindow}
@@ -546,31 +526,28 @@ export function AddEndpointDialog({
                       Math.max(1024, parseInt(e.target.value, 10) || DEFAULT_CONTEXT_WINDOW)
                     )
                   }
-                  className={inputClass}
                 />
               </div>
               <div className="space-y-2">
                 <label className={labelClass}>超时（秒）</label>
-                <input
+                <Input
                   type="number"
                   min={10}
                   value={timeoutSec}
                   onChange={(e) =>
                     setTimeoutSec(Math.max(10, parseInt(e.target.value, 10) || DEFAULT_TIMEOUT))
                   }
-                  className={inputClass}
                 />
               </div>
               <div className="space-y-2">
                 <label className={labelClass}>
                   RPM 限制 <span className={hintClass}>0 表示不限制</span>
                 </label>
-                <input
+                <Input
                   type="number"
                   min={0}
                   value={rpmLimit || ''}
                   onChange={(e) => setRpmLimit(Math.max(0, parseInt(e.target.value, 10) || 0))}
-                  className={inputClass}
                 />
               </div>
             </div>

@@ -168,6 +168,22 @@ code {
   background: var(--code-bg);
 }
 
+/* ========== 滚动条美化 ========== */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 99px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--muted-foreground);
+}
+
 /* ========== 公共弹窗组件 (SharedDialog) ========== */
 .shared-dialog-content {
   --dialog-bg: var(--bg);

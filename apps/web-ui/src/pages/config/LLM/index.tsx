@@ -104,7 +104,7 @@ export function ConfigLLMPage() {
   }
 
   return (
-    <div className="p-6 max-w-4xl">
+    <div className="p-6 max-w-4xl animate-in fade-in-50 duration-200">
       <h1 className="text-2xl font-bold text-foreground">LLM 端点</h1>
       <p className="mt-1 text-muted-foreground text-sm">配置 AI 模型端点，支持主备自动切换</p>
       {error && (

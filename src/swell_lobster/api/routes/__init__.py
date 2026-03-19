@@ -1,7 +1,10 @@
-"""API 路由模块。"""
+"""API 路由模块 — 汇总所有子路由。"""
 
 from .chat import router as chat_router
 from .config import router as config_router
+from .config_endpoints import router as config_endpoints_router
+from .config_env import router as config_env_router
+from .config_views import router as config_views_router
 from .identity import router as identity_router
 from .im import router as im_router
 from .mcp import router as mcp_router
@@ -13,6 +16,9 @@ from .token_stats import router as token_stats_router
 __all__ = [
     "chat_router",
     "config_router",
+    "config_endpoints_router",
+    "config_env_router",
+    "config_views_router",
     "identity_router",
     "im_router",
     "mcp_router",

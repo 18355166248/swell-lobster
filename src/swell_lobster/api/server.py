@@ -15,6 +15,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from swell_lobster.api.routes import (
     chat_router,
     config_router,
+    config_endpoints_router,
+    config_env_router,
+    config_views_router,
     identity_router,
     im_router,
     mcp_router,
@@ -41,7 +44,14 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    # ── Config（核心 + 子路由分组注册）
     app.include_router(config_router)
+    app.include_router(config_endpoints_router)
+    app.include_router(config_env_router)
+    app.include_router(config_views_router)
+
+    # ── 其他路由
     app.include_router(im_router)
     app.include_router(identity_router)
     app.include_router(chat_router)
@@ -50,6 +60,7 @@ def create_app() -> FastAPI:
     app.include_router(scheduler_router)
     app.include_router(memory_router)
     app.include_router(token_stats_router)
+
     return app
 
 

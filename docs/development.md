@@ -37,6 +37,15 @@ swell-lobster --help
 swell-lobster hello
 swell-lobster run "某个任务"
 swell-lobster serve   # 启动 HTTP API 服务（默认 http://127.0.0.1:18900），供前端配置与聊天等使用
+
+# 普通模式（不热更新，用于生产）
+swell-lobster serve
+# 开发模式（热更新，修改代码自动重启）
+swell-lobster serve --dev
+# 或简写
+swell-lobster serve -d
+# 也可以组合其他参数
+swell-lobster serve --dev --host 0.0.0.0 --port 8000
 ```
 
 pyproject.toml 里定义了：

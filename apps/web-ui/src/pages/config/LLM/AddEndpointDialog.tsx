@@ -1,7 +1,10 @@
+import { zodResolver } from '@hookform/resolvers/zod';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useForm } from 'react-hook-form';
 import { apiPost } from '../../../api/base';
-import { Input, Select, SharedDialog } from '../../../components/ui';
+import { FormField, Input, Select, SharedDialog } from '../../../components/ui';
 import { BUILTIN_PROVIDERS, CAPABILITY_OPTIONS } from './constants';
+import { endpointSchema, type EndpointFormValues } from './endpointSchema';
 import type { EndpointFormData, ListedModel, ProviderInfo } from './types';
 
 const DEFAULT_CONTEXT_WINDOW = 200000;
@@ -32,24 +35,9 @@ export function AddEndpointDialog({
   existingNames = [],
   endpointCount = 0,
 }: AddEndpointDialogProps) {
-  const [providerSlug, setProviderSlug] = useState('');
-  const [baseUrl, setBaseUrl] = useState('');
-  const [baseUrlTouched, setBaseUrlTouched] = useState(false);
-  const [apiKeyValue, setApiKeyValue] = useState('');
-  const [apiKeyEnv, setApiKeyEnv] = useState('');
-  const [apiKeyEnvTouched, setApiKeyEnvTouched] = useState(false);
-  const [apiType, setApiType] = useState<'openai' | 'anthropic'>('openai');
-  const [selectedModelId, setSelectedModelId] = useState('');
-  const [endpointName, setEndpointName] = useState('');
-  const [endpointNameTouched, setEndpointNameTouched] = useState(false);
-  const [capSelected, setCapSelected] = useState<string[]>(['text']);
-  const [endpointPriority, setEndpointPriority] = useState(1);
-  const [maxTokens, setMaxTokens] = useState(0);
-  const [contextWindow, setContextWindow] = useState(DEFAULT_CONTEXT_WINDOW);
-  const [timeoutSec, setTimeoutSec] = useState(DEFAULT_TIMEOUT);
-  const [rpmLimit, setRpmLimit] = useState(0);
-  const [baseUrlExpanded, setBaseUrlExpanded] = useState(false);
-  const [advancedOpen, setAdvancedOpen] = useState(false);
+  const providers = BUILTIN_PROVIDERS;
+
+  // 非表单 UI 状态
   const [models, setModels] = useState<ListedModel[]>([]);
   const [modelsLoading, setModelsLoading] = useState(false);
   const [connTesting, setConnTesting] = useState(false);
@@ -59,8 +47,47 @@ export function AddEndpointDialog({
     error?: string;
     modelCount?: number;
   } | null>(null);
+  const [baseUrlExpanded, setBaseUrlExpanded] = useState(false);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
 
-  const providers = BUILTIN_PROVIDERS;
+  const defaultProviderSlug =
+    providers.find((p) => p.slug === 'openai')?.slug ?? providers[0]?.slug ?? '';
+
+  const {
+    register,
+    handleSubmit,
+    watch,
+    setValue,
+    setError,
+    clearErrors,
+    reset,
+    formState: { errors, dirtyFields },
+  } = useForm<EndpointFormValues>({
+    resolver: zodResolver(endpointSchema),
+    defaultValues: {
+      providerSlug: defaultProviderSlug,
+      baseUrl: '',
+      apiKeyValue: '',
+      apiKeyEnv: '',
+      apiType: 'openai',
+      selectedModelId: '',
+      endpointName: '',
+      capSelected: ['text'],
+      endpointPriority: endpointCount === 0 ? 1 : endpointCount + 1,
+      maxTokens: 0,
+      contextWindow: DEFAULT_CONTEXT_WINDOW,
+      timeoutSec: DEFAULT_TIMEOUT,
+      rpmLimit: 0,
+    },
+  });
+
+  const providerSlug = watch('providerSlug');
+  const baseUrl = watch('baseUrl');
+  const apiKeyValue = watch('apiKeyValue');
+  const apiType = watch('apiType');
+  const selectedModelId = watch('selectedModelId');
+  const capSelected = watch('capSelected');
+
   const selectedProvider = useMemo(
     () => providers.find((p) => p.slug === providerSlug) ?? providers[0] ?? null,
     [providers, providerSlug]
@@ -69,51 +96,70 @@ export function AddEndpointDialog({
   const isCustomOrLocal =
     selectedProvider && ['custom', 'ollama', 'lmstudio'].includes(selectedProvider.slug);
   const showBaseUrl = isCustomOrLocal || baseUrlExpanded;
-
-  // 初始化默认服务商
-  useEffect(() => {
-    if (open && providers.length > 0 && !providerSlug) {
-      const defaultSlug =
-        providers.find((p) => p.slug === 'openai')?.slug ?? providers[0]?.slug ?? '';
-      setProviderSlug(defaultSlug);
-    }
-  }, [open, providers, providerSlug]);
+  const effectiveBaseUrl = baseUrl.trim() || selectedProvider?.default_base_url || '';
 
   // 随服务商更新 base_url / api_type / api_key_env 建议
   useEffect(() => {
     if (!selectedProvider) return;
-    setApiType((selectedProvider.api_type as 'openai' | 'anthropic') || 'openai');
-    if (!baseUrlTouched) setBaseUrl(selectedProvider.default_base_url || '');
-    setContextWindow(DEFAULT_CONTEXT_WINDOW);
-    if (!apiKeyEnvTouched) {
+    setValue('apiType', (selectedProvider.api_type as 'openai' | 'anthropic') || 'openai');
+    if (!dirtyFields.baseUrl) {
+      setValue('baseUrl', selectedProvider.default_base_url || '');
+    }
+    if (!dirtyFields.apiKeyEnv) {
       const used = new Set(existingNames);
       let suggestion =
         selectedProvider.api_key_env_suggestion ||
         `LLM_API_KEY_${selectedProvider.slug.toUpperCase()}`;
-      while (used.has(suggestion)) {
-        suggestion = `${suggestion}_2`;
-      }
-      setApiKeyEnv(suggestion);
+      while (used.has(suggestion)) suggestion = `${suggestion}_2`;
+      setValue('apiKeyEnv', suggestion);
     }
     if (isLocalProvider(selectedProvider) && !apiKeyValue.trim()) {
-      setApiKeyValue(localPlaceholderKey(selectedProvider));
+      setValue('apiKeyValue', localPlaceholderKey(selectedProvider));
     }
-  }, [selectedProvider, baseUrlTouched, apiKeyEnvTouched, existingNames, apiKeyValue]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedProvider]);
 
   // 建议端点名称：服务商-模型
   useEffect(() => {
-    if (!endpointNameTouched && selectedProvider && selectedModelId) {
-      const name = `${selectedProvider.slug}-${selectedModelId}`.slice(0, 64);
-      setEndpointName(name);
+    if (!dirtyFields.endpointName && selectedProvider && selectedModelId) {
+      setValue('endpointName', `${selectedProvider.slug}-${selectedModelId}`.slice(0, 64));
     }
-  }, [selectedProvider, selectedModelId, endpointNameTouched]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedProvider, selectedModelId]);
 
-  // 默认 priority
+  // 动态校验：非本地服务商必须填 API Key
   useEffect(() => {
-    if (open) {
-      setEndpointPriority(endpointCount === 0 ? 1 : endpointCount + 1);
+    if (!isLocalProvider(selectedProvider) && !apiKeyValue.trim()) {
+      setError('apiKeyValue', { message: 'API Key 不能为空' });
+    } else {
+      clearErrors('apiKeyValue');
     }
-  }, [open, endpointCount]);
+  }, [selectedProvider, apiKeyValue, setError, clearErrors]);
+
+  // 重置表单
+  useEffect(() => {
+    if (!open) return;
+    setBaseUrlExpanded(false);
+    setAdvancedOpen(false);
+    setModels([]);
+    setConnTestResult(null);
+    reset({
+      providerSlug: defaultProviderSlug,
+      baseUrl: '',
+      apiKeyValue: '',
+      apiKeyEnv: '',
+      apiType: 'openai',
+      selectedModelId: '',
+      endpointName: '',
+      capSelected: ['text'],
+      endpointPriority: endpointCount === 0 ? 1 : endpointCount + 1,
+      maxTokens: 0,
+      contextWindow: DEFAULT_CONTEXT_WINDOW,
+      timeoutSec: DEFAULT_TIMEOUT,
+      rpmLimit: 0,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
   const fetchModels = useCallback(async () => {
     const effectiveKey =
@@ -121,31 +167,29 @@ export function AddEndpointDialog({
       (isLocalProvider(selectedProvider) ? localPlaceholderKey(selectedProvider) : '');
     setModelsLoading(true);
     setModels([]);
-    setSelectedModelId('');
+    setValue('selectedModelId', '');
     try {
       const data = await apiPost<{ models?: ListedModel[]; error?: string }>(
         '/api/config/list-models',
         {
           api_type: apiType,
-          base_url: baseUrl.trim() || selectedProvider?.default_base_url || '',
+          base_url: effectiveBaseUrl,
           provider_slug: selectedProvider?.slug ?? null,
           api_key: effectiveKey,
         }
       );
-      const list = Array.isArray(data.models) ? data.models : [];
-      setModels(list);
-    } catch (e) {
+      setModels(Array.isArray(data.models) ? data.models : []);
+    } catch {
       setModels([]);
     } finally {
       setModelsLoading(false);
     }
-  }, [apiType, baseUrl, selectedProvider, apiKeyValue]);
+  }, [apiType, effectiveBaseUrl, selectedProvider, apiKeyValue, setValue]);
 
   const testConnection = useCallback(async () => {
     const effectiveKey =
       apiKeyValue.trim() ||
       (isLocalProvider(selectedProvider) ? localPlaceholderKey(selectedProvider) : '');
-    const url = baseUrl.trim() || selectedProvider?.default_base_url || '';
     setConnTesting(true);
     setConnTestResult(null);
     const t0 = performance.now();
@@ -154,7 +198,7 @@ export function AddEndpointDialog({
         '/api/config/list-models',
         {
           api_type: apiType,
-          base_url: url,
+          base_url: effectiveBaseUrl,
           provider_slug: selectedProvider?.slug ?? null,
           api_key: effectiveKey,
         }
@@ -163,107 +207,68 @@ export function AddEndpointDialog({
       if (data.error) {
         setConnTestResult({ ok: false, latencyMs: latency, error: data.error });
       } else {
-        const modelCount = Array.isArray(data.models) ? data.models.length : 0;
-        setConnTestResult({ ok: true, latencyMs: latency, modelCount });
+        setConnTestResult({
+          ok: true,
+          latencyMs: latency,
+          modelCount: Array.isArray(data.models) ? data.models.length : 0,
+        });
       }
     } catch (e) {
-      const latency = Math.round(performance.now() - t0);
       setConnTestResult({
         ok: false,
-        latencyMs: latency,
+        latencyMs: Math.round(performance.now() - t0),
         error: e instanceof Error ? e.message : '请求失败',
       });
     } finally {
       setConnTesting(false);
     }
-  }, [apiType, baseUrl, selectedProvider, apiKeyValue]);
+  }, [apiType, effectiveBaseUrl, selectedProvider, apiKeyValue]);
 
-  const handleSubmit = useCallback(() => {
-    const effectiveKey =
-      apiKeyValue.trim() ||
-      (isLocalProvider(selectedProvider) ? localPlaceholderKey(selectedProvider) : '');
-    const url = baseUrl.trim() || selectedProvider?.default_base_url || '';
-    const name =
-      endpointName.trim() || `${selectedProvider?.slug ?? 'ep'}-${selectedModelId}`.slice(0, 64);
-    if (existingNames.includes(name)) {
-      return;
-    }
-    const keyEnv =
-      apiKeyEnv.trim() || `LLM_API_KEY_${selectedProvider?.slug ?? 'custom'}`.toUpperCase();
-    const payload: EndpointFormData = {
-      name,
-      model: selectedModelId.trim(),
-      api_type: apiType,
-      base_url: url,
-      api_key_env: keyEnv,
-      api_key_value: effectiveKey && !isLocalProvider(selectedProvider) ? effectiveKey : undefined,
-      priority: Math.max(1, endpointPriority),
-      enabled: true,
-      provider: selectedProvider?.slug,
-      capabilities: capSelected.length ? capSelected : ['text'],
-      max_tokens: Math.max(0, maxTokens),
-      context_window: Math.max(1024, contextWindow),
-      timeout: Math.max(10, timeoutSec),
-      rpm_limit: Math.max(0, rpmLimit),
-    };
-    onConfirm(payload);
-    onOpenChange(false);
-  }, [
-    apiKeyValue,
-    selectedProvider,
-    baseUrl,
-    endpointName,
-    selectedModelId,
-    apiType,
-    apiKeyEnv,
-    endpointPriority,
-    capSelected,
-    maxTokens,
-    contextWindow,
-    timeoutSec,
-    rpmLimit,
-    existingNames,
-    onConfirm,
-    onOpenChange,
-  ]);
+  const onValid = useCallback(
+    (values: EndpointFormValues) => {
+      const url = values.baseUrl.trim() || selectedProvider?.default_base_url || '';
+      const name =
+        values.endpointName.trim() ||
+        `${selectedProvider?.slug ?? 'ep'}-${values.selectedModelId}`.slice(0, 64);
 
-  const missing: string[] = [];
-  const effectiveBaseUrl = baseUrl.trim() || selectedProvider?.default_base_url || '';
-  if (!effectiveBaseUrl) missing.push('API 地址');
-  if (!isLocalProvider(selectedProvider) && !apiKeyValue.trim()) missing.push('API Key');
-  if (!selectedModelId.trim()) missing.push('模型');
-  const canSubmit = missing.length === 0;
+      if (existingNames.includes(name)) {
+        setError('endpointName', { message: '端点名称已存在，请修改' });
+        return;
+      }
+
+      const effectiveKey =
+        values.apiKeyValue.trim() ||
+        (isLocalProvider(selectedProvider) ? localPlaceholderKey(selectedProvider) : '');
+
+      const keyEnv =
+        values.apiKeyEnv.trim() ||
+        `LLM_API_KEY_${selectedProvider?.slug ?? 'custom'}`.toUpperCase();
+
+      const payload: EndpointFormData = {
+        name,
+        model: values.selectedModelId.trim(),
+        api_type: values.apiType,
+        base_url: url,
+        api_key_env: keyEnv,
+        api_key_value:
+          effectiveKey && !isLocalProvider(selectedProvider) ? effectiveKey : undefined,
+        priority: Math.max(1, values.endpointPriority),
+        enabled: true,
+        provider: selectedProvider?.slug,
+        capabilities: values.capSelected.length ? values.capSelected : ['text'],
+        max_tokens: Math.max(0, values.maxTokens),
+        context_window: Math.max(1024, values.contextWindow),
+        timeout: Math.max(10, values.timeoutSec),
+        rpm_limit: Math.max(0, values.rpmLimit),
+      };
+
+      onConfirm(payload);
+      onOpenChange(false);
+    },
+    [selectedProvider, existingNames, onConfirm, onOpenChange, setError]
+  );
+
   const canTest = !!effectiveBaseUrl && (!!apiKeyValue.trim() || isLocalProvider(selectedProvider));
-
-  const resetForm = useCallback(() => {
-    setProviderSlug(providers[0]?.slug ?? '');
-    setBaseUrl('');
-    setBaseUrlTouched(false);
-    setApiKeyValue('');
-    setApiKeyEnv('');
-    setApiKeyEnvTouched(false);
-    setEndpointName('');
-    setEndpointNameTouched(false);
-    setSelectedModelId('');
-    setModels([]);
-    setCapSelected(['text']);
-    setEndpointPriority(endpointCount === 0 ? 1 : endpointCount + 1);
-    setMaxTokens(0);
-    setContextWindow(DEFAULT_CONTEXT_WINDOW);
-    setTimeoutSec(DEFAULT_TIMEOUT);
-    setRpmLimit(0);
-    setConnTestResult(null);
-    setAdvancedOpen(false);
-    setBaseUrlExpanded(false);
-  }, [providers, endpointCount]);
-
-  useEffect(() => {
-    if (!open) return;
-    resetForm();
-  }, [open, resetForm]);
-
-  const labelClass = 'block text-sm font-medium text-foreground';
-  const hintClass = 'text-xs text-muted-foreground';
 
   return (
     <SharedDialog
@@ -274,47 +279,41 @@ export function AddEndpointDialog({
       size="4"
       contentClassName="max-h-[85vh] flex flex-col"
       footer={
-        <>
-          <div className="flex flex-1 items-center justify-between gap-4 flex-wrap">
+        <div className="flex flex-1 items-center justify-between gap-4 flex-wrap">
+          <button
+            type="button"
+            onClick={() => onOpenChange(false)}
+            className="px-4 py-2 rounded-lg border border-border bg-transparent text-foreground text-sm font-medium hover:bg-muted transition-colors"
+          >
+            取消
+          </button>
+          <div className="flex items-center gap-2 flex-wrap">
             <button
               type="button"
-              onClick={() => onOpenChange(false)}
-              className="px-4 py-2 rounded-lg border border-border bg-transparent text-foreground text-sm font-medium hover:bg-muted transition-colors"
+              onClick={testConnection}
+              disabled={!canTest || connTesting}
+              className="px-4 py-2 rounded-lg border border-border bg-transparent text-foreground text-sm font-medium hover:bg-muted disabled:opacity-50 transition-colors"
             >
-              取消
+              {connTesting ? '测试中…' : '测试连接'}
             </button>
-            <div className="flex items-center gap-2 flex-wrap">
-              <button
-                type="button"
-                onClick={testConnection}
-                disabled={!canTest || connTesting}
-                className="px-4 py-2 rounded-lg border border-border bg-transparent text-foreground text-sm font-medium hover:bg-muted disabled:opacity-50 transition-colors"
-              >
-                {connTesting ? '测试中…' : '测试连接'}
-              </button>
-              <button
-                type="button"
-                onClick={handleSubmit}
-                disabled={!canSubmit}
-                className="px-4 py-2 rounded-lg bg-accent text-accent-foreground text-sm font-medium hover:opacity-90 disabled:opacity-50 transition-opacity"
-              >
-                确定
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={handleSubmit(onValid)}
+              className="px-4 py-2 rounded-lg bg-accent text-accent-foreground text-sm font-medium hover:opacity-90 transition-opacity"
+            >
+              确定
+            </button>
           </div>
-          {missing.length > 0 && (
-            <p className={`text-xs ${hintClass} text-right mt-1`}>缺少：{missing.join('、')}</p>
-          )}
-        </>
+        </div>
       }
     >
       <div className="space-y-5 overflow-y-auto min-h-0 flex-1 pr-1">
         {/* 服务商 */}
-        <div className="space-y-2">
-          <label className={labelClass}>
-            服务商
-            {!isCustomOrLocal && (
-              <span className={`ml-1.5 ${hintClass}`}>
+        <FormField
+          label="服务商"
+          hint={
+            !isCustomOrLocal ? (
+              <>
                 API 地址：{effectiveBaseUrl || '—'}{' '}
                 <button
                   type="button"
@@ -323,58 +322,53 @@ export function AddEndpointDialog({
                 >
                   {baseUrlExpanded ? '收起' : '配置'}
                 </button>
-              </span>
-            )}
-          </label>
+              </>
+            ) : undefined
+          }
+        >
           <Select
             value={providerSlug}
             onValueChange={(v) => {
-              setProviderSlug(v);
+              setValue('providerSlug', v, { shouldDirty: true });
               setBaseUrlExpanded(false);
             }}
             options={providers.map((p) => ({ value: p.slug, label: p.name }))}
           />
-        </div>
+        </FormField>
 
         {/* API 地址 */}
         {showBaseUrl && (
-          <div className="space-y-2">
-            <label className={labelClass}>
-              API 地址 <span className={hintClass}>以 http:// 或 https:// 开头</span>
-            </label>
+          <FormField
+            label="API 地址"
+            hint="以 http:// 或 https:// 开头"
+            error={errors.baseUrl?.message}
+          >
             <Input
               type="url"
-              value={baseUrl}
-              onChange={(e) => {
-                setBaseUrl(e.target.value);
-                setBaseUrlTouched(true);
-              }}
+              {...register('baseUrl')}
               placeholder={selectedProvider?.default_base_url || 'https://api.example.com/v1'}
             />
-          </div>
+          </FormField>
         )}
 
         {/* API Key */}
-        <div className="space-y-2">
-          <label className={labelClass}>
-            API Key
-            {isLocalProvider(selectedProvider) && (
-              <span className={`ml-1 ${hintClass}`}>（本地服务可留空）</span>
-            )}
-          </label>
+        <FormField
+          label="API Key"
+          hint={isLocalProvider(selectedProvider) ? '（本地服务可留空）' : undefined}
+          error={errors.apiKeyValue?.message}
+        >
           <Input
             type="password"
-            value={apiKeyValue}
-            onChange={(e) => setApiKeyValue(e.target.value)}
+            {...register('apiKeyValue')}
             placeholder={isLocalProvider(selectedProvider) ? '可选' : '输入调用大模型的 API Key'}
           />
-        </div>
+        </FormField>
 
         {/* 选择模型 */}
-        <div className="space-y-2">
-          <label className={labelClass}>
-            选择模型{' '}
-            <span className={hintClass}>
+        <FormField
+          label="选择模型"
+          hint={
+            <>
               可手动输入或
               <button
                 type="button"
@@ -387,12 +381,13 @@ export function AddEndpointDialog({
               {models.length > 0 && (
                 <span className="text-muted-foreground">（已拉取 {models.length} 个）</span>
               )}
-            </span>
-          </label>
+            </>
+          }
+          error={errors.selectedModelId?.message}
+        >
           <Input
             type="text"
-            value={selectedModelId}
-            onChange={(e) => setSelectedModelId(e.target.value)}
+            {...register('selectedModelId')}
             list="add-ep-model-list"
             placeholder={models.length > 0 ? '输入或选择模型 ID' : '例如 gpt-4o、claude-3-5-sonnet'}
           />
@@ -401,25 +396,19 @@ export function AddEndpointDialog({
               <option key={m.id} value={m.id} />
             ))}
           </datalist>
-        </div>
+        </FormField>
 
         {/* 端点名称 */}
-        <div className="space-y-2">
-          <label className={labelClass}>端点名称</label>
+        <FormField label="端点名称" error={errors.endpointName?.message}>
           <Input
             type="text"
-            value={endpointName}
-            onChange={(e) => {
-              setEndpointNameTouched(true);
-              setEndpointName(e.target.value);
-            }}
+            {...register('endpointName')}
             placeholder={`${selectedProvider?.slug ?? 'ep'}-${selectedModelId || 'model'}`}
           />
-        </div>
+        </FormField>
 
         {/* 模型能力 */}
-        <div className="space-y-2">
-          <label className={labelClass}>模型能力</label>
+        <FormField label="模型能力">
           <div className="flex flex-wrap gap-2">
             {CAPABILITY_OPTIONS.map((c) => {
               const on = capSelected.includes(c.k);
@@ -428,13 +417,11 @@ export function AddEndpointDialog({
                   key={c.k}
                   type="button"
                   onClick={() => {
-                    setCapSelected((prev) => {
-                      const set = new Set(prev);
-                      if (set.has(c.k)) set.delete(c.k);
-                      else set.add(c.k);
-                      const out = Array.from(set);
-                      return out.length ? out : ['text'];
-                    });
+                    const set = new Set(capSelected);
+                    if (set.has(c.k)) set.delete(c.k);
+                    else set.add(c.k);
+                    const out = Array.from(set);
+                    setValue('capSelected', out.length ? out : ['text'], { shouldDirty: true });
                   }}
                   className={
                     'inline-flex items-center justify-center h-9 px-4 rounded-lg border text-sm font-medium cursor-pointer transition-colors ' +
@@ -448,7 +435,7 @@ export function AddEndpointDialog({
               );
             })}
           </div>
-        </div>
+        </FormField>
 
         {/* 高级参数 */}
         <div className="rounded-xl border border-border overflow-hidden bg-muted/30">
@@ -469,87 +456,57 @@ export function AddEndpointDialog({
           {advancedOpen && (
             <div className="border-t border-border px-4 py-4 space-y-4 bg-card/50">
               <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <label className={labelClass}>API 类型</label>
+                <FormField label="API 类型">
                   <Select
                     value={apiType}
-                    onValueChange={(v) => setApiType(v as 'openai' | 'anthropic')}
+                    onValueChange={(v) =>
+                      setValue('apiType', v as 'openai' | 'anthropic', { shouldDirty: true })
+                    }
                     options={[
                       { value: 'openai', label: 'openai' },
                       { value: 'anthropic', label: 'anthropic' },
                     ]}
                   />
-                </div>
-                <div className="space-y-2">
-                  <label className={labelClass}>优先级</label>
+                </FormField>
+                <FormField label="优先级" error={errors.endpointPriority?.message}>
                   <Input
                     type="number"
                     min={1}
-                    value={endpointPriority}
-                    onChange={(e) => setEndpointPriority(Number(e.target.value) || 1)}
+                    {...register('endpointPriority', { valueAsNumber: true })}
                   />
-                </div>
+                </FormField>
               </div>
-              <div className="space-y-2">
-                <label className={labelClass}>API Key 环境变量名</label>
-                <Input
-                  type="text"
-                  value={apiKeyEnv}
-                  onChange={(e) => {
-                    setApiKeyEnvTouched(true);
-                    setApiKeyEnv(e.target.value);
-                  }}
-                  placeholder="例如 OPENAI_API_KEY"
-                />
-              </div>
-              <div className="space-y-2">
-                <label className={labelClass}>
-                  最大 Token 数 <span className={hintClass}>0 表示不限制</span>
-                </label>
-                <Input
-                  type="number"
-                  min={0}
-                  value={maxTokens || ''}
-                  onChange={(e) => setMaxTokens(Math.max(0, parseInt(e.target.value, 10) || 0))}
-                />
-              </div>
-              <div className="space-y-2">
-                <label className={labelClass}>
-                  上下文窗口 <span className={hintClass}>建议 1024 以上</span>
-                </label>
+              <FormField label="API Key 环境变量名">
+                <Input type="text" {...register('apiKeyEnv')} placeholder="例如 OPENAI_API_KEY" />
+              </FormField>
+              <FormField
+                label="最大 Token 数"
+                hint="0 表示不限制"
+                error={errors.maxTokens?.message}
+              >
+                <Input type="number" min={0} {...register('maxTokens', { valueAsNumber: true })} />
+              </FormField>
+              <FormField
+                label="上下文窗口"
+                hint="建议 1024 以上"
+                error={errors.contextWindow?.message}
+              >
                 <Input
                   type="number"
                   min={1024}
-                  value={contextWindow}
-                  onChange={(e) =>
-                    setContextWindow(
-                      Math.max(1024, parseInt(e.target.value, 10) || DEFAULT_CONTEXT_WINDOW)
-                    )
-                  }
+                  {...register('contextWindow', { valueAsNumber: true })}
                 />
-              </div>
-              <div className="space-y-2">
-                <label className={labelClass}>超时（秒）</label>
+              </FormField>
+              <FormField label="超时（秒）" error={errors.timeoutSec?.message}>
                 <Input
                   type="number"
                   min={10}
-                  value={timeoutSec}
-                  onChange={(e) =>
-                    setTimeoutSec(Math.max(10, parseInt(e.target.value, 10) || DEFAULT_TIMEOUT))
-                  }
+                  {...register('timeoutSec', { valueAsNumber: true })}
                 />
-              </div>
-              <div className="space-y-2">
-                <label className={labelClass}>
-                  RPM 限制 <span className={hintClass}>0 表示不限制</span>
-                </label>
-                <Input
-                  type="number"
-                  min={0}
-                  value={rpmLimit || ''}
-                  onChange={(e) => setRpmLimit(Math.max(0, parseInt(e.target.value, 10) || 0))}
-                />
-              </div>
+              </FormField>
+              <FormField label="RPM 限制" hint="0 表示不限制" error={errors.rpmLimit?.message}>
+                <Input type="number" min={0} {...register('rpmLimit', { valueAsNumber: true })} />
+              </FormField>
             </div>
           )}
         </div>

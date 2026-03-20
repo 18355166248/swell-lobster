@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { useAtomValue } from 'jotai';
 import { RouterProvider } from 'react-router';
 import { Theme } from '@radix-ui/themes';
+import { Toaster } from 'sonner';
 import '@radix-ui/themes/styles.css';
 import './index.css';
 import { router } from './router';
@@ -18,6 +19,7 @@ function AppWithTheme() {
       <Theme accentColor="violet" radius="medium" scaling="100%" appearance={appearance}>
         <RouterProvider router={router} />
       </Theme>
+      <Toaster theme={appearance} position="top-right" richColors duration={3000} />
     </>
   );
 }

@@ -1,6 +1,7 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
+import { toast } from 'sonner';
 import { apiGet, apiPost } from '../../../api/base';
 import { FormField, Input, Select, SharedDialog } from '../../../components/ui';
 import { CAPABILITY_OPTIONS } from './constants';
@@ -57,7 +58,6 @@ export function AddEndpointDialog({
     watch,
     setValue,
     setError,
-    clearErrors,
     reset,
     formState: { errors, dirtyFields },
   } = useForm<EndpointFormValues>({
@@ -125,14 +125,7 @@ export function AddEndpointDialog({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedProvider, selectedModelId]);
 
-  // 动态校验：非本地服务商必须填 API Key
-  useEffect(() => {
-    if (!isLocalProvider(selectedProvider) && !apiKeyValue.trim()) {
-      setError('apiKeyValue', { message: 'API Key 不能为空' });
-    } else {
-      clearErrors('apiKeyValue');
-    }
-  }, [selectedProvider, apiKeyValue, setError, clearErrors]);
+  // API Key 校验在 onValid 里做（提交时），避免弹窗一打开就报错
 
   // 重置表单 & 拉取 providers
   useEffect(() => {
@@ -198,8 +191,15 @@ export function AddEndpointDialog({
           api_key: effectiveKey,
         }
       );
-      setModels(Array.isArray(data.models) ? data.models : []);
-    } catch {
+      const list = Array.isArray(data.models) ? data.models : [];
+      setModels(list);
+      if (data.error) {
+        toast.error(`拉取失败：${data.error}`);
+      } else {
+        toast.success(`成功拉取 ${list.length} 个模型`);
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : '拉取模型列表失败');
       setModels([]);
     } finally {
       setModelsLoading(false);
@@ -256,9 +256,14 @@ export function AddEndpointDialog({
         return;
       }
 
+      // 非本地服务商必须填写 API Key（在提交时校验，避免弹窗刚打开就报错）
       const effectiveKey =
         values.apiKeyValue.trim() ||
         (isLocalProvider(selectedProvider) ? localPlaceholderKey(selectedProvider) : '');
+      if (!isLocalProvider(selectedProvider) && !effectiveKey) {
+        setError('apiKeyValue', { message: 'API Key 不能为空', type: 'manual' });
+        return;
+      }
 
       const keyEnv =
         values.apiKeyEnv.trim() ||

@@ -4,7 +4,8 @@
   "version": "0.0.0",
   "type": "module",
   "workspaces": [
-    "apps/*"
+    "apps/*",
+    "src/tide-lobster"
   ],
   "engines": {
     "node": ">=20.20.0"

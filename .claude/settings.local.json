@@ -7,7 +7,9 @@
       "Bash(npx tsc:*)",
       "Bash(npx vite:*)",
       "Bash(git commit:*)",
-      "Bash(node -e \"const p=require\\(''./apps/web-ui/node_modules/antd/package.json''\\); console.log\\(p.version\\)\")"
+      "Bash(node -e \"const p=require\\(''./apps/web-ui/node_modules/antd/package.json''\\); console.log\\(p.version\\)\")",
+      "Bash(lsof -ti:18900)",
+      "Bash(xargs kill:*)"
     ]
   }
 }

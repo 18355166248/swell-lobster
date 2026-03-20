@@ -1,9 +1,9 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
-import { apiPost } from '../../../api/base';
+import { apiGet, apiPost } from '../../../api/base';
 import { FormField, Input, Select, SharedDialog } from '../../../components/ui';
-import { BUILTIN_PROVIDERS, CAPABILITY_OPTIONS } from './constants';
+import { CAPABILITY_OPTIONS } from './constants';
 import { endpointSchema, type EndpointFormValues } from './endpointSchema';
 import type { EndpointFormData, ListedModel, ProviderInfo } from './types';
 
@@ -35,9 +35,10 @@ export function AddEndpointDialog({
   existingNames = [],
   endpointCount = 0,
 }: AddEndpointDialogProps) {
-  const providers = BUILTIN_PROVIDERS;
-
   // 非表单 UI 状态
+  const [providers, setProviders] = useState<ProviderInfo[]>([]);
+  const [providersLoading, setProvidersLoading] = useState(false);
+  const [providersError, setProvidersError] = useState<string | null>(null);
   const [models, setModels] = useState<ListedModel[]>([]);
   const [modelsLoading, setModelsLoading] = useState(false);
   const [connTesting, setConnTesting] = useState(false);
@@ -49,9 +50,6 @@ export function AddEndpointDialog({
   } | null>(null);
   const [baseUrlExpanded, setBaseUrlExpanded] = useState(false);
   const [advancedOpen, setAdvancedOpen] = useState(false);
-
-  const defaultProviderSlug =
-    providers.find((p) => p.slug === 'openai')?.slug ?? providers[0]?.slug ?? '';
 
   const {
     register,
@@ -65,11 +63,11 @@ export function AddEndpointDialog({
   } = useForm<EndpointFormValues>({
     resolver: zodResolver(endpointSchema),
     defaultValues: {
-      providerSlug: defaultProviderSlug,
+      providerSlug: '',
       baseUrl: '',
       apiKeyValue: '',
       apiKeyEnv: '',
-      apiType: 'openai',
+      apiType: 'anthropic',
       selectedModelId: '',
       endpointName: '',
       capSelected: ['text'],
@@ -101,7 +99,7 @@ export function AddEndpointDialog({
   // 随服务商更新 base_url / api_type / api_key_env 建议
   useEffect(() => {
     if (!selectedProvider) return;
-    setValue('apiType', (selectedProvider.api_type as 'openai' | 'anthropic') || 'openai');
+    setValue('apiType', (selectedProvider.api_type as 'openai' | 'anthropic') || 'anthropic');
     if (!dirtyFields.baseUrl) {
       setValue('baseUrl', selectedProvider.default_base_url || '');
     }
@@ -136,7 +134,7 @@ export function AddEndpointDialog({
     }
   }, [selectedProvider, apiKeyValue, setError, clearErrors]);
 
-  // 重置表单
+  // 重置表单 & 拉取 providers
   useEffect(() => {
     if (!open) return;
     setBaseUrlExpanded(false);
@@ -144,11 +142,11 @@ export function AddEndpointDialog({
     setModels([]);
     setConnTestResult(null);
     reset({
-      providerSlug: defaultProviderSlug,
+      providerSlug: '',
       baseUrl: '',
       apiKeyValue: '',
       apiKeyEnv: '',
-      apiType: 'openai',
+      apiType: 'anthropic',
       selectedModelId: '',
       endpointName: '',
       capSelected: ['text'],
@@ -158,8 +156,30 @@ export function AddEndpointDialog({
       timeoutSec: DEFAULT_TIMEOUT,
       rpmLimit: 0,
     });
+
+    setProviders([]);
+    setProvidersError(null);
+    setProvidersLoading(true);
+    apiGet<{ providers?: ProviderInfo[] } | ProviderInfo[]>('/api/config/providers')
+      .then((data) => {
+        const list = Array.isArray(data) ? data : (data.providers ?? []);
+        setProviders(list);
+      })
+      .catch(() => {
+        setProvidersError('服务商列表加载失败');
+      })
+      .finally(() => setProvidersLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
+
+  // providers 加载完成后自动选中默认服务商
+  useEffect(() => {
+    if (providers.length === 0) return;
+    if (watch('providerSlug')) return;
+    const slug = providers[0].slug;
+    setValue('providerSlug', slug);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [providers]);
 
   const fetchModels = useCallback(async () => {
     const effectiveKey =
@@ -333,7 +353,10 @@ export function AddEndpointDialog({
               setBaseUrlExpanded(false);
             }}
             options={providers.map((p) => ({ value: p.slug, label: p.name }))}
+            disabled={providersLoading}
+            placeholder={providersLoading ? '加载中…' : '选择服务商'}
           />
+          {providersError && <p className="text-xs text-red-500 mt-1">{providersError}</p>}
         </FormField>
 
         {/* API 地址 */}
@@ -385,17 +408,20 @@ export function AddEndpointDialog({
           }
           error={errors.selectedModelId?.message}
         >
-          <Input
-            type="text"
-            {...register('selectedModelId')}
-            list="add-ep-model-list"
-            placeholder={models.length > 0 ? '输入或选择模型 ID' : '例如 gpt-4o、claude-3-5-sonnet'}
-          />
-          <datalist id="add-ep-model-list">
-            {models.map((m) => (
-              <option key={m.id} value={m.id} />
-            ))}
-          </datalist>
+          {models.length > 0 ? (
+            <Select
+              value={selectedModelId}
+              onValueChange={(v) => setValue('selectedModelId', v, { shouldDirty: true })}
+              options={models.map((m) => ({ value: m.id, label: m.name || m.id }))}
+              placeholder="选择模型 ID"
+            />
+          ) : (
+            <Input
+              type="text"
+              {...register('selectedModelId')}
+              placeholder="例如 gpt-4o、claude-3-5-sonnet"
+            />
+          )}
         </FormField>
 
         {/* 端点名称 */}

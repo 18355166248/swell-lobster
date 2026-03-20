@@ -4,7 +4,7 @@ Config routes — LLM 端点管理
 覆盖接口:
 - GET  /api/config/endpoints      读取 data/llm_endpoints.json
 - POST /api/config/endpoints      写入 data/llm_endpoints.json
-- GET  /api/config/providers      服务商列表（占位）
+- GET  /api/config/providers      服务商列表（来自 llm.registries）
 - POST /api/config/list-models    拉取模型列表（委托 llm.bridge）
 """
 
@@ -79,8 +79,20 @@ async def write_endpoints(body: EndpointsWriteRequest) -> dict:
 
 @router.get("/api/config/providers")
 async def list_providers_api() -> dict:
-    """返回已注册的 LLM 服务商列表（占位：返回空列表）。"""
-    return {"providers": []}
+    """返回已注册的 LLM 服务商列表。
+
+    数据来源：
+    - 内置 llm/registries/providers.json（随版本更新）
+    - 工作区 data/custom_providers.json（用户自定义，可选）
+    """
+    try:
+        from swell_lobster.llm.registries import list_providers
+
+        providers = list_providers()
+        return {"providers": [p.to_dict() for p in providers]}
+    except Exception as exc:
+        logger.error("[Providers API] list_providers failed: %s", exc, exc_info=True)
+        return {"providers": [], "error": str(exc)}
 
 
 @router.post("/api/config/list-models")

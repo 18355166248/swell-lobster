@@ -9,7 +9,9 @@
       "Bash(git commit:*)",
       "Bash(node -e \"const p=require\\(''./apps/web-ui/node_modules/antd/package.json''\\); console.log\\(p.version\\)\")",
       "Bash(lsof -ti:18900)",
-      "Bash(xargs kill:*)"
+      "Bash(xargs kill:*)",
+      "Bash(mkdir -p ~/.claude/channels/telegram/approved)",
+      "Bash(~/.claude/channels/telegram/approved/6877408325)"
     ]
   }
 }

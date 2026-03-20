@@ -1,9 +1,11 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
-import { toast } from 'sonner';
+import { message } from 'antd';
+import { Modal, Button, Space, Alert, Collapse } from 'antd';
+import { useTranslation } from 'react-i18next';
 import { apiGet, apiPost } from '../../../api/base';
-import { FormField, Input, Select, SharedDialog } from '../../../components/ui';
+import { FormField, Input, Select } from '../../../components/ui';
 import { CAPABILITY_OPTIONS } from './constants';
 import { endpointSchema, type EndpointFormValues } from './endpointSchema';
 import type { EndpointFormData, ListedModel, ProviderInfo } from './types';
@@ -23,9 +25,7 @@ export type AddEndpointDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onConfirm: (data: EndpointFormData) => void;
-  /** 已有端点名称，用于校验重名 */
   existingNames?: string[];
-  /** 当前端点数量，用于默认 priority */
   endpointCount?: number;
 };
 
@@ -36,7 +36,9 @@ export function AddEndpointDialog({
   existingNames = [],
   endpointCount = 0,
 }: AddEndpointDialogProps) {
-  // 非表单 UI 状态
+  const { t } = useTranslation();
+  const [messageApi, contextHolder] = message.useMessage();
+
   const [providers, setProviders] = useState<ProviderInfo[]>([]);
   const [providersLoading, setProvidersLoading] = useState(false);
   const [providersError, setProvidersError] = useState<string | null>(null);
@@ -50,7 +52,6 @@ export function AddEndpointDialog({
     modelCount?: number;
   } | null>(null);
   const [baseUrlExpanded, setBaseUrlExpanded] = useState(false);
-  const [advancedOpen, setAdvancedOpen] = useState(false);
 
   const {
     register,
@@ -96,7 +97,6 @@ export function AddEndpointDialog({
   const showBaseUrl = isCustomOrLocal || baseUrlExpanded;
   const effectiveBaseUrl = baseUrl.trim() || selectedProvider?.default_base_url || '';
 
-  // 随服务商更新 base_url / api_type / api_key_env 建议
   useEffect(() => {
     if (!selectedProvider) return;
     setValue('apiType', (selectedProvider.api_type as 'openai' | 'anthropic') || 'anthropic');
@@ -117,7 +117,6 @@ export function AddEndpointDialog({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedProvider]);
 
-  // 建议端点名称：服务商-模型
   useEffect(() => {
     if (!dirtyFields.endpointName && selectedProvider && selectedModelId) {
       setValue('endpointName', `${selectedProvider.slug}-${selectedModelId}`.slice(0, 64));
@@ -125,13 +124,9 @@ export function AddEndpointDialog({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedProvider, selectedModelId]);
 
-  // API Key 校验在 onValid 里做（提交时），避免弹窗一打开就报错
-
-  // 重置表单 & 拉取 providers
   useEffect(() => {
     if (!open) return;
     setBaseUrlExpanded(false);
-    setAdvancedOpen(false);
     setModels([]);
     setConnTestResult(null);
     reset({
@@ -158,19 +153,15 @@ export function AddEndpointDialog({
         const list = Array.isArray(data) ? data : (data.providers ?? []);
         setProviders(list);
       })
-      .catch(() => {
-        setProvidersError('服务商列表加载失败');
-      })
+      .catch(() => setProvidersError(t('addEndpoint.providerLoadFailed')))
       .finally(() => setProvidersLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
-  // providers 加载完成后自动选中默认服务商
   useEffect(() => {
     if (providers.length === 0) return;
     if (watch('providerSlug')) return;
-    const slug = providers[0].slug;
-    setValue('providerSlug', slug);
+    setValue('providerSlug', providers[0].slug);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [providers]);
 
@@ -194,17 +185,17 @@ export function AddEndpointDialog({
       const list = Array.isArray(data.models) ? data.models : [];
       setModels(list);
       if (data.error) {
-        toast.error(`拉取失败：${data.error}`);
+        messageApi.error(t('addEndpoint.fetchFailed', { error: data.error }));
       } else {
-        toast.success(`成功拉取 ${list.length} 个模型`);
+        messageApi.success(t('addEndpoint.fetchSuccess', { count: list.length }));
       }
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : '拉取模型列表失败');
+      messageApi.error(e instanceof Error ? e.message : t('addEndpoint.fetchError'));
       setModels([]);
     } finally {
       setModelsLoading(false);
     }
-  }, [apiType, effectiveBaseUrl, selectedProvider, apiKeyValue, setValue]);
+  }, [apiType, effectiveBaseUrl, selectedProvider, apiKeyValue, setValue, messageApi, t]);
 
   const testConnection = useCallback(async () => {
     const effectiveKey =
@@ -252,16 +243,15 @@ export function AddEndpointDialog({
         `${selectedProvider?.slug ?? 'ep'}-${values.selectedModelId}`.slice(0, 64);
 
       if (existingNames.includes(name)) {
-        setError('endpointName', { message: '端点名称已存在，请修改' });
+        setError('endpointName', { message: t('addEndpoint.nameExists') });
         return;
       }
 
-      // 非本地服务商必须填写 API Key（在提交时校验，避免弹窗刚打开就报错）
       const effectiveKey =
         values.apiKeyValue.trim() ||
         (isLocalProvider(selectedProvider) ? localPlaceholderKey(selectedProvider) : '');
       if (!isLocalProvider(selectedProvider) && !effectiveKey) {
-        setError('apiKeyValue', { message: 'API Key 不能为空', type: 'manual' });
+        setError('apiKeyValue', { message: t('addEndpoint.apiKeyRequired'), type: 'manual' });
         return;
       }
 
@@ -290,52 +280,109 @@ export function AddEndpointDialog({
       onConfirm(payload);
       onOpenChange(false);
     },
-    [selectedProvider, existingNames, onConfirm, onOpenChange, setError]
+    [selectedProvider, existingNames, onConfirm, onOpenChange, setError, t]
   );
 
   const canTest = !!effectiveBaseUrl && (!!apiKeyValue.trim() || isLocalProvider(selectedProvider));
 
-  return (
-    <SharedDialog
-      open={open}
-      onOpenChange={onOpenChange}
-      title="添加端点"
-      description="配置新的 LLM 端点：服务商、API 地址、API Key、模型、端点名称与模型能力。"
-      size="4"
-      contentClassName="max-h-[85vh] flex flex-col"
-      footer={
-        <div className="flex flex-1 items-center justify-between gap-4 flex-wrap">
-          <button
-            type="button"
-            onClick={() => onOpenChange(false)}
-            className="px-4 py-2 rounded-lg border border-border bg-transparent text-foreground text-sm font-medium hover:bg-muted transition-colors"
-          >
-            取消
-          </button>
-          <div className="flex items-center gap-2 flex-wrap">
-            <button
-              type="button"
-              onClick={testConnection}
-              disabled={!canTest || connTesting}
-              className="px-4 py-2 rounded-lg border border-border bg-transparent text-foreground text-sm font-medium hover:bg-muted disabled:opacity-50 transition-colors"
-            >
-              {connTesting ? '测试中…' : '测试连接'}
-            </button>
-            <button
-              type="button"
-              onClick={handleSubmit(onValid)}
-              className="px-4 py-2 rounded-lg bg-accent text-accent-foreground text-sm font-medium hover:opacity-90 transition-opacity"
-            >
-              确定
-            </button>
+  const footer = (
+    <div className="flex items-center justify-between gap-4 flex-wrap">
+      <Button onClick={() => onOpenChange(false)}>{t('common.cancel')}</Button>
+      <Space wrap>
+        <Button onClick={testConnection} disabled={!canTest || connTesting} loading={connTesting}>
+          {connTesting ? t('addEndpoint.testing') : t('addEndpoint.testConnection')}
+        </Button>
+        <Button type="primary" onClick={handleSubmit(onValid)}>
+          {t('common.confirm')}
+        </Button>
+      </Space>
+    </div>
+  );
+
+  const advancedItems = [
+    {
+      key: 'advanced',
+      label: t('addEndpoint.advanced'),
+      children: (
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <FormField label={t('addEndpoint.apiType')}>
+              <Select
+                value={apiType}
+                onValueChange={(v) =>
+                  setValue('apiType', v as 'openai' | 'anthropic', { shouldDirty: true })
+                }
+                options={[
+                  { value: 'openai', label: 'openai' },
+                  { value: 'anthropic', label: 'anthropic' },
+                ]}
+              />
+            </FormField>
+            <FormField label={t('addEndpoint.priority')} error={errors.endpointPriority?.message}>
+              <Input
+                type="number"
+                min={1}
+                {...register('endpointPriority', { valueAsNumber: true })}
+              />
+            </FormField>
           </div>
+          <FormField label={t('addEndpoint.apiKeyEnvName')}>
+            <Input
+              type="text"
+              {...register('apiKeyEnv')}
+              placeholder={t('addEndpoint.apiKeyEnvPlaceholder')}
+            />
+          </FormField>
+          <FormField
+            label={t('addEndpoint.maxTokens')}
+            hint={t('addEndpoint.maxTokensHint')}
+            error={errors.maxTokens?.message}
+          >
+            <Input type="number" min={0} {...register('maxTokens', { valueAsNumber: true })} />
+          </FormField>
+          <FormField
+            label={t('addEndpoint.contextWindow')}
+            hint={t('addEndpoint.contextWindowHint')}
+            error={errors.contextWindow?.message}
+          >
+            <Input
+              type="number"
+              min={1024}
+              {...register('contextWindow', { valueAsNumber: true })}
+            />
+          </FormField>
+          <FormField label={t('addEndpoint.timeout')} error={errors.timeoutSec?.message}>
+            <Input type="number" min={10} {...register('timeoutSec', { valueAsNumber: true })} />
+          </FormField>
+          <FormField
+            label={t('addEndpoint.rpmLimit')}
+            hint={t('addEndpoint.rpmLimitHint')}
+            error={errors.rpmLimit?.message}
+          >
+            <Input type="number" min={0} {...register('rpmLimit', { valueAsNumber: true })} />
+          </FormField>
         </div>
-      }
-    >
-      <div className="space-y-5 overflow-y-auto min-h-0 flex-1 pr-1">
+      ),
+    },
+  ];
+
+  return (
+    <>
+      {contextHolder}
+      <Modal
+        open={open}
+        onCancel={() => onOpenChange(false)}
+        title={t('addEndpoint.title')}
+        footer={footer}
+        width={720}
+        destroyOnHidden
+        styles={{ body: { maxHeight: '65vh', overflowY: 'auto', paddingTop: 8 } }}
+      >
+        <p className="text-sm text-muted-foreground mb-4">{t('addEndpoint.description')}</p>
+
         {/* 服务商 */}
         <FormField
-          label="服务商"
+          label={t('addEndpoint.provider')}
           hint={
             !isCustomOrLocal ? (
               <>
@@ -345,7 +392,9 @@ export function AddEndpointDialog({
                   className="text-accent hover:underline focus:outline-none"
                   onClick={() => setBaseUrlExpanded((v) => !v)}
                 >
-                  {baseUrlExpanded ? '收起' : '配置'}
+                  {baseUrlExpanded
+                    ? t('addEndpoint.apiUrlCollapse')
+                    : t('addEndpoint.apiUrlConfig')}
                 </button>
               </>
             ) : undefined
@@ -359,7 +408,11 @@ export function AddEndpointDialog({
             }}
             options={providers.map((p) => ({ value: p.slug, label: p.name }))}
             disabled={providersLoading}
-            placeholder={providersLoading ? '加载中…' : '选择服务商'}
+            placeholder={
+              providersLoading
+                ? t('addEndpoint.providerLoading')
+                : t('addEndpoint.providerPlaceholder')
+            }
           />
           {providersError && <p className="text-xs text-red-500 mt-1">{providersError}</p>}
         </FormField>
@@ -367,8 +420,8 @@ export function AddEndpointDialog({
         {/* API 地址 */}
         {showBaseUrl && (
           <FormField
-            label="API 地址"
-            hint="以 http:// 或 https:// 开头"
+            label={t('addEndpoint.apiUrl')}
+            hint={t('addEndpoint.apiUrlHint')}
             error={errors.baseUrl?.message}
           >
             <Input
@@ -381,33 +434,39 @@ export function AddEndpointDialog({
 
         {/* API Key */}
         <FormField
-          label="API Key"
-          hint={isLocalProvider(selectedProvider) ? '（本地服务可留空）' : undefined}
+          label={t('addEndpoint.apiKey')}
+          hint={isLocalProvider(selectedProvider) ? t('addEndpoint.apiKeyOptional') : undefined}
           error={errors.apiKeyValue?.message}
         >
           <Input
             type="password"
             {...register('apiKeyValue')}
-            placeholder={isLocalProvider(selectedProvider) ? '可选' : '输入调用大模型的 API Key'}
+            placeholder={
+              isLocalProvider(selectedProvider)
+                ? t('addEndpoint.apiKeyOptionalPlaceholder')
+                : t('addEndpoint.apiKeyPlaceholder')
+            }
           />
         </FormField>
 
         {/* 选择模型 */}
         <FormField
-          label="选择模型"
+          label={t('addEndpoint.model')}
           hint={
             <>
-              可手动输入或
+              {t('addEndpoint.modelManualHint')}
               <button
                 type="button"
                 className="text-accent hover:underline ml-0.5 disabled:opacity-50 focus:outline-none"
                 onClick={fetchModels}
                 disabled={modelsLoading || !effectiveBaseUrl}
               >
-                {modelsLoading ? '拉取中…' : '拉取模型列表'}
+                {modelsLoading ? t('addEndpoint.modelFetching') : t('addEndpoint.modelFetchBtn')}
               </button>
               {models.length > 0 && (
-                <span className="text-muted-foreground">（已拉取 {models.length} 个）</span>
+                <span className="text-muted-foreground">
+                  {t('addEndpoint.modelFetched', { count: models.length })}
+                </span>
               )}
             </>
           }
@@ -418,19 +477,19 @@ export function AddEndpointDialog({
               value={selectedModelId}
               onValueChange={(v) => setValue('selectedModelId', v, { shouldDirty: true })}
               options={models.map((m) => ({ value: m.id, label: m.name || m.id }))}
-              placeholder="选择模型 ID"
+              placeholder={t('addEndpoint.modelPlaceholder')}
             />
           ) : (
             <Input
               type="text"
               {...register('selectedModelId')}
-              placeholder="例如 gpt-4o、claude-3-5-sonnet"
+              placeholder={t('addEndpoint.modelInputPlaceholder')}
             />
           )}
         </FormField>
 
         {/* 端点名称 */}
-        <FormField label="端点名称" error={errors.endpointName?.message}>
+        <FormField label={t('addEndpoint.endpointName')} error={errors.endpointName?.message}>
           <Input
             type="text"
             {...register('endpointName')}
@@ -439,14 +498,15 @@ export function AddEndpointDialog({
         </FormField>
 
         {/* 模型能力 */}
-        <FormField label="模型能力">
+        <FormField label={t('addEndpoint.capabilities')}>
           <div className="flex flex-wrap gap-2">
             {CAPABILITY_OPTIONS.map((c) => {
               const on = capSelected.includes(c.k);
               return (
-                <button
+                <Button
                   key={c.k}
-                  type="button"
+                  type={on ? 'primary' : 'default'}
+                  size="small"
                   onClick={() => {
                     const set = new Set(capSelected);
                     if (set.has(c.k)) set.delete(c.k);
@@ -454,110 +514,37 @@ export function AddEndpointDialog({
                     const out = Array.from(set);
                     setValue('capSelected', out.length ? out : ['text'], { shouldDirty: true });
                   }}
-                  className={
-                    'inline-flex items-center justify-center h-9 px-4 rounded-lg border text-sm font-medium cursor-pointer transition-colors ' +
-                    (on
-                      ? 'border-accent bg-accent text-accent-foreground hover:opacity-90'
-                      : 'border-border bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground')
-                  }
                 >
                   {c.name}
-                </button>
+                </Button>
               );
             })}
           </div>
         </FormField>
 
         {/* 高级参数 */}
-        <div className="rounded-xl border border-border overflow-hidden bg-muted/30">
-          <button
-            type="button"
-            onClick={() => setAdvancedOpen((v) => !v)}
-            className="w-full cursor-pointer flex items-center gap-2 px-4 py-3 text-sm font-medium text-foreground hover:bg-muted/50 transition-colors text-left border-0"
-          >
-            <span
-              className="inline-block w-4 h-4 transition-transform duration-200"
-              style={{ transform: advancedOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}
-              aria-hidden
-            >
-              ▼
-            </span>
-            高级参数
-          </button>
-          {advancedOpen && (
-            <div className="border-t border-border px-4 py-4 space-y-4 bg-card/50">
-              <div className="grid grid-cols-2 gap-4">
-                <FormField label="API 类型">
-                  <Select
-                    value={apiType}
-                    onValueChange={(v) =>
-                      setValue('apiType', v as 'openai' | 'anthropic', { shouldDirty: true })
-                    }
-                    options={[
-                      { value: 'openai', label: 'openai' },
-                      { value: 'anthropic', label: 'anthropic' },
-                    ]}
-                  />
-                </FormField>
-                <FormField label="优先级" error={errors.endpointPriority?.message}>
-                  <Input
-                    type="number"
-                    min={1}
-                    {...register('endpointPriority', { valueAsNumber: true })}
-                  />
-                </FormField>
-              </div>
-              <FormField label="API Key 环境变量名">
-                <Input type="text" {...register('apiKeyEnv')} placeholder="例如 OPENAI_API_KEY" />
-              </FormField>
-              <FormField
-                label="最大 Token 数"
-                hint="0 表示不限制"
-                error={errors.maxTokens?.message}
-              >
-                <Input type="number" min={0} {...register('maxTokens', { valueAsNumber: true })} />
-              </FormField>
-              <FormField
-                label="上下文窗口"
-                hint="建议 1024 以上"
-                error={errors.contextWindow?.message}
-              >
-                <Input
-                  type="number"
-                  min={1024}
-                  {...register('contextWindow', { valueAsNumber: true })}
-                />
-              </FormField>
-              <FormField label="超时（秒）" error={errors.timeoutSec?.message}>
-                <Input
-                  type="number"
-                  min={10}
-                  {...register('timeoutSec', { valueAsNumber: true })}
-                />
-              </FormField>
-              <FormField label="RPM 限制" hint="0 表示不限制" error={errors.rpmLimit?.message}>
-                <Input type="number" min={0} {...register('rpmLimit', { valueAsNumber: true })} />
-              </FormField>
-            </div>
-          )}
-        </div>
+        <Collapse size="small" items={advancedItems} className="mt-2" />
 
-        {/* 测试连接结果 */}
+        {/* 连接测试结果 */}
         {connTestResult && (
-          <div
-            className={
-              'rounded-lg px-4 py-3 text-sm ' +
-              (connTestResult.ok
-                ? 'bg-emerald-500/10 dark:bg-emerald-500/20 border border-emerald-500/30 text-emerald-700 dark:text-emerald-400'
-                : 'bg-red-500/10 dark:bg-red-500/20 border border-red-500/30 text-red-700 dark:text-red-400')
+          <Alert
+            type={connTestResult.ok ? 'success' : 'error'}
+            className="mt-4"
+            message={
+              connTestResult.ok
+                ? t('addEndpoint.testSuccess', {
+                    ms: connTestResult.latencyMs,
+                    count: connTestResult.modelCount ?? 0,
+                  })
+                : t('addEndpoint.testFailed', {
+                    error: connTestResult.error ?? '未知',
+                    ms: connTestResult.latencyMs,
+                  })
             }
-          >
-            {connTestResult.ok
-              ? `连接成功 · ${connTestResult.latencyMs}ms · 模型数：${connTestResult.modelCount ?? 0}`
-              : `连接失败：${connTestResult.error ?? '未知'} (${connTestResult.latencyMs}ms)`}
-          </div>
+            showIcon
+          />
         )}
-      </div>
-    </SharedDialog>
+      </Modal>
+    </>
   );
 }

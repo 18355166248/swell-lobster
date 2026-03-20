@@ -1,9 +1,14 @@
 import { useEffect, useState } from 'react';
+import { Button, Alert, Spin, Typography } from 'antd';
+import { useTranslation } from 'react-i18next';
 import { apiGet, apiPost } from '../../../api/base';
+
+const { Title, Text } = Typography;
 
 type FileItem = { path: string; name: string };
 
 export function ConfigIdentityPage() {
+  const { t } = useTranslation();
   const [files, setFiles] = useState<FileItem[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
   const [content, setContent] = useState('');
@@ -18,7 +23,7 @@ export function ConfigIdentityPage() {
       const data = await apiGet<{ files: FileItem[] }>('/api/identity/files');
       setFiles(data.files ?? []);
     } catch (e) {
-      setError(e instanceof Error ? e.message : '加载失败');
+      setError(e instanceof Error ? e.message : t('configIdentity.loadFailed'));
       setFiles([]);
     } finally {
       setLoading(false);
@@ -36,7 +41,7 @@ export function ConfigIdentityPage() {
       const data = await apiGet<{ content: string }>(`/api/identity/files/${path}`);
       setContent(data.content ?? '');
     } catch (e) {
-      setError(e instanceof Error ? e.message : '读取失败');
+      setError(e instanceof Error ? e.message : t('configIdentity.readFailed'));
       setContent('');
     }
   };
@@ -48,7 +53,7 @@ export function ConfigIdentityPage() {
     try {
       await apiPost(`/api/identity/files/${selected}`, { content });
     } catch (e) {
-      setError(e instanceof Error ? e.message : '保存失败');
+      setError(e instanceof Error ? e.message : t('configIdentity.saveFailed'));
     } finally {
       setSaving(false);
     }
@@ -56,35 +61,40 @@ export function ConfigIdentityPage() {
 
   if (loading) {
     return (
-      <div className="p-6">
-        <p className="text-stone-600">加载中...</p>
+      <div className="p-6 flex items-center gap-2">
+        <Spin size="small" />
+        <Text type="secondary">{t('common.loading')}</Text>
       </div>
     );
   }
 
   return (
-    <div className="p-6 max-w-4xl">
-      <h1 className="text-2xl font-bold text-stone-800">身份配置</h1>
-      <p className="mt-1 text-stone-600 text-sm">
-        SOUL、AGENT、USER、MEMORY、personas、policies 等
-      </p>
-      {error && (
-        <div className="mt-3 px-3 py-2 bg-red-50 text-red-700 rounded text-sm">{error}</div>
-      )}
+    <div className="p-6">
+      <Title level={4} style={{ marginBottom: 4 }}>
+        {t('configIdentity.title')}
+      </Title>
+      <Text type="secondary">{t('configIdentity.subtitle')}</Text>
+
+      {error && <Alert type="error" message={error} className="mt-3" showIcon />}
+
       <div className="mt-6 flex gap-6">
-        <div className="w-48 flex-shrink-0 border border-stone-200 rounded overflow-hidden">
-          <div className="px-3 py-2 bg-stone-100 text-sm font-medium text-stone-700">文件列表</div>
+        <div className="w-48 flex-shrink-0 border border-border rounded overflow-hidden">
+          <div className="px-3 py-2 bg-muted text-sm font-medium text-foreground">
+            {t('configIdentity.fileList')}
+          </div>
           <ul className="max-h-80 overflow-auto">
             {files.length === 0 ? (
-              <li className="px-3 py-2 text-stone-500 text-sm">暂无文件</li>
+              <li className="px-3 py-2 text-muted-foreground text-sm">
+                {t('configIdentity.noFiles')}
+              </li>
             ) : (
               files.map((f) => (
                 <li key={f.path}>
                   <button
                     type="button"
                     onClick={() => loadContent(f.path)}
-                    className={`w-full text-left px-3 py-2 text-sm block hover:bg-stone-100 ${
-                      selected === f.path ? 'bg-stone-200 font-medium' : ''
+                    className={`w-full text-left px-3 py-2 text-sm block hover:bg-muted transition-colors ${
+                      selected === f.path ? 'bg-muted font-medium' : 'text-foreground'
                     }`}
                   >
                     {f.name}
@@ -100,20 +110,15 @@ export function ConfigIdentityPage() {
               <textarea
                 value={content}
                 onChange={(e) => setContent(e.target.value)}
-                className="w-full h-80 p-3 border border-stone-200 rounded font-mono text-sm"
+                className="w-full h-80 p-3 border border-border rounded font-mono text-sm bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
                 spellCheck={false}
               />
-              <button
-                type="button"
-                onClick={handleSave}
-                disabled={saving}
-                className="mt-2 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
-              >
-                {saving ? '保存中...' : '保存'}
-              </button>
+              <Button type="primary" className="mt-2" onClick={handleSave} loading={saving}>
+                {saving ? t('configIdentity.saving') : t('configIdentity.save')}
+              </Button>
             </>
           ) : (
-            <p className="text-stone-500 text-sm">选择左侧文件进行编辑</p>
+            <Text type="secondary">{t('configIdentity.selectFile')}</Text>
           )}
         </div>
       </div>

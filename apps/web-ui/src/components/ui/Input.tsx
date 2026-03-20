@@ -1,12 +1,13 @@
-import type { InputHTMLAttributes } from 'react';
+import { Input as AntInput } from 'antd';
+import type { InputProps as AntInputProps } from 'antd';
 
-export type InputProps = InputHTMLAttributes<HTMLInputElement> & {
+export type InputProps = AntInputProps & {
   className?: string;
 };
 
-const inputBase =
-  'w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground text-sm placeholder:text-muted-foreground outline-none transition-colors disabled:opacity-50 disabled:cursor-not-allowed';
-
-export function Input({ className, ...props }: InputProps) {
-  return <input className={[inputBase, className ?? ''].filter(Boolean).join(' ')} {...props} />;
+export function Input({ className, type, ...props }: InputProps) {
+  if (type === 'password') {
+    return <AntInput.Password className={className} {...props} />;
+  }
+  return <AntInput className={className} type={type} {...props} />;
 }

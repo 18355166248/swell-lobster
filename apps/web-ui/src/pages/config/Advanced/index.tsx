@@ -1,7 +1,12 @@
 import { useEffect, useState } from 'react';
+import { Button, Alert, Spin, Typography } from 'antd';
+import { useTranslation } from 'react-i18next';
 import { apiGet, apiPost } from '../../../api/base';
 
+const { Title, Text } = Typography;
+
 export function ConfigAdvancedPage() {
+  const { t } = useTranslation();
   const [disabledViews, setDisabledViews] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -14,7 +19,7 @@ export function ConfigAdvancedPage() {
       const data = await apiGet<{ disabled_views: string[] }>('/api/config/disabled-views');
       setDisabledViews(data.disabled_views ?? []);
     } catch (e) {
-      setError(e instanceof Error ? e.message : '加载失败');
+      setError(e instanceof Error ? e.message : t('configAdvanced.loadFailed'));
       setDisabledViews([]);
     } finally {
       setLoading(false);
@@ -32,7 +37,7 @@ export function ConfigAdvancedPage() {
       await apiPost('/api/config/disabled-views', { views: disabledViews });
       await load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : '保存失败');
+      setError(e instanceof Error ? e.message : t('configAdvanced.loadFailed'));
     } finally {
       setSaving(false);
     }
@@ -40,37 +45,35 @@ export function ConfigAdvancedPage() {
 
   if (loading) {
     return (
-      <div className="p-6">
-        <p className="text-stone-600">加载中...</p>
+      <div className="p-6 flex items-center gap-2">
+        <Spin size="small" />
+        <Text type="secondary">{t('common.loading')}</Text>
       </div>
     );
   }
 
   return (
-    <div className="p-6 max-w-4xl">
-      <h1 className="text-2xl font-bold text-stone-800">高级配置</h1>
-      <p className="mt-1 text-stone-600 text-sm">隐藏模块开关、诊断、日志、清理等</p>
-      {error && (
-        <div className="mt-3 px-3 py-2 bg-red-50 text-red-700 rounded text-sm">{error}</div>
-      )}
+    <div className="p-6">
+      <Title level={4} style={{ marginBottom: 4 }}>
+        {t('configAdvanced.title')}
+      </Title>
+      <Text type="secondary">{t('configAdvanced.subtitle')}</Text>
+
+      {error && <Alert type="error" message={error} className="mt-3" showIcon />}
+
       <div className="mt-6">
-        <h2 className="text-lg font-semibold text-stone-800">隐藏模块</h2>
-        <p className="mt-1 text-stone-600 text-sm">
+        <Title level={5}>隐藏模块</Title>
+        <Text type="secondary" className="block mb-2">
           在此配置的模块将不在侧栏显示（如 skills、im、token_stats 等）
-        </p>
-        <div className="mt-2 text-sm text-stone-500">
+        </Text>
+        <Text className="text-sm">
           当前已隐藏：{disabledViews.length ? disabledViews.join(', ') : '无'}
-        </div>
+        </Text>
       </div>
       <div className="mt-6">
-        <button
-          type="button"
-          onClick={handleSave}
-          disabled={saving}
-          className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
-        >
-          {saving ? '保存中...' : '保存配置'}
-        </button>
+        <Button type="primary" onClick={handleSave} loading={saving}>
+          {t('common.save')}
+        </Button>
       </div>
     </div>
   );

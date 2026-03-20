@@ -1,0 +1,231 @@
+import type { Translations } from './zh';
+
+const en: Translations = {
+  common: {
+    loading: 'Loading...',
+    save: 'Save',
+    saving: 'Saving...',
+    cancel: 'Cancel',
+    confirm: 'OK',
+    close: 'Close',
+    add: 'Add',
+    edit: 'Edit',
+    delete: 'Delete',
+    refresh: 'Refresh',
+    apply: 'Apply',
+    applying: 'Applying...',
+    noData: 'No data',
+    error: 'Error',
+    success: 'Success',
+    api: 'API',
+    light: 'Light',
+    dark: 'Dark',
+    system: 'System',
+  },
+
+  topbar: {
+    running: 'Running',
+    disconnected: 'Disconnected',
+    checking: 'Checking',
+    endpoints: '{{count}} endpoints',
+    default: 'default',
+  },
+
+  sidebar: {
+    chat: 'Chat',
+    im: 'Messaging',
+    skills: 'Skills',
+    mcp: 'MCP',
+    scheduler: 'Scheduler',
+    memory: 'Memory',
+    status: 'Status',
+    tokenStats: 'Token Stats',
+    config: 'Config',
+    llmEndpoints: 'LLM Endpoints',
+    imChannel: 'IM Channel',
+    toolsSkills: 'Tools & Skills',
+    soul: 'Soul & Will',
+    identity: 'Identity',
+    advanced: 'Advanced',
+    appName: 'SwellLobster',
+    appSubtitle: 'Desktop Terminal',
+    version: 'Desktop v0.1.0',
+    backend: 'Backend -',
+  },
+
+  chat: {
+    title: 'Chat',
+    subtitle: 'Chat with AI assistant',
+    placeholder: 'Type a message... (Enter to send, Shift+Enter for newline)',
+    emptyHint: 'Send a message to start (placeholder — requires LLM endpoint configured)',
+    sendFailed: 'Failed to send',
+  },
+
+  llm: {
+    title: 'LLM Endpoints',
+    subtitle: 'Configure AI model endpoints with automatic failover',
+    mainEndpoints: 'Main Endpoints',
+    addEndpoint: '+ Add Endpoint',
+    compilerModel: 'Prompt Compiler Model',
+    compilerModelHint:
+      'Lightweight model for pre-processing instructions, prefer fast small models',
+    sttEndpoints: 'Speech-to-Text Endpoints (STT)',
+    sttHint: 'Online speech recognition services, supports OpenAI Whisper / DashScope etc.',
+    emptyEndpoints: 'No endpoints yet, click the button above to add',
+    emptyEndpointsHint: 'No endpoints yet, click "+ Add Endpoint" above',
+    colEndpoint: 'Endpoint',
+    colModel: 'Model',
+    colKey: 'Key',
+    colPriority: 'Priority',
+    saveConfig: 'Save Config',
+    applyRestart: 'Apply & Restart',
+    configured: 'Configured',
+    loadFailed: 'Load failed',
+    saveFailed: 'Save failed',
+    applyFailed: 'Apply failed',
+    writeKeyFailed: 'Failed to write API Key',
+  },
+
+  addEndpoint: {
+    title: 'Add Endpoint',
+    description:
+      'Configure a new LLM endpoint: provider, API URL, API Key, model, name and capabilities.',
+    provider: 'Provider',
+    providerLoading: 'Loading…',
+    providerPlaceholder: 'Select provider',
+    providerLoadFailed: 'Failed to load providers',
+    apiUrl: 'API URL',
+    apiUrlHint: 'Must start with http:// or https://',
+    apiUrlCollapse: 'Collapse',
+    apiUrlConfig: 'Configure',
+    apiKey: 'API Key',
+    apiKeyOptional: '(optional for local)',
+    apiKeyPlaceholder: 'Enter API Key for the LLM service',
+    apiKeyOptionalPlaceholder: 'Optional',
+    model: 'Select Model',
+    modelFetchBtn: 'Fetch model list',
+    modelFetching: 'Fetching…',
+    modelFetched: '({{count}} fetched)',
+    modelManualHint: 'Enter manually or',
+    modelPlaceholder: 'Select model ID',
+    modelInputPlaceholder: 'e.g. gpt-4o, claude-3-5-sonnet',
+    endpointName: 'Endpoint Name',
+    capabilities: 'Capabilities',
+    advanced: 'Advanced',
+    apiType: 'API Type',
+    priority: 'Priority',
+    apiKeyEnvName: 'API Key Env Name',
+    apiKeyEnvPlaceholder: 'e.g. OPENAI_API_KEY',
+    maxTokens: 'Max Tokens',
+    maxTokensHint: '0 = unlimited',
+    contextWindow: 'Context Window',
+    contextWindowHint: 'Minimum 1024 recommended',
+    timeout: 'Timeout (sec)',
+    rpmLimit: 'RPM Limit',
+    rpmLimitHint: '0 = unlimited',
+    testConnection: 'Test Connection',
+    testing: 'Testing…',
+    testSuccess: 'Connected · {{ms}}ms · Models: {{count}}',
+    testFailed: 'Failed: {{error}} ({{ms}}ms)',
+    fetchSuccess: 'Fetched {{count}} models',
+    fetchFailed: 'Fetch failed: {{error}}',
+    fetchError: 'Failed to fetch model list',
+    nameExists: 'Endpoint name already exists, please change it',
+    apiKeyRequired: 'API Key is required',
+  },
+
+  skills: {
+    title: 'Skills',
+    subtitle: 'Skill management: list, enable/disable, install/uninstall',
+    empty: 'No skills yet, configure in "Config → Tools & Skills"',
+    loadFailed: 'Load failed',
+  },
+
+  status: {
+    title: 'Status',
+    subtitle: 'Service status, endpoint health, IM online status',
+    serviceStatus: 'Service status: ',
+    loadFailed: 'Load failed',
+  },
+
+  im: {
+    title: 'Messaging',
+    subtitle: 'Message channel management: Bot list, connection status',
+    loadFailed: 'Load failed',
+  },
+
+  mcp: {
+    title: 'MCP',
+    subtitle: 'MCP tool service configuration',
+    loadFailed: 'Load failed',
+  },
+
+  scheduler: {
+    title: 'Scheduler',
+    subtitle: 'Scheduled task management',
+    loadFailed: 'Load failed',
+  },
+
+  memory: {
+    title: 'Memory',
+    subtitle: 'Long-term memory list and management',
+    loadFailed: 'Load failed',
+  },
+
+  tokenStats: {
+    title: 'Token Stats',
+    subtitle: 'Token usage statistics and analysis',
+    loadFailed: 'Load failed',
+  },
+
+  configIM: {
+    title: 'IM Channel',
+    subtitle: 'Enable channel switches, then add and manage Bots in "Messaging → Bot Config"',
+    envHint:
+      'IM-related environment variables (.env) are shown here as read-only preview; full editing in Advanced Config or .env file.',
+    noEnv: 'No environment variables or .env not found',
+    saveConfig: 'Save Config',
+    loadFailed: 'Load failed',
+    saveFailed: 'Save failed',
+  },
+
+  configTools: {
+    title: 'Tools & Skills',
+    subtitle: 'Unified configuration for tool calls, built-in skills and MCP tools',
+    loadFailed: 'Load failed',
+  },
+
+  configIdentity: {
+    title: 'Identity Config',
+    subtitle: 'SOUL, AGENT, USER, MEMORY, personas, policies etc.',
+    fileList: 'Files',
+    noFiles: 'No files',
+    selectFile: 'Select a file on the left to edit',
+    save: 'Save',
+    saving: 'Saving...',
+    loadFailed: 'Load failed',
+    readFailed: 'Read failed',
+    saveFailed: 'Save failed',
+  },
+
+  configSoul: {
+    title: 'Soul & Will',
+    subtitle: 'Core drives, values and behavioral constraints',
+  },
+
+  configAdvanced: {
+    title: 'Advanced Config',
+    subtitle: 'Environment variables, log levels and other advanced settings',
+    envHint: 'Read-only preview — edit .env file directly to apply changes',
+    noEnv: 'No environment variables',
+    loadFailed: 'Load failed',
+  },
+
+  notFound: {
+    title: '404',
+    subtitle: 'Page not found',
+    back: '← Back to Home',
+  },
+};
+
+export default en;

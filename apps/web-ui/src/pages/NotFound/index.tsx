@@ -1,17 +1,22 @@
 import { Link } from 'react-router';
+import { Typography, Result } from 'antd';
+import { useTranslation } from 'react-i18next';
 import { ROUTES } from '../../router';
 
+const { Link: AntLink } = Typography;
+
 export function NotFoundPage() {
+  const { t } = useTranslation();
   return (
-    <div className="text-center py-16">
-      <h1 className="text-4xl font-bold text-stone-800">404</h1>
-      <p className="mt-2 text-stone-600">页面不存在</p>
-      <Link
-        to={ROUTES.HOME}
-        className="mt-6 inline-block text-stone-700 underline hover:text-stone-900"
-      >
-        返回首页
-      </Link>
-    </div>
+    <Result
+      status="404"
+      title={t('notFound.title')}
+      subTitle={t('notFound.subtitle')}
+      extra={
+        <Link to={ROUTES.HOME}>
+          <AntLink>{t('notFound.back')}</AntLink>
+        </Link>
+      }
+    />
   );
 }

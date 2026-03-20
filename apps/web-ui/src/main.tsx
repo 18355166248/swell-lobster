@@ -2,30 +2,55 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { useAtomValue } from 'jotai';
 import { RouterProvider } from 'react-router';
-import { Theme } from '@radix-ui/themes';
-import { Toaster } from 'sonner';
-import '@radix-ui/themes/styles.css';
+import { ConfigProvider, App, theme as antdTheme } from 'antd';
+import zhCN from 'antd/locale/zh_CN';
+import enUS from 'antd/locale/en_US';
+import { I18nextProvider } from 'react-i18next';
+import './i18n';
+import i18n from './i18n';
 import './index.css';
 import { router } from './router';
 import { ThemeSync } from './components/ThemeSync';
 import { themeModeAtom, resolveTheme } from './store/theme';
+import { localeAtom, applyLocale } from './store/locale';
+
+const ACCENT_COLOR = '#aa3bff';
 
 function AppWithTheme() {
   const mode = useAtomValue(themeModeAtom);
-  const appearance = resolveTheme(mode) === 'dark' ? 'dark' : 'light';
+  const locale = useAtomValue(localeAtom);
+  const isDark = resolveTheme(mode) === 'dark';
+
+  // 语言切换时同步到 i18next
+  applyLocale(locale);
+
+  const antdLocale = locale === 'zh' ? zhCN : enUS;
+
   return (
-    <>
-      <ThemeSync />
-      <Theme accentColor="violet" radius="medium" scaling="100%" appearance={appearance}>
+    <ConfigProvider
+      locale={antdLocale}
+      theme={{
+        algorithm: isDark ? antdTheme.darkAlgorithm : antdTheme.defaultAlgorithm,
+        token: {
+          colorPrimary: ACCENT_COLOR,
+          borderRadius: 8,
+          fontFamily: 'system-ui, "Segoe UI", Roboto, sans-serif',
+          fontSize: 15,
+        },
+      }}
+    >
+      <App>
+        <ThemeSync />
         <RouterProvider router={router} />
-      </Theme>
-      <Toaster theme={appearance} position="top-right" richColors duration={3000} />
-    </>
+      </App>
+    </ConfigProvider>
   );
 }
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <AppWithTheme />
+    <I18nextProvider i18n={i18n}>
+      <AppWithTheme />
+    </I18nextProvider>
   </StrictMode>
 );

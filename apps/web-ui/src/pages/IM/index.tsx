@@ -1,5 +1,9 @@
 import { useEffect, useState } from 'react';
+import { Badge, Alert, Spin, Typography } from 'antd';
+import { useTranslation } from 'react-i18next';
 import { apiGet } from '../../api/base';
+
+const { Title, Text } = Typography;
 
 type Channel = {
   channel?: string;
@@ -9,6 +13,7 @@ type Channel = {
 };
 
 export function IMPage() {
+  const { t } = useTranslation();
   const [channels, setChannels] = useState<Channel[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -22,7 +27,7 @@ export function IMPage() {
         if (!cancelled) setChannels(data.channels ?? []);
       })
       .catch((e) => {
-        if (!cancelled) setError(e instanceof Error ? e.message : '加载失败');
+        if (!cancelled) setError(e instanceof Error ? e.message : t('im.loadFailed'));
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -30,38 +35,40 @@ export function IMPage() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [t]);
 
   if (loading) {
     return (
-      <div className="p-6">
-        <p className="text-stone-600">加载中...</p>
+      <div className="p-6 flex items-center gap-2">
+        <Spin size="small" />
+        <Text type="secondary">{t('common.loading')}</Text>
       </div>
     );
   }
 
   return (
-    <div className="p-6 max-w-4xl">
-      <h1 className="text-2xl font-bold text-stone-800">消息通道</h1>
-      <p className="mt-1 text-stone-600 text-sm">
-        IM 通道列表与在线状态，可在「配置 → IM 通道」中配置 Bot
-      </p>
-      {error && (
-        <div className="mt-3 px-3 py-2 bg-red-50 text-red-700 rounded text-sm">{error}</div>
-      )}
-      <div className="mt-6 border border-stone-200 rounded overflow-hidden">
+    <div className="p-6">
+      <Title level={4} style={{ marginBottom: 4 }}>
+        {t('im.title')}
+      </Title>
+      <Text type="secondary">{t('im.subtitle')}</Text>
+
+      {error && <Alert type="error" message={error} className="mt-3" showIcon />}
+
+      <div className="mt-6 border border-border rounded overflow-hidden">
         {channels.length === 0 ? (
-          <div className="px-4 py-8 text-stone-500 text-sm text-center">暂无已配置的 IM 通道</div>
+          <div className="px-4 py-8 text-muted-foreground text-sm text-center">
+            {t('common.noData')}
+          </div>
         ) : (
-          <ul className="divide-y divide-stone-200">
+          <ul className="divide-y divide-border">
             {channels.map((ch, i) => (
               <li key={i} className="px-4 py-3 flex items-center justify-between">
-                <span className="font-medium text-stone-800">{ch.name ?? ch.channel ?? '-'}</span>
-                <span
-                  className={`text-sm ${ch.status === 'online' ? 'text-green-600' : 'text-stone-500'}`}
-                >
-                  {ch.status === 'online' ? '在线' : '离线'}
-                </span>
+                <span className="font-medium text-foreground">{ch.name ?? ch.channel ?? '-'}</span>
+                <Badge
+                  status={ch.status === 'online' ? 'success' : 'default'}
+                  text={ch.status === 'online' ? '在线' : '离线'}
+                />
               </li>
             ))}
           </ul>

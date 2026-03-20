@@ -11,7 +11,6 @@
   --accent: #aa3bff;
   --accent-bg: rgba(170, 59, 255, 0.1);
   --accent-border: rgba(170, 59, 255, 0.5);
-  --social-bg: rgba(244, 243, 236, 0.5);
   --shadow: rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
 
   /* 语义化变量（供 Tailwind 与组件使用） */
@@ -32,8 +31,8 @@
   --heading: system-ui, 'Segoe UI', Roboto, sans-serif;
   --mono: ui-monospace, Consolas, monospace;
 
-  font: 18px/145% var(--sans);
-  letter-spacing: 0.18px;
+  font: 15px/150% var(--sans);
+  letter-spacing: 0.1px;
   color-scheme: light dark;
   color: var(--text);
   background: var(--bg);
@@ -41,13 +40,9 @@
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-
-  @media (max-width: 1024px) {
-    font-size: 16px;
-  }
 }
 
-/* 深色模式：由 ThemeSync 在 html 上添加 .dark class 或系统偏好 */
+/* 深色模式 */
 @media (prefers-color-scheme: dark) {
   :root:not(.light) {
     --text: #9ca3af;
@@ -58,7 +53,6 @@
     --accent: #c084fc;
     --accent-bg: rgba(192, 132, 252, 0.15);
     --accent-border: rgba(192, 132, 252, 0.5);
-    --social-bg: rgba(47, 48, 58, 0.5);
     --shadow: rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
     --background: #09090b;
     --foreground: #fafafa;
@@ -73,13 +67,8 @@
     --card: #18181b;
     --card-foreground: #fafafa;
   }
-
-  #social .button-icon {
-    filter: invert(1) brightness(2);
-  }
 }
 
-/* 用户显式选择深色时的变量（优先于媒体查询） */
 .dark {
   --text: #9ca3af;
   --text-h: #f3f4f6;
@@ -89,7 +78,6 @@
   --accent: #c084fc;
   --accent-bg: rgba(192, 132, 252, 0.15);
   --accent-border: rgba(192, 132, 252, 0.5);
-  --social-bg: rgba(47, 48, 58, 0.5);
   --shadow: rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
   --background: #09090b;
   --foreground: #fafafa;
@@ -103,10 +91,6 @@
   --sidebar-border: #3f3f46;
   --card: #18181b;
   --card-foreground: #fafafa;
-}
-
-.dark #social .button-icon {
-  filter: invert(1) brightness(2);
 }
 
 #root {
@@ -124,51 +108,18 @@ body {
   margin: 0;
 }
 
-h1,
-h2 {
-  font-family: var(--heading);
-  font-weight: 500;
-  color: var(--text-h);
-}
-
-h1 {
-  font-size: 56px;
-  letter-spacing: -1.68px;
-  margin: 32px 0;
-  @media (max-width: 1024px) {
-    font-size: 36px;
-    margin: 20px 0;
-  }
-}
-h2 {
-  font-size: 24px;
-  line-height: 118%;
-  letter-spacing: -0.24px;
-  margin: 0 0 8px;
-  @media (max-width: 1024px) {
-    font-size: 20px;
-  }
-}
-p {
-  margin: 0;
-}
-
-code,
-.counter {
+code {
   font-family: var(--mono);
   display: inline-flex;
   border-radius: 4px;
   color: var(--text-h);
-}
-
-code {
-  font-size: 15px;
+  font-size: 13px;
   line-height: 135%;
-  padding: 4px 8px;
+  padding: 2px 6px;
   background: var(--code-bg);
 }
 
-/* ========== 滚动条美化 ========== */
+/* 滚动条美化 */
 ::-webkit-scrollbar {
   width: 5px;
   height: 5px;
@@ -184,166 +135,12 @@ code {
   background: var(--muted-foreground);
 }
 
-/* ========== 公共弹窗组件 (SharedDialog) ========== */
-.shared-dialog-content {
-  --dialog-bg: var(--bg);
-  background: var(--dialog-bg) !important;
-  border: 1px solid var(--border) !important;
-  box-shadow:
-    var(--shadow),
-    0 0 0 1px var(--border) !important;
-  border-radius: 12px;
-  animation: shared-dialog-in 0.2s ease-out;
-}
-
-@keyframes shared-dialog-in {
-  from {
-    opacity: 0;
-    transform: scale(0.97) translateY(-8px);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1) translateY(0);
-  }
-}
-
-.shared-dialog-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 4px;
-}
-
-.shared-dialog-title {
-  font-family: var(--heading);
-  font-weight: 600;
-  font-size: 1.125rem;
-  letter-spacing: -0.01em;
-  color: var(--text-h) !important;
-  margin: 0;
-  line-height: 1.35;
-  flex: 1;
-}
-
-.shared-dialog-close {
-  flex-shrink: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  padding: 0;
-  margin: -4px -4px 0 0;
-  font-size: 1.25rem;
-  line-height: 1;
-  color: var(--text);
-  background: transparent;
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-  transition:
-    color 0.15s ease,
-    background-color 0.15s ease;
-}
-
-.shared-dialog-close:hover {
-  color: var(--text-h);
-  background: var(--accent-bg);
-}
-
-.shared-dialog-close:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-}
-
-.shared-dialog-description {
-  font-size: 0.875rem;
-  color: var(--text) !important;
-  margin: 0 0 12px;
-  line-height: 1.45;
-}
-
-.shared-dialog-body {
-  padding-top: 4px;
-  font-size: 0.9375rem;
-  color: var(--text);
-  line-height: 1.5;
-}
-
-.shared-dialog-footer {
-  margin-top: 16px;
-  padding-top: 16px;
-  border-top: 1px solid var(--border);
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 10px;
-}
-
-/* ========== Select 组件 ========== */
-.select-content {
-  background: var(--background);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  box-shadow:
-    0 4px 6px -1px rgba(0, 0, 0, 0.1),
-    0 2px 4px -1px rgba(0, 0, 0, 0.06),
-    0 0 0 1px var(--border);
-  overflow: hidden;
-  min-width: var(--radix-select-trigger-width);
-  max-height: var(--radix-select-content-available-height);
-  animation: select-in 0.12s ease-out;
-}
-
-@keyframes select-in {
-  from {
-    opacity: 0;
-    transform: translateY(-4px) scale(0.98);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
-}
-
-.select-viewport {
-  padding: 4px;
-}
-
-.select-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 7px 10px;
-  border-radius: 6px;
-  font-size: 0.875rem;
+/* antd 深色模式适配：antd 使用 CSS-in-JS，深色模式由 ConfigProvider algorithm 控制 */
+/* 当 .dark 类存在时，antd 的弹窗/下拉等 Portal 组件也需要继承深色背景 */
+.dark .ant-modal-content,
+.dark .ant-select-dropdown,
+.dark .ant-dropdown-menu,
+.dark .ant-tooltip-inner {
+  background-color: var(--card);
   color: var(--foreground);
-  cursor: pointer;
-  outline: none;
-  user-select: none;
-  transition: background-color 0.1s ease;
-}
-
-.select-item[data-highlighted] {
-  background: var(--accent-bg);
-  color: var(--accent);
-}
-
-.select-item[data-state='checked'] {
-  color: var(--accent);
-  font-weight: 500;
-}
-
-.select-item[data-disabled] {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-
-.select-item-indicator {
-  display: inline-flex;
-  align-items: center;
-  color: var(--accent);
-  flex-shrink: 0;
 }

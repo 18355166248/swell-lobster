@@ -1,4 +1,5 @@
-import { NavLink } from 'react-router';
+import { NavLink, useLocation } from 'react-router';
+import { useTranslation } from 'react-i18next';
 import {
   MessageSquare,
   Radio,
@@ -16,26 +17,6 @@ import {
   Settings2,
 } from 'lucide-react';
 import { ROUTES } from '../routes';
-
-const mainNav = [
-  { path: ROUTES.CHAT, label: '聊天', icon: MessageSquare },
-  { path: ROUTES.IM, label: '消息通道', icon: Radio },
-  { path: ROUTES.SKILLS, label: '技能', icon: Zap },
-  { path: ROUTES.MCP, label: 'MCP', icon: Puzzle },
-  { path: ROUTES.SCHEDULER, label: '计划任务', icon: CalendarClock },
-  { path: ROUTES.MEMORY, label: '记忆管理', icon: Brain },
-  { path: ROUTES.STATUS, label: '状态面板', icon: Activity },
-  { path: ROUTES.TOKEN_STATS, label: 'Token 统计', icon: BarChart3 },
-] as const;
-
-const configNav = [
-  { path: ROUTES.CONFIG_LLM, label: 'LLM 端点', icon: Cpu },
-  { path: ROUTES.CONFIG_IM, label: 'IM 通道', icon: MessageCircle },
-  { path: ROUTES.CONFIG_TOOLS, label: '工具与技能', icon: Wrench },
-  { path: ROUTES.CONFIG_SOUL, label: '灵魂与意志', icon: Sparkles },
-  { path: ROUTES.CONFIG_IDENTITY, label: '身份配置', icon: UserCircle },
-  { path: ROUTES.CONFIG_ADVANCED, label: '高级配置', icon: Settings2 },
-] as const;
 
 function NavItem({
   path,
@@ -63,8 +44,31 @@ function NavItem({
   );
 }
 
-export function Sidebar({ currentPath }: { currentPath: string }) {
-  void currentPath;
+export function Sidebar() {
+  const { t } = useTranslation();
+  const location = useLocation();
+  void location;
+
+  const mainNav = [
+    { path: ROUTES.CHAT, labelKey: 'sidebar.chat', icon: MessageSquare },
+    { path: ROUTES.IM, labelKey: 'sidebar.im', icon: Radio },
+    { path: ROUTES.SKILLS, labelKey: 'sidebar.skills', icon: Zap },
+    { path: ROUTES.MCP, labelKey: 'sidebar.mcp', icon: Puzzle },
+    { path: ROUTES.SCHEDULER, labelKey: 'sidebar.scheduler', icon: CalendarClock },
+    { path: ROUTES.MEMORY, labelKey: 'sidebar.memory', icon: Brain },
+    { path: ROUTES.STATUS, labelKey: 'sidebar.status', icon: Activity },
+    { path: ROUTES.TOKEN_STATS, labelKey: 'sidebar.tokenStats', icon: BarChart3 },
+  ] as const;
+
+  const configNav = [
+    { path: ROUTES.CONFIG_LLM, labelKey: 'sidebar.llmEndpoints', icon: Cpu },
+    { path: ROUTES.CONFIG_IM, labelKey: 'sidebar.imChannel', icon: MessageCircle },
+    { path: ROUTES.CONFIG_TOOLS, labelKey: 'sidebar.toolsSkills', icon: Wrench },
+    { path: ROUTES.CONFIG_SOUL, labelKey: 'sidebar.soul', icon: Sparkles },
+    { path: ROUTES.CONFIG_IDENTITY, labelKey: 'sidebar.identity', icon: UserCircle },
+    { path: ROUTES.CONFIG_ADVANCED, labelKey: 'sidebar.advanced', icon: Settings2 },
+  ] as const;
+
   return (
     <>
       <div className="px-4 py-4 border-b border-sidebar-border">
@@ -74,24 +78,26 @@ export function Sidebar({ currentPath }: { currentPath: string }) {
           </div>
           <div>
             <div className="font-semibold text-sidebar-foreground text-sm leading-tight">
-              SwellLobster
+              {t('sidebar.appName')}
             </div>
-            <div className="text-[11px] text-sidebar-foreground/50 leading-tight">桌面终端</div>
+            <div className="text-[11px] text-sidebar-foreground/50 leading-tight">
+              {t('sidebar.appSubtitle')}
+            </div>
           </div>
         </div>
       </div>
 
       <nav className="flex-1 overflow-y-auto py-2 px-2 space-y-0.5">
-        {mainNav.map(({ path, label, icon }) => (
-          <NavItem key={path} path={path} label={label} icon={icon} />
+        {mainNav.map(({ path, labelKey, icon }) => (
+          <NavItem key={path} path={path} label={t(labelKey)} icon={icon} />
         ))}
         <div className="mt-3 pt-3 border-t border-sidebar-border">
           <div className="px-3 pb-1 text-[11px] font-medium text-sidebar-foreground/40 uppercase tracking-wider">
-            配置
+            {t('sidebar.config')}
           </div>
           <div className="space-y-0.5">
-            {configNav.map(({ path, label, icon }) => (
-              <NavItem key={path} path={path} label={label} icon={icon} />
+            {configNav.map(({ path, labelKey, icon }) => (
+              <NavItem key={path} path={path} label={t(labelKey)} icon={icon} />
             ))}
           </div>
         </div>
@@ -99,8 +105,8 @@ export function Sidebar({ currentPath }: { currentPath: string }) {
 
       <div className="px-4 py-3 border-t border-sidebar-border">
         <div className="text-[11px] text-sidebar-foreground/40 space-y-0.5">
-          <div>Desktop v0.1.0</div>
-          <div>Backend -</div>
+          <div>{t('sidebar.version')}</div>
+          <div>{t('sidebar.backend')}</div>
         </div>
       </div>
     </>

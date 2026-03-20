@@ -14,10 +14,10 @@ export type FormFieldProps = {
  */
 export function FormField({ label, hint, error, children, className }: FormFieldProps) {
   return (
-    <div className={['space-y-2', className].filter(Boolean).join(' ')}>
-      <label className="block text-sm font-medium text-foreground">
+    <div className={['mb-4', className].filter(Boolean).join(' ')}>
+      <label className="block text-sm font-medium text-foreground mb-1.5">
         {label}
-        {hint && <span className="ml-1.5 text-xs text-muted-foreground">{hint}</span>}
+        {hint && <span className="ml-1.5 text-xs text-muted-foreground font-normal">{hint}</span>}
       </label>
       {children}
       {error && <p className="text-xs text-red-500 mt-1">{error}</p>}

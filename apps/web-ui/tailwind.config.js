@@ -2,8 +2,8 @@
 export default {
   content: ['./index.html', './src/**/*.{js,ts,jsx,tsx}'],
   darkMode: 'class',
-  // important 确保 Tailwind 工具类优先级高于 antd 的默认样式
-  important: '#root',
+  // important: true 使所有 utility 带 !important，确保覆盖 antd CSS-in-JS 注入的样式
+  important: true,
   theme: {
     extend: {
       screens: {

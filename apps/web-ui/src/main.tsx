@@ -37,6 +37,16 @@ function AppWithTheme() {
           fontFamily: 'system-ui, "Segoe UI", Roboto, sans-serif',
           fontSize: 15,
         },
+        components: {
+          Menu: isDark
+            ? {
+                itemSelectedColor: '#ffffff',
+                itemSelectedBg: 'rgba(170, 59, 255, 0.25)',
+                itemColor: 'rgba(255, 255, 255, 0.65)',
+                itemHoverColor: '#ffffff',
+              }
+            : {},
+        },
       }}
     >
       <App>

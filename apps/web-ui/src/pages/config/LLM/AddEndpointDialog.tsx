@@ -1,17 +1,40 @@
-import { zodResolver } from '@hookform/resolvers/zod';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useForm } from 'react-hook-form';
-import { message } from 'antd';
-import { Modal, Button, Space, Alert, Collapse } from 'antd';
+import {
+  message,
+  Modal,
+  Button,
+  Space,
+  Alert,
+  Collapse,
+  Form,
+  Input,
+  Select,
+  InputNumber,
+  Tag,
+} from 'antd';
 import { useTranslation } from 'react-i18next';
 import { apiGet, apiPost } from '../../../api/base';
-import { FormField, Input, Select } from '../../../components/ui';
 import { CAPABILITY_OPTIONS } from './constants';
-import { endpointSchema, type EndpointFormValues } from './endpointSchema';
 import type { EndpointFormData, ListedModel, ProviderInfo } from './types';
 
 const DEFAULT_CONTEXT_WINDOW = 200000;
 const DEFAULT_TIMEOUT = 180;
+
+type FormValues = {
+  providerSlug: string;
+  baseUrl: string;
+  apiKeyValue: string;
+  apiKeyEnv: string;
+  apiType: 'openai' | 'anthropic';
+  selectedModelId: string;
+  endpointName: string;
+  capSelected: string[];
+  endpointPriority: number;
+  maxTokens: number;
+  contextWindow: number;
+  timeoutSec: number;
+  rpmLimit: number;
+};
 
 function isLocalProvider(p: ProviderInfo | null | undefined): boolean {
   return p?.requires_api_key === false || p?.is_local === true;
@@ -38,6 +61,7 @@ export function AddEndpointDialog({
 }: AddEndpointDialogProps) {
   const { t } = useTranslation();
   const [messageApi, contextHolder] = message.useMessage();
+  const [form] = Form.useForm<FormValues>();
 
   const [providers, setProviders] = useState<ProviderInfo[]>([]);
   const [providersLoading, setProvidersLoading] = useState(false);
@@ -53,40 +77,11 @@ export function AddEndpointDialog({
   } | null>(null);
   const [baseUrlExpanded, setBaseUrlExpanded] = useState(false);
 
-  const {
-    register,
-    handleSubmit,
-    watch,
-    setValue,
-    setError,
-    reset,
-    formState: { errors, dirtyFields },
-  } = useForm<EndpointFormValues>({
-    resolver: zodResolver(endpointSchema),
-    defaultValues: {
-      providerSlug: '',
-      baseUrl: '',
-      apiKeyValue: '',
-      apiKeyEnv: '',
-      apiType: 'anthropic',
-      selectedModelId: '',
-      endpointName: '',
-      capSelected: ['text'],
-      endpointPriority: endpointCount === 0 ? 1 : endpointCount + 1,
-      maxTokens: 0,
-      contextWindow: DEFAULT_CONTEXT_WINDOW,
-      timeoutSec: DEFAULT_TIMEOUT,
-      rpmLimit: 0,
-    },
-  });
-
-  const providerSlug = watch('providerSlug');
-  const baseUrl = watch('baseUrl');
-  const apiKeyValue = watch('apiKeyValue');
-  const apiType = watch('apiType');
-  const selectedModelId = watch('selectedModelId');
-  const capSelected = watch('capSelected');
-
+  const providerSlug = Form.useWatch('providerSlug', form);
+  const baseUrl = Form.useWatch('baseUrl', form) ?? '';
+  const apiKeyValue = Form.useWatch('apiKeyValue', form) ?? '';
+  const apiType = Form.useWatch('apiType', form) ?? 'anthropic';
+  const selectedModelId = Form.useWatch('selectedModelId', form) ?? '';
   const selectedProvider = useMemo(
     () => providers.find((p) => p.slug === providerSlug) ?? providers[0] ?? null,
     [providers, providerSlug]
@@ -99,27 +94,33 @@ export function AddEndpointDialog({
 
   useEffect(() => {
     if (!selectedProvider) return;
-    setValue('apiType', (selectedProvider.api_type as 'openai' | 'anthropic') || 'anthropic');
-    if (!dirtyFields.baseUrl) {
-      setValue('baseUrl', selectedProvider.default_base_url || '');
+    form.setFieldValue(
+      'apiType',
+      (selectedProvider.api_type as 'openai' | 'anthropic') || 'anthropic'
+    );
+    if (!form.getFieldValue('baseUrl')) {
+      form.setFieldValue('baseUrl', selectedProvider.default_base_url || '');
     }
-    if (!dirtyFields.apiKeyEnv) {
+    if (!form.getFieldValue('apiKeyEnv')) {
       const used = new Set(existingNames);
       let suggestion =
         selectedProvider.api_key_env_suggestion ||
         `LLM_API_KEY_${selectedProvider.slug.toUpperCase()}`;
       while (used.has(suggestion)) suggestion = `${suggestion}_2`;
-      setValue('apiKeyEnv', suggestion);
+      form.setFieldValue('apiKeyEnv', suggestion);
     }
-    if (isLocalProvider(selectedProvider) && !apiKeyValue.trim()) {
-      setValue('apiKeyValue', localPlaceholderKey(selectedProvider));
+    if (isLocalProvider(selectedProvider) && !(form.getFieldValue('apiKeyValue') ?? '').trim()) {
+      form.setFieldValue('apiKeyValue', localPlaceholderKey(selectedProvider));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedProvider]);
 
   useEffect(() => {
-    if (!dirtyFields.endpointName && selectedProvider && selectedModelId) {
-      setValue('endpointName', `${selectedProvider.slug}-${selectedModelId}`.slice(0, 64));
+    if (!form.getFieldValue('endpointName') && selectedProvider && selectedModelId) {
+      form.setFieldValue(
+        'endpointName',
+        `${selectedProvider.slug}-${selectedModelId}`.slice(0, 64)
+      );
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedProvider, selectedModelId]);
@@ -129,7 +130,8 @@ export function AddEndpointDialog({
     setBaseUrlExpanded(false);
     setModels([]);
     setConnTestResult(null);
-    reset({
+    form.resetFields();
+    form.setFieldsValue({
       providerSlug: '',
       baseUrl: '',
       apiKeyValue: '',
@@ -160,8 +162,8 @@ export function AddEndpointDialog({
 
   useEffect(() => {
     if (providers.length === 0) return;
-    if (watch('providerSlug')) return;
-    setValue('providerSlug', providers[0].slug);
+    if (form.getFieldValue('providerSlug')) return;
+    form.setFieldValue('providerSlug', providers[0].slug);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [providers]);
 
@@ -171,7 +173,7 @@ export function AddEndpointDialog({
       (isLocalProvider(selectedProvider) ? localPlaceholderKey(selectedProvider) : '');
     setModelsLoading(true);
     setModels([]);
-    setValue('selectedModelId', '');
+    form.setFieldValue('selectedModelId', '');
     try {
       const data = await apiPost<{ models?: ListedModel[]; error?: string }>(
         '/api/config/list-models',
@@ -191,11 +193,10 @@ export function AddEndpointDialog({
       }
     } catch (e) {
       messageApi.error(e instanceof Error ? e.message : t('addEndpoint.fetchError'));
-      setModels([]);
     } finally {
       setModelsLoading(false);
     }
-  }, [apiType, effectiveBaseUrl, selectedProvider, apiKeyValue, setValue, messageApi, t]);
+  }, [apiType, effectiveBaseUrl, selectedProvider, apiKeyValue, form, messageApi, t]);
 
   const testConnection = useCallback(async () => {
     const effectiveKey =
@@ -235,15 +236,15 @@ export function AddEndpointDialog({
     }
   }, [apiType, effectiveBaseUrl, selectedProvider, apiKeyValue]);
 
-  const onValid = useCallback(
-    (values: EndpointFormValues) => {
+  const onFinish = useCallback(
+    (values: FormValues) => {
       const url = values.baseUrl.trim() || selectedProvider?.default_base_url || '';
       const name =
         values.endpointName.trim() ||
         `${selectedProvider?.slug ?? 'ep'}-${values.selectedModelId}`.slice(0, 64);
 
       if (existingNames.includes(name)) {
-        setError('endpointName', { message: t('addEndpoint.nameExists') });
+        form.setFields([{ name: 'endpointName', errors: [t('addEndpoint.nameExists')] }]);
         return;
       }
 
@@ -251,7 +252,7 @@ export function AddEndpointDialog({
         values.apiKeyValue.trim() ||
         (isLocalProvider(selectedProvider) ? localPlaceholderKey(selectedProvider) : '');
       if (!isLocalProvider(selectedProvider) && !effectiveKey) {
-        setError('apiKeyValue', { message: t('addEndpoint.apiKeyRequired'), type: 'manual' });
+        form.setFields([{ name: 'apiKeyValue', errors: [t('addEndpoint.apiKeyRequired')] }]);
         return;
       }
 
@@ -280,7 +281,7 @@ export function AddEndpointDialog({
       onConfirm(payload);
       onOpenChange(false);
     },
-    [selectedProvider, existingNames, onConfirm, onOpenChange, setError, t]
+    [selectedProvider, existingNames, form, onConfirm, onOpenChange, t]
   );
 
   const canTest = !!effectiveBaseUrl && (!!apiKeyValue.trim() || isLocalProvider(selectedProvider));
@@ -292,7 +293,7 @@ export function AddEndpointDialog({
         <Button onClick={testConnection} disabled={!canTest || connTesting} loading={connTesting}>
           {connTesting ? t('addEndpoint.testing') : t('addEndpoint.testConnection')}
         </Button>
-        <Button type="primary" onClick={handleSubmit(onValid)}>
+        <Button type="primary" onClick={() => form.submit()}>
           {t('common.confirm')}
         </Button>
       </Space>
@@ -304,63 +305,52 @@ export function AddEndpointDialog({
       key: 'advanced',
       label: t('addEndpoint.advanced'),
       children: (
-        <div className="space-y-4">
+        <div className="space-y-1">
           <div className="grid grid-cols-2 gap-4">
-            <FormField label={t('addEndpoint.apiType')}>
+            <Form.Item name="apiType" label={t('addEndpoint.apiType')}>
               <Select
-                value={apiType}
-                onValueChange={(v) =>
-                  setValue('apiType', v as 'openai' | 'anthropic', { shouldDirty: true })
-                }
                 options={[
                   { value: 'openai', label: 'openai' },
                   { value: 'anthropic', label: 'anthropic' },
                 ]}
               />
-            </FormField>
-            <FormField label={t('addEndpoint.priority')} error={errors.endpointPriority?.message}>
-              <Input
-                type="number"
-                min={1}
-                {...register('endpointPriority', { valueAsNumber: true })}
-              />
-            </FormField>
+            </Form.Item>
+            <Form.Item name="endpointPriority" label={t('addEndpoint.priority')}>
+              <InputNumber min={1} className="w-full" />
+            </Form.Item>
           </div>
-          <FormField label={t('addEndpoint.apiKeyEnvName')}>
-            <Input
-              type="text"
-              {...register('apiKeyEnv')}
-              placeholder={t('addEndpoint.apiKeyEnvPlaceholder')}
-            />
-          </FormField>
-          <FormField
+          <Form.Item name="apiKeyEnv" label={t('addEndpoint.apiKeyEnvName')}>
+            <Input placeholder={t('addEndpoint.apiKeyEnvPlaceholder')} />
+          </Form.Item>
+          <Form.Item
+            name="maxTokens"
             label={t('addEndpoint.maxTokens')}
-            hint={t('addEndpoint.maxTokensHint')}
-            error={errors.maxTokens?.message}
+            extra={t('addEndpoint.maxTokensHint')}
           >
-            <Input type="number" min={0} {...register('maxTokens', { valueAsNumber: true })} />
-          </FormField>
-          <FormField
+            <InputNumber min={0} className="w-full" />
+          </Form.Item>
+          <Form.Item
+            name="contextWindow"
             label={t('addEndpoint.contextWindow')}
-            hint={t('addEndpoint.contextWindowHint')}
-            error={errors.contextWindow?.message}
+            extra={t('addEndpoint.contextWindowHint')}
+            rules={[{ type: 'number', min: 1024, message: t('addEndpoint.contextWindowHint') }]}
           >
-            <Input
-              type="number"
-              min={1024}
-              {...register('contextWindow', { valueAsNumber: true })}
-            />
-          </FormField>
-          <FormField label={t('addEndpoint.timeout')} error={errors.timeoutSec?.message}>
-            <Input type="number" min={10} {...register('timeoutSec', { valueAsNumber: true })} />
-          </FormField>
-          <FormField
+            <InputNumber min={1024} className="w-full" />
+          </Form.Item>
+          <Form.Item
+            name="timeoutSec"
+            label={t('addEndpoint.timeout')}
+            rules={[{ type: 'number', min: 10, message: '超时至少 10 秒' }]}
+          >
+            <InputNumber min={10} className="w-full" />
+          </Form.Item>
+          <Form.Item
+            name="rpmLimit"
             label={t('addEndpoint.rpmLimit')}
-            hint={t('addEndpoint.rpmLimitHint')}
-            error={errors.rpmLimit?.message}
+            extra={t('addEndpoint.rpmLimitHint')}
           >
-            <Input type="number" min={0} {...register('rpmLimit', { valueAsNumber: true })} />
-          </FormField>
+            <InputNumber min={0} className="w-full" />
+          </Form.Item>
         </div>
       ),
     },
@@ -376,154 +366,145 @@ export function AddEndpointDialog({
         footer={footer}
         width={720}
         destroyOnHidden
-        styles={{ body: { maxHeight: '65vh', overflowY: 'auto', paddingTop: 8 } }}
       >
         <p className="text-sm text-muted-foreground mb-4">{t('addEndpoint.description')}</p>
 
-        {/* 服务商 */}
-        <FormField
-          label={t('addEndpoint.provider')}
-          hint={
-            !isCustomOrLocal ? (
-              <>
-                API 地址：{effectiveBaseUrl || '—'}{' '}
+        <Form form={form} layout="vertical" onFinish={onFinish}>
+          {/* 服务商 */}
+          <Form.Item
+            name="providerSlug"
+            label={t('addEndpoint.provider')}
+            extra={
+              !isCustomOrLocal ? (
+                <span>
+                  API 地址：{effectiveBaseUrl || '—'}{' '}
+                  <button
+                    type="button"
+                    className="text-accent hover:underline focus:outline-none"
+                    onClick={() => setBaseUrlExpanded((v) => !v)}
+                  >
+                    {baseUrlExpanded
+                      ? t('addEndpoint.apiUrlCollapse')
+                      : t('addEndpoint.apiUrlConfig')}
+                  </button>
+                </span>
+              ) : undefined
+            }
+          >
+            <Select
+              loading={providersLoading}
+              disabled={providersLoading}
+              placeholder={
+                providersLoading
+                  ? t('addEndpoint.providerLoading')
+                  : t('addEndpoint.providerPlaceholder')
+              }
+              options={providers.map((p) => ({ value: p.slug, label: p.name }))}
+              onChange={() => setBaseUrlExpanded(false)}
+            />
+          </Form.Item>
+          {providersError && <p className="text-xs text-red-500 -mt-3 mb-4">{providersError}</p>}
+
+          {/* API 地址 */}
+          {showBaseUrl && (
+            <Form.Item
+              name="baseUrl"
+              label={t('addEndpoint.apiUrl')}
+              extra={t('addEndpoint.apiUrlHint')}
+              rules={[
+                {
+                  validator: (_, value) => {
+                    if (!value || /^https?:\/\/.+/.test(value)) return Promise.resolve();
+                    return Promise.reject(new Error(t('addEndpoint.apiUrlHint')));
+                  },
+                },
+              ]}
+            >
+              <Input
+                placeholder={selectedProvider?.default_base_url || 'https://api.example.com/v1'}
+              />
+            </Form.Item>
+          )}
+
+          {/* API Key */}
+          <Form.Item
+            name="apiKeyValue"
+            label={
+              <span>
+                {t('addEndpoint.apiKey')}
+                {isLocalProvider(selectedProvider) && (
+                  <span className="text-muted-foreground ml-1 font-normal text-xs">
+                    {t('addEndpoint.apiKeyOptional')}
+                  </span>
+                )}
+              </span>
+            }
+          >
+            <Input.Password
+              placeholder={
+                isLocalProvider(selectedProvider)
+                  ? t('addEndpoint.apiKeyOptionalPlaceholder')
+                  : t('addEndpoint.apiKeyPlaceholder')
+              }
+            />
+          </Form.Item>
+
+          {/* 选择模型 */}
+          <Form.Item
+            name="selectedModelId"
+            label={t('addEndpoint.model')}
+            rules={[{ required: true, message: '请填写或选择模型' }]}
+            extra={
+              <span>
+                {t('addEndpoint.modelManualHint')}{' '}
                 <button
                   type="button"
-                  className="text-accent hover:underline focus:outline-none"
-                  onClick={() => setBaseUrlExpanded((v) => !v)}
+                  className="text-accent hover:underline disabled:opacity-50 focus:outline-none"
+                  onClick={fetchModels}
+                  disabled={modelsLoading || !effectiveBaseUrl}
                 >
-                  {baseUrlExpanded
-                    ? t('addEndpoint.apiUrlCollapse')
-                    : t('addEndpoint.apiUrlConfig')}
+                  {modelsLoading ? t('addEndpoint.modelFetching') : t('addEndpoint.modelFetchBtn')}
                 </button>
-              </>
-            ) : undefined
-          }
-        >
-          <Select
-            value={providerSlug}
-            onValueChange={(v) => {
-              setValue('providerSlug', v, { shouldDirty: true });
-              setBaseUrlExpanded(false);
-            }}
-            options={providers.map((p) => ({ value: p.slug, label: p.name }))}
-            disabled={providersLoading}
-            placeholder={
-              providersLoading
-                ? t('addEndpoint.providerLoading')
-                : t('addEndpoint.providerPlaceholder')
+                {models.length > 0 && (
+                  <span className="text-muted-foreground ml-1">
+                    {t('addEndpoint.modelFetched', { count: models.length })}
+                  </span>
+                )}
+              </span>
             }
-          />
-          {providersError && <p className="text-xs text-red-500 mt-1">{providersError}</p>}
-        </FormField>
+          >
+            {models.length > 0 ? (
+              <Select
+                options={models.map((m) => ({ value: m.id, label: m.name || m.id }))}
+                placeholder={t('addEndpoint.modelPlaceholder')}
+              />
+            ) : (
+              <Input placeholder={t('addEndpoint.modelInputPlaceholder')} />
+            )}
+          </Form.Item>
 
-        {/* API 地址 */}
-        {showBaseUrl && (
-          <FormField
-            label={t('addEndpoint.apiUrl')}
-            hint={t('addEndpoint.apiUrlHint')}
-            error={errors.baseUrl?.message}
+          {/* 端点名称 */}
+          <Form.Item
+            name="endpointName"
+            label={t('addEndpoint.endpointName')}
+            rules={[{ max: 64 }]}
           >
             <Input
-              type="url"
-              {...register('baseUrl')}
-              placeholder={selectedProvider?.default_base_url || 'https://api.example.com/v1'}
+              placeholder={`${selectedProvider?.slug ?? 'ep'}-${selectedModelId || 'model'}`}
             />
-          </FormField>
-        )}
+          </Form.Item>
 
-        {/* API Key */}
-        <FormField
-          label={t('addEndpoint.apiKey')}
-          hint={isLocalProvider(selectedProvider) ? t('addEndpoint.apiKeyOptional') : undefined}
-          error={errors.apiKeyValue?.message}
-        >
-          <Input
-            type="password"
-            {...register('apiKeyValue')}
-            placeholder={
-              isLocalProvider(selectedProvider)
-                ? t('addEndpoint.apiKeyOptionalPlaceholder')
-                : t('addEndpoint.apiKeyPlaceholder')
-            }
-          />
-        </FormField>
-
-        {/* 选择模型 */}
-        <FormField
-          label={t('addEndpoint.model')}
-          hint={
-            <>
-              {t('addEndpoint.modelManualHint')}
-              <button
-                type="button"
-                className="text-accent hover:underline ml-0.5 disabled:opacity-50 focus:outline-none"
-                onClick={fetchModels}
-                disabled={modelsLoading || !effectiveBaseUrl}
-              >
-                {modelsLoading ? t('addEndpoint.modelFetching') : t('addEndpoint.modelFetchBtn')}
-              </button>
-              {models.length > 0 && (
-                <span className="text-muted-foreground">
-                  {t('addEndpoint.modelFetched', { count: models.length })}
-                </span>
-              )}
-            </>
-          }
-          error={errors.selectedModelId?.message}
-        >
-          {models.length > 0 ? (
-            <Select
-              value={selectedModelId}
-              onValueChange={(v) => setValue('selectedModelId', v, { shouldDirty: true })}
-              options={models.map((m) => ({ value: m.id, label: m.name || m.id }))}
-              placeholder={t('addEndpoint.modelPlaceholder')}
+          {/* 模型能力 */}
+          <Form.Item name="capSelected" label={t('addEndpoint.capabilities')}>
+            <Tag.CheckableTagGroup
+              multiple
+              options={CAPABILITY_OPTIONS.map((c) => ({ label: c.name, value: c.k }))}
             />
-          ) : (
-            <Input
-              type="text"
-              {...register('selectedModelId')}
-              placeholder={t('addEndpoint.modelInputPlaceholder')}
-            />
-          )}
-        </FormField>
+          </Form.Item>
 
-        {/* 端点名称 */}
-        <FormField label={t('addEndpoint.endpointName')} error={errors.endpointName?.message}>
-          <Input
-            type="text"
-            {...register('endpointName')}
-            placeholder={`${selectedProvider?.slug ?? 'ep'}-${selectedModelId || 'model'}`}
-          />
-        </FormField>
-
-        {/* 模型能力 */}
-        <FormField label={t('addEndpoint.capabilities')}>
-          <div className="flex flex-wrap gap-2">
-            {CAPABILITY_OPTIONS.map((c) => {
-              const on = capSelected.includes(c.k);
-              return (
-                <Button
-                  key={c.k}
-                  type={on ? 'primary' : 'default'}
-                  size="small"
-                  onClick={() => {
-                    const set = new Set(capSelected);
-                    if (set.has(c.k)) set.delete(c.k);
-                    else set.add(c.k);
-                    const out = Array.from(set);
-                    setValue('capSelected', out.length ? out : ['text'], { shouldDirty: true });
-                  }}
-                >
-                  {c.name}
-                </Button>
-              );
-            })}
-          </div>
-        </FormField>
-
-        {/* 高级参数 */}
-        <Collapse size="small" items={advancedItems} className="mt-2" />
+          {/* 高级参数 */}
+          <Collapse size="small" items={advancedItems} />
+        </Form>
 
         {/* 连接测试结果 */}
         {connTestResult && (

@@ -5,7 +5,9 @@
       "Bash(npm install:*)",
       "Bash(npm uninstall:*)",
       "Bash(npx tsc:*)",
-      "Bash(npx vite:*)"
+      "Bash(npx vite:*)",
+      "Bash(git commit:*)",
+      "Bash(node -e \"const p=require\\(''./apps/web-ui/node_modules/antd/package.json''\\); console.log\\(p.version\\)\")"
     ]
   }
 }

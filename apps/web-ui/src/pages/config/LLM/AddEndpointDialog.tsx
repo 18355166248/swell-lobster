@@ -254,10 +254,10 @@ export function AddEndpointDialog({
 
   const onFinish = useCallback(
     (values: FormValues) => {
-      const url = values.baseUrl.trim() || selectedProvider?.default_base_url || '';
+      const url = (values.baseUrl ?? '').trim() || selectedProvider?.default_base_url || '';
       const name =
-        values.endpointName.trim() ||
-        `${selectedProvider?.slug ?? 'ep'}-${values.selectedModelId}`.slice(0, 64);
+        (values.endpointName ?? '').trim() ||
+        `${selectedProvider?.slug ?? 'ep'}-${values.selectedModelId ?? ''}`.slice(0, 64);
 
       if (existingNames.includes(name)) {
         form.setFields([{ name: 'endpointName', errors: [t('addEndpoint.nameExists')] }]);
@@ -265,7 +265,7 @@ export function AddEndpointDialog({
       }
 
       const effectiveKey =
-        values.apiKeyValue.trim() ||
+        (values.apiKeyValue ?? '').trim() ||
         (isLocalProvider(selectedProvider) ? localPlaceholderKey(selectedProvider) : '');
       if (!isLocalProvider(selectedProvider) && !effectiveKey) {
         form.setFields([{ name: 'apiKeyValue', errors: [t('addEndpoint.apiKeyRequired')] }]);
@@ -273,25 +273,27 @@ export function AddEndpointDialog({
       }
 
       const keyEnv =
-        values.apiKeyEnv.trim() ||
+        (values.apiKeyEnv ?? '').trim() ||
         `LLM_API_KEY_${selectedProvider?.slug ?? 'custom'}`.toUpperCase();
+
+      const capSelected = values.capSelected ?? [];
 
       const payload: EndpointFormData = {
         name,
-        model: values.selectedModelId.trim(),
-        api_type: values.apiType,
+        model: (values.selectedModelId ?? '').trim(),
+        api_type: values.apiType ?? 'anthropic',
         base_url: url,
         api_key_env: keyEnv,
         api_key_value:
           effectiveKey && !isLocalProvider(selectedProvider) ? effectiveKey : undefined,
-        priority: Math.max(1, values.endpointPriority),
+        priority: Math.max(1, values.endpointPriority ?? 1),
         enabled: true,
         provider: selectedProvider?.slug,
-        capabilities: values.capSelected.length ? values.capSelected : ['text'],
-        max_tokens: Math.max(0, values.maxTokens),
-        context_window: Math.max(1024, values.contextWindow),
-        timeout: Math.max(10, values.timeoutSec),
-        rpm_limit: Math.max(0, values.rpmLimit),
+        capabilities: capSelected.length ? capSelected : ['text'],
+        max_tokens: Math.max(0, values.maxTokens ?? 0),
+        context_window: Math.max(1024, values.contextWindow ?? DEFAULT_CONTEXT_WINDOW),
+        timeout: Math.max(10, values.timeoutSec ?? DEFAULT_TIMEOUT),
+        rpm_limit: Math.max(0, values.rpmLimit ?? 0),
       };
 
       onConfirm(payload);

@@ -4,9 +4,10 @@
  * 对应 Python: swell_lobster/main.py `serve` 命令
  */
 
+// 须最先加载，保证 .env 中的 HTTP(S)_PROXY 等在任意路由/bridge 执行前已注入 process.env
+import { settings } from "./config.js";
 import { serve } from "@hono/node-server";
 import { createApp } from "./api/server.js";
-import { settings } from "./config.js";
 
 const app = createApp();
 

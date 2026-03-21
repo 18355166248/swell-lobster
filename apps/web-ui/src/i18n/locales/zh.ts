@@ -59,8 +59,16 @@ const zh = {
     title: '聊天',
     subtitle: '与 AI 助手对话',
     placeholder: '输入消息... (Enter 发送，Shift+Enter 换行)',
-    emptyHint: '输入消息开始对话（当前为占位，需配置 LLM 后接入 Agent）',
+    emptyHint: '输入消息开始对话',
     sendFailed: '发送失败',
+    loadFailed: '聊天初始化失败',
+    createSessionFailed: '创建会话失败',
+    loadSessionFailed: '加载会话失败',
+    updateSessionFailed: '更新会话失败',
+    newSession: '新建对话',
+    sessionList: '对话列表',
+    selectEndpoint: '选择端点',
+    messageCount: '{{count}} 条消息',
   },
 
   // LLM 配置

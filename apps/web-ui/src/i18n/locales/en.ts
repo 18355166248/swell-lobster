@@ -57,8 +57,16 @@ const en: Translations = {
     title: 'Chat',
     subtitle: 'Chat with AI assistant',
     placeholder: 'Type a message... (Enter to send, Shift+Enter for newline)',
-    emptyHint: 'Send a message to start (placeholder — requires LLM endpoint configured)',
+    emptyHint: 'Send a message to start chatting',
     sendFailed: 'Failed to send',
+    loadFailed: 'Failed to initialize chat',
+    createSessionFailed: 'Failed to create session',
+    loadSessionFailed: 'Failed to load session',
+    updateSessionFailed: 'Failed to update session',
+    newSession: 'New Chat',
+    sessionList: 'Sessions',
+    selectEndpoint: 'Select endpoint',
+    messageCount: '{{count}} messages',
   },
 
   llm: {

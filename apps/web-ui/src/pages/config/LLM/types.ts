@@ -21,7 +21,7 @@ export type ProviderInfo = {
 export type ListedModel = {
   id: string;
   name?: string;
-  /** 模型支持的能力：text / thinking / vision / video / tools 等 */
+  /** 模型支持的能力（与 bridge 归一化结果一致）：text / vision / video / tools / thinking / audio / pdf */
   capabilities?: Record<string, boolean>;
 };
 

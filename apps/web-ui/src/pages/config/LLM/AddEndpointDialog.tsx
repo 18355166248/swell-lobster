@@ -125,6 +125,22 @@ export function AddEndpointDialog({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedProvider, selectedModelId]);
 
+  /** 无模型时清空能力；有模型且在列表中命中时按接口 capabilities 同步 */
+  useEffect(() => {
+    const id = (selectedModelId ?? '').trim();
+    if (!id) {
+      form.setFieldValue('capSelected', []);
+      return;
+    }
+    if (models.length === 0) return;
+    const m = models.find((x) => x.id === id);
+    const raw = m?.capabilities;
+    if (!raw || typeof raw !== 'object') return;
+    const selected = CAPABILITY_OPTIONS.filter((c) => raw[c.k] === true).map((c) => c.k);
+    form.setFieldValue('capSelected', selected.length > 0 ? selected : ['text']);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedModelId, models]);
+
   useEffect(() => {
     if (!open) return;
     setBaseUrlExpanded(false);
@@ -139,7 +155,7 @@ export function AddEndpointDialog({
       apiType: 'anthropic',
       selectedModelId: '',
       endpointName: '',
-      capSelected: ['text'],
+      capSelected: [],
       endpointPriority: endpointCount === 0 ? 1 : endpointCount + 1,
       maxTokens: 0,
       contextWindow: DEFAULT_CONTEXT_WINDOW,
@@ -400,7 +416,14 @@ export function AddEndpointDialog({
                   : t('addEndpoint.providerPlaceholder')
               }
               options={providers.map((p) => ({ value: p.slug, label: p.name }))}
-              onChange={() => setBaseUrlExpanded(false)}
+              onChange={() => {
+                setBaseUrlExpanded(false);
+                setModels([]);
+                form.setFieldsValue({
+                  selectedModelId: '',
+                  capSelected: [],
+                });
+              }}
             />
           </Form.Item>
           {providersError && <p className="text-xs text-red-500 -mt-3 mb-4">{providersError}</p>}
@@ -475,6 +498,7 @@ export function AddEndpointDialog({
           >
             {models.length > 0 ? (
               <Select
+                allowClear
                 options={models.map((m) => ({ value: m.id, label: m.name || m.id }))}
                 placeholder={t('addEndpoint.modelPlaceholder')}
               />

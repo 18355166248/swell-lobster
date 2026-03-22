@@ -1,3 +1,4 @@
+import { GoogleGenAI } from "@google/genai";
 import type { ChatMessage, EndpointConfig } from "./models.js";
 
 function normalizeMessages(history: ChatMessage[], userMessage: string): Array<{ role: "user" | "assistant"; content: string }> {
@@ -38,11 +39,16 @@ export async function streamChatCompletion(args: {
   onChunk: (delta: string) => void | Promise<void>;
 }): Promise<string> {
   const { endpoint, apiKey, history, userMessage, onChunk } = args;
-  if (!endpoint.base_url) throw new Error("endpoint base_url is empty");
   if (!endpoint.model) throw new Error("endpoint model is empty");
 
+  const apiType = (endpoint.api_type || "openai").toLowerCase();
+  if (apiType === "gemini") {
+    return streamGemini(endpoint, apiKey, history, userMessage, onChunk);
+  }
+
+  if (!endpoint.base_url) throw new Error("endpoint base_url is empty");
   const messages = normalizeMessages(history, userMessage);
-  if ((endpoint.api_type || "openai").toLowerCase() === "anthropic") {
+  if (apiType === "anthropic") {
     return streamAnthropic(endpoint, apiKey, messages, onChunk);
   }
   return streamOpenAI(endpoint, apiKey, messages, onChunk);
@@ -55,11 +61,18 @@ export async function requestChatCompletion(args: {
   userMessage: string;
 }): Promise<string> {
   const { endpoint, apiKey, history, userMessage } = args;
-  if (!endpoint.base_url) throw new Error("endpoint base_url is empty");
   if (!endpoint.model) throw new Error("endpoint model is empty");
 
+  const apiType = (endpoint.api_type || "openai").toLowerCase();
+  console.log('apiType', apiType);
+
+  if (apiType === "gemini") {
+    return requestGemini(endpoint, apiKey, history, userMessage);
+  }
+
+  if (!endpoint.base_url) throw new Error("endpoint base_url is empty");
   const messages = normalizeMessages(history, userMessage);
-  if ((endpoint.api_type || "openai").toLowerCase() === "anthropic") {
+  if (apiType === "anthropic") {
     return requestAnthropic(endpoint, apiKey, messages);
   }
   return requestOpenAI(endpoint, apiKey, messages);
@@ -215,6 +228,63 @@ async function streamOpenAI(
     }
   }
 
+  return full;
+}
+
+function buildGeminiContents(
+  history: ChatMessage[],
+  userMessage: string
+): Array<{ role: "user" | "model"; parts: Array<{ text: string }> }> {
+  const contents = history
+    .filter((m) => m.role === "user" || m.role === "assistant")
+    .map((m) => ({
+      role: (m.role === "assistant" ? "model" : "user") as "user" | "model",
+      parts: [{ text: m.content }],
+    }));
+  contents.push({ role: "user", parts: [{ text: userMessage }] });
+  return contents;
+}
+
+async function requestGemini(
+  endpoint: EndpointConfig,
+  apiKey: string,
+  history: ChatMessage[],
+  userMessage: string
+): Promise<string> {
+  const options = endpoint.base_url ? { httpOptions: { baseUrl: endpoint.base_url } } : {};
+  const ai = new GoogleGenAI({ apiKey, ...options });
+  const contents = buildGeminiContents(history, userMessage);
+  const config = endpoint.max_tokens > 0 ? { maxOutputTokens: endpoint.max_tokens } : undefined;
+
+  const response = await ai.models.generateContent({ model: endpoint.model, contents, config });
+  const text = response.text ?? "";
+  if (!text) throw new Error("chat completion response has no readable content");
+  return text;
+}
+
+async function streamGemini(
+  endpoint: EndpointConfig,
+  apiKey: string,
+  history: ChatMessage[],
+  userMessage: string,
+  onChunk: (delta: string) => void | Promise<void>
+): Promise<string> {
+  const options = endpoint.base_url ? { httpOptions: { baseUrl: endpoint.base_url } } : {};
+  console.log('options', options,endpoint,apiKey);
+  const ai = new GoogleGenAI({ apiKey, ...options });
+  const contents = buildGeminiContents(history, userMessage);
+  const config = endpoint.max_tokens > 0 ? { maxOutputTokens: endpoint.max_tokens } : undefined;
+
+  let full = "";
+  const stream = await ai.models.generateContentStream({ model: endpoint.model, contents, config });
+  console.log('stream', stream);
+  for await (const chunk of stream) {
+    const text = chunk.text ?? "";
+    if (text) {
+      await onChunk(text);
+      full += text;
+    }
+  }
   return full;
 }
 

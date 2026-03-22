@@ -7,16 +7,17 @@
     "node": ">=20.20.0"
   },
   "scripts": {
-    "dev": "tsx watch src/index.ts",
+    "dev": "tsx watch --clear-screen=false src/index.ts",
     "start": "node dist/index.js",
     "build": "tsc",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "hono": "^4.7.0",
+    "@google/genai": "^1.46.0",
     "@hono/node-server": "^1.13.0",
     "dotenv": "^16.4.0",
+    "hono": "^4.7.0",
     "undici": "^7.5.0"
   },
   "devDependencies": {

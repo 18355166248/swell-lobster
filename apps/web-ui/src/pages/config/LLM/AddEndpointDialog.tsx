@@ -80,7 +80,7 @@ export function AddEndpointDialog({
   const providerSlug = Form.useWatch('providerSlug', form);
   const baseUrl = Form.useWatch('baseUrl', form) ?? '';
   const apiKeyValue = Form.useWatch('apiKeyValue', form) ?? '';
-  const apiType = Form.useWatch('apiType', form) ?? 'anthropic';
+  const apiType = Form.useWatch('apiType', form) ?? 'openai';
   const selectedModelId = Form.useWatch('selectedModelId', form) ?? '';
   const selectedProvider = useMemo(
     () => providers.find((p) => p.slug === providerSlug) ?? providers[0] ?? null,
@@ -291,7 +291,7 @@ export function AddEndpointDialog({
       const payload: EndpointFormData = {
         name,
         model: (values.selectedModelId ?? '').trim(),
-        api_type: values.apiType ?? 'anthropic',
+        api_type: (form.getFieldValue('apiType') as 'openai' | 'anthropic') ?? 'openai',
         base_url: url,
         api_key_env: keyEnv,
         api_key_value:

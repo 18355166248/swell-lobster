@@ -50,6 +50,8 @@ export function ConfigLLMPage() {
     setSaving(true);
     setError(null);
     try {
+      console.log('raw', raw);
+      console.log('endpoints', endpoints);
       await apiPost('/api/config/endpoints', { content: { ...raw, endpoints } });
       await load();
     } catch (e) {

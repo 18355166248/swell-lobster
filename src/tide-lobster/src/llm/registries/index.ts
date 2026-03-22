@@ -4,7 +4,7 @@
  * 对应 Python: swell_lobster/llm/registries/__init__.py
  *
  * 数据来源：
- *   1. 内置 providers.json（从 swell_lobster 同路径读取，保持单一数据源）
+ *   1. 内置 registries/providers.json（repo 根，两端共用）
  *   2. 工作区 data/custom_providers.json（用户自定义，可选）
  *
  * 合并规则：内置列表为基础，工作区文件按 slug 覆盖或追加。
@@ -22,15 +22,8 @@ import {
 export type { ProviderInfo, ModelInfo };
 export { providerInfoToDict };
 
-// ── 内置 providers.json 路径（从 swell_lobster 包目录读取，保持单一数据源）──────
-const _PROVIDERS_JSON_PATH = resolve(
-  settings.projectRoot,
-  "src",
-  "swell_lobster",
-  "llm",
-  "registries",
-  "providers.json"
-);
+// ── 内置 providers.json 路径（repo 根 registries/，两端共用）──────────────────
+const _PROVIDERS_JSON_PATH = resolve(settings.projectRoot, "registries", "providers.json");
 
 function _loadBuiltinEntries(): Record<string, unknown>[] {
   try {

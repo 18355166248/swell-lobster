@@ -46,7 +46,7 @@ _logger = logging.getLogger(__name__)
 
 # ── 从 providers.json 加载内置服务商声明 ────────────────────────────────────────
 
-_PROVIDERS_JSON = Path(__file__).parent / "providers.json"
+_PROVIDERS_JSON = Path(__file__).parents[4] / "registries" / "providers.json"
 _BUILTIN_ENTRIES: list[dict] = json.loads(_PROVIDERS_JSON.read_text(encoding="utf-8"))
 
 

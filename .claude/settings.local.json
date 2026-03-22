@@ -37,7 +37,13 @@
       "Bash(node -e \"const pkg = require\\(''./node_modules/@ant-design/x/package.json''\\); console.log\\(''version:'', pkg.version, ''peerDeps:'', JSON.stringify\\(pkg.peerDependencies\\)\\)\")",
       "Bash(node -e \"const d=require\\(''''fs''''\\).readFileSync\\(''''/dev/stdin'''',''''utf8''''\\); const p=JSON.parse\\(d\\); console.log\\(''''version:'''', p.version, ''''\\\\npeerDeps:'''', JSON.stringify\\(p.peerDependencies, null, 2\\)\\)\")",
       "Bash(node -e \"const p=require\\(''''F:/FrontEnd/Code/swell-lobster/node_modules/@ant-design/x/package.json''''\\); console.log\\(p.version, JSON.stringify\\(p.peerDependencies\\)\\)\")",
-      "Bash(node -e \"const t = require\\(''''F:/FrontEnd/Code/swell-lobster/node_modules/@ant-design/x/es/conversations/index.d.ts''''\\); console.log\\(t\\)\")"
+      "Bash(node -e \"const t = require\\(''''F:/FrontEnd/Code/swell-lobster/node_modules/@ant-design/x/es/conversations/index.d.ts''''\\); console.log\\(t\\)\")",
+      "Bash(findstr :18900)",
+      "Bash(cmd /c \"taskkill /PID 11532 /F\")",
+      "Bash(cmd /c \"taskkill /PID 11532 /F 2>&1\")",
+      "Bash(powershell -Command \"Stop-Process -Id 11532 -Force\")",
+      "Bash(find F:FrontEndCodeswell-lobster -path */node_modules/@google/genai/package.json)",
+      "Bash(grep -r \"HttpOptions\\\\|fetchImplementation\\\\|customFetch\\\\|fetch?\" F:FrontEndCodeswell-lobsternode_modules@googlegenaidist --include=*.d.ts -l)"
     ]
   }
 }

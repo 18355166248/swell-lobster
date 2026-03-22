@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
+import { useEffect, useMemo, useRef, useState, useCallback, memo } from 'react';
 import { Alert, Avatar, Button, Select } from 'antd';
 import { PlusOutlined, RobotOutlined, UserOutlined } from '@ant-design/icons';
-import { Bubble, Welcome } from '@ant-design/x';
+import { Bubble, Welcome, Mermaid } from '@ant-design/x';
+import { XMarkdown } from '@ant-design/x-markdown';
 import { useTranslation } from 'react-i18next';
 import {
   createSession,
@@ -171,6 +172,29 @@ export function ChatPage() {
     abortRef.current?.abort();
   }, []);
 
+  const MarkdownCode = (props: { className?: string; children?: React.ReactNode }) => {
+    const { className, children } = props;
+    const lang =
+      (className || '')
+        .split(' ')
+        .find((c) => c.startsWith('language-'))
+        ?.replace('language-', '') || '';
+    const raw =
+      typeof children === 'string' ? children : Array.isArray(children) ? children.join('') : '';
+    if (lang === 'mermaid') return <Mermaid>{raw}</Mermaid>;
+    return <code>{raw}</code>;
+  };
+
+  const ChatMarkdown = memo(({ text, enableMermaid }: { text: string; enableMermaid: boolean }) => {
+    return (
+      <XMarkdown
+        content={text}
+        components={enableMermaid ? { code: MarkdownCode } : undefined}
+        paragraphTag="div"
+      />
+    );
+  });
+
   const send = async () => {
     const text = input.trim();
     if (!text || loading) return;
@@ -222,6 +246,27 @@ export function ChatPage() {
       setLoading(false);
     }
   };
+
+  const bubbleItems = useMemo(
+    () =>
+      messages.map((m, i) => {
+        const isLastAssistant = loading && m.role === 'assistant' && i === messages.length - 1;
+        const item = {
+          key: i,
+          role: m.role === 'user' ? 'user' : 'assistant',
+          content: (
+            <ChatMarkdown
+              text={m.content}
+              enableMermaid={!isLastAssistant || m.content === '' ? true : !loading}
+            />
+          ),
+          loading: isLastAssistant && m.content === '',
+          streaming: isLastAssistant && m.content !== '',
+        };
+        return item;
+      }),
+    [messages, loading]
+  );
 
   return (
     <div className="flex h-full animate-in fade-in-50 duration-200">
@@ -296,17 +341,7 @@ export function ChatPage() {
                   avatar: <Avatar size="small" icon={<RobotOutlined />} />,
                 },
               }}
-              items={messages.map((m, i) => {
-                const isLastAssistant =
-                  loading && m.role === 'assistant' && i === messages.length - 1;
-                return {
-                  key: i,
-                  role: m.role === 'user' ? 'user' : 'assistant',
-                  content: m.content,
-                  loading: isLastAssistant && m.content === '',
-                  streaming: isLastAssistant && m.content !== '',
-                };
-              })}
+              items={bubbleItems}
             />
           )}
           {error && (

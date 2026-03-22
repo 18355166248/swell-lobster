@@ -25,6 +25,8 @@ export function ConfigLLMPage() {
   const [saving, setSaving] = useState(false);
   const [reloading, setReloading] = useState(false);
   const [addEndpointOpen, setAddEndpointOpen] = useState(false);
+  const [editEndpointOpen, setEditEndpointOpen] = useState(false);
+  const [editingTarget, setEditingTarget] = useState<EndpointItem | null>(null);
 
   const load = async () => {
     setLoading(true);
@@ -105,6 +107,42 @@ export function ConfigLLMPage() {
     [t]
   );
 
+  const handleEditEndpoint = useCallback(
+    async (data: EndpointFormData) => {
+      setError(null);
+      if (data.api_key_value && data.api_key_env) {
+        try {
+          await apiPost('/api/config/env', { entries: { [data.api_key_env]: data.api_key_value } });
+        } catch (e) {
+          setError(e instanceof Error ? e.message : t('llm.writeKeyFailed'));
+        }
+      }
+      setEndpoints((prev) => {
+        const nameToMatch = String(editingTarget?.name ?? '');
+        const updated: EndpointItem = {
+          name: data.name,
+          model: data.model,
+          api_type: data.api_type,
+          base_url: data.base_url,
+          api_key_env: data.api_key_env,
+          priority: data.priority,
+          enabled: data.enabled !== false,
+          provider: data.provider,
+          capabilities: data.capabilities,
+          max_tokens: data.max_tokens,
+          context_window: data.context_window,
+          timeout: data.timeout,
+          rpm_limit: data.rpm_limit,
+        };
+        const next = prev.map((item) => (String(item.name ?? '') === nameToMatch ? updated : item));
+        return next.sort((a, b) => (a.priority ?? 999) - (b.priority ?? 999));
+      });
+      setEditEndpointOpen(false);
+      setEditingTarget(null);
+    },
+    [editingTarget, t]
+  );
+
   const columns = [
     {
       title: t('llm.colEndpoint'),
@@ -126,6 +164,23 @@ export function ConfigLLMPage() {
       title: t('llm.colPriority'),
       dataIndex: 'priority',
       render: (v: number) => v ?? 1,
+    },
+    {
+      title: t('common.edit'),
+      key: 'actions',
+      render: (_: unknown, record: EndpointItem) => (
+        <Space>
+          <Button
+            size="small"
+            onClick={() => {
+              setEditingTarget(record);
+              setEditEndpointOpen(true);
+            }}
+          >
+            {t('common.edit')}
+          </Button>
+        </Space>
+      ),
     },
   ];
 
@@ -198,6 +253,19 @@ export function ConfigLLMPage() {
           {t('llm.applyRestart')}
         </Button>
       </Space>
+
+      <AddEndpointDialog
+        open={editEndpointOpen}
+        onOpenChange={setEditEndpointOpen}
+        onConfirm={handleEditEndpoint}
+        existingNames={endpoints
+          .map((e) => String(e.name ?? ''))
+          .filter(Boolean)
+          .filter((n) => n !== String(editingTarget?.name ?? ''))}
+        endpointCount={endpoints.length}
+        mode="edit"
+        initial={editingTarget}
+      />
     </div>
   );
 }

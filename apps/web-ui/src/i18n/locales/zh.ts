@@ -147,6 +147,10 @@ const zh = {
     apiKeyRequired: 'API Key 不能为空',
   },
 
+  editEndpoint: {
+    title: '编辑端点',
+  },
+
   // 技能
   skills: {
     title: '技能',

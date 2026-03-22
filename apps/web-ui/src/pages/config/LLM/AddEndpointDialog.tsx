@@ -15,7 +15,7 @@ import {
 import { useTranslation } from 'react-i18next';
 import { apiGet, apiPost } from '../../../api/base';
 import { CAPABILITY_OPTIONS } from './constants';
-import type { EndpointFormData, ListedModel, ProviderInfo } from './types';
+import type { EndpointFormData, ListedModel, ProviderInfo, EndpointItem } from './types';
 
 const DEFAULT_CONTEXT_WINDOW = 200000;
 const DEFAULT_TIMEOUT = 180;
@@ -50,6 +50,8 @@ export type AddEndpointDialogProps = {
   onConfirm: (data: EndpointFormData) => void;
   existingNames?: string[];
   endpointCount?: number;
+  mode?: 'add' | 'edit';
+  initial?: EndpointItem | null;
 };
 
 export function AddEndpointDialog({
@@ -58,6 +60,8 @@ export function AddEndpointDialog({
   onConfirm,
   existingNames = [],
   endpointCount = 0,
+  mode = 'add',
+  initial = null,
 }: AddEndpointDialogProps) {
   const { t } = useTranslation();
   const [messageApi, contextHolder] = message.useMessage();
@@ -80,7 +84,6 @@ export function AddEndpointDialog({
   const providerSlug = Form.useWatch('providerSlug', form);
   const baseUrl = Form.useWatch('baseUrl', form) ?? '';
   const apiKeyValue = Form.useWatch('apiKeyValue', form) ?? '';
-  const apiType = Form.useWatch('apiType', form) ?? 'openai';
   const selectedModelId = Form.useWatch('selectedModelId', form) ?? '';
   const selectedProvider = useMemo(
     () => providers.find((p) => p.slug === providerSlug) ?? providers[0] ?? null,
@@ -116,6 +119,7 @@ export function AddEndpointDialog({
   }, [selectedProvider]);
 
   useEffect(() => {
+    if (mode === 'edit') return;
     if (!form.getFieldValue('endpointName') && selectedProvider && selectedModelId) {
       form.setFieldValue(
         'endpointName',
@@ -123,7 +127,7 @@ export function AddEndpointDialog({
       );
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedProvider, selectedModelId]);
+  }, [selectedProvider, selectedModelId, mode]);
 
   /** 无模型时清空能力；有模型且在列表中命中时按接口 capabilities 同步 */
   useEffect(() => {
@@ -147,21 +151,39 @@ export function AddEndpointDialog({
     setModels([]);
     setConnTestResult(null);
     form.resetFields();
-    form.setFieldsValue({
-      providerSlug: '',
-      baseUrl: '',
-      apiKeyValue: '',
-      apiKeyEnv: '',
-      apiType: 'anthropic',
-      selectedModelId: '',
-      endpointName: '',
-      capSelected: [],
-      endpointPriority: endpointCount === 0 ? 1 : endpointCount + 1,
-      maxTokens: 0,
-      contextWindow: DEFAULT_CONTEXT_WINDOW,
-      timeoutSec: DEFAULT_TIMEOUT,
-      rpmLimit: 0,
-    });
+    if (mode === 'edit' && initial) {
+      form.setFieldsValue({
+        providerSlug: initial.provider || '',
+        baseUrl: initial.base_url || '',
+        apiKeyValue: '',
+        apiKeyEnv: initial.api_key_env || '',
+        apiType: (initial.api_type as 'openai' | 'anthropic') || 'anthropic',
+        selectedModelId: initial.model || '',
+        endpointName: initial.name || '',
+        capSelected: initial.capabilities || [],
+        endpointPriority: initial.priority ?? 1,
+        maxTokens: initial.max_tokens ?? 0,
+        contextWindow: initial.context_window ?? DEFAULT_CONTEXT_WINDOW,
+        timeoutSec: initial.timeout ?? DEFAULT_TIMEOUT,
+        rpmLimit: initial.rpm_limit ?? 0,
+      });
+    } else {
+      form.setFieldsValue({
+        providerSlug: '',
+        baseUrl: '',
+        apiKeyValue: '',
+        apiKeyEnv: '',
+        apiType: 'anthropic',
+        selectedModelId: '',
+        endpointName: '',
+        capSelected: [],
+        endpointPriority: endpointCount === 0 ? 1 : endpointCount + 1,
+        maxTokens: 0,
+        contextWindow: DEFAULT_CONTEXT_WINDOW,
+        timeoutSec: DEFAULT_TIMEOUT,
+        rpmLimit: 0,
+      });
+    }
 
     setProviders([]);
     setProvidersError(null);
@@ -170,11 +192,14 @@ export function AddEndpointDialog({
       .then((data) => {
         const list = Array.isArray(data) ? data : (data.providers ?? []);
         setProviders(list);
+        if (mode === 'edit' && initial && initial.provider) {
+          form.setFieldValue('providerSlug', initial.provider);
+        }
       })
       .catch(() => setProvidersError(t('addEndpoint.providerLoadFailed')))
       .finally(() => setProvidersLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
+  }, [open, mode, initial]);
 
   useEffect(() => {
     if (providers.length === 0) return;
@@ -390,12 +415,14 @@ export function AddEndpointDialog({
       <Modal
         open={open}
         onCancel={() => onOpenChange(false)}
-        title={t('addEndpoint.title')}
+        title={mode === 'edit' ? t('editEndpoint.title') : t('addEndpoint.title')}
         footer={footer}
         width={720}
         destroyOnHidden
       >
-        <p className="text-sm text-muted-foreground mb-4">{t('addEndpoint.description')}</p>
+        <p className="text-sm text-muted-foreground mb-4">
+          {mode === 'edit' ? t('addEndpoint.description') : t('addEndpoint.description')}
+        </p>
 
         <Form form={form} layout="vertical" onFinish={onFinish}>
           {/* 服务商 */}

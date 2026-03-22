@@ -144,6 +144,9 @@ const en: Translations = {
     nameExists: 'Endpoint name already exists, please change it',
     apiKeyRequired: 'API Key is required',
   },
+  editEndpoint: {
+    title: 'Edit Endpoint',
+  },
 
   skills: {
     title: 'Skills',

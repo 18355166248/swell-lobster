@@ -86,6 +86,10 @@ export class ChatService {
     return { session: updated, message: assistant };
   }
 
+  deleteSession(sessionId: string): boolean {
+    return this.store.deleteSession(sessionId);
+  }
+
   async chatStream(
     args: {
       conversation_id?: string | null;

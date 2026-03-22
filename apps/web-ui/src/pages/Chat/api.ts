@@ -28,6 +28,14 @@ export async function updateSession(
   return res.session;
 }
 
+export async function deleteSession(sessionId: string): Promise<void> {
+  const res = await fetch(`${getApiBase()}/api/sessions/${sessionId}`, { method: 'DELETE' });
+  if (!res.ok) {
+    const payload = (await res.json().catch(() => ({}))) as { detail?: string };
+    throw new Error(payload.detail ?? `DELETE session failed: ${res.status}`);
+  }
+}
+
 export async function sendMessage(payload: {
   conversation_id?: string;
   message: string;
@@ -47,12 +55,14 @@ export async function sendMessageStream(
     message: string;
     endpoint_name?: string;
   },
-  onDelta: (delta: string) => void
+  onDelta: (delta: string) => void,
+  signal?: AbortSignal
 ): Promise<{ conversation_id: string; session: ChatSession }> {
   const res = await fetch(`${getApiBase()}/api/chat/stream`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
+    signal,
   });
 
   if (!res.ok || !res.body) {

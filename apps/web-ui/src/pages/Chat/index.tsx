@@ -1,9 +1,11 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Button, Select } from 'antd';
-import { MessageOutlined, PlusOutlined } from '@ant-design/icons';
+import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
+import { Alert, Avatar, Button, Select } from 'antd';
+import { PlusOutlined, RobotOutlined, UserOutlined } from '@ant-design/icons';
+import { Bubble, Welcome } from '@ant-design/x';
 import { useTranslation } from 'react-i18next';
 import {
   createSession,
+  deleteSession,
   fetchChatBootstrap,
   fetchSessionDetail,
   sendMessageStream,
@@ -36,11 +38,7 @@ export function ChatPage() {
   const [bootLoading, setBootLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const bottomRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+  const abortRef = useRef<AbortController | null>(null);
 
   const activeSession = useMemo(
     () => sessions.find((s) => s.id === activeSessionId),
@@ -129,6 +127,35 @@ export function ChatPage() {
     }
   };
 
+  const handleDeleteSession = async (sessionId: string) => {
+    setError(null);
+    try {
+      await deleteSession(sessionId);
+      const remaining = sessions.filter((s) => s.id !== sessionId);
+      setSessions(remaining);
+      if (activeSessionId === sessionId) {
+        if (remaining.length > 0) {
+          await loadSession(remaining[0].id);
+        } else {
+          const created = await createSession(selectedEndpointName);
+          setSessions([
+            {
+              id: created.id,
+              title: created.title,
+              endpoint_name: created.endpoint_name,
+              updated_at: created.updated_at,
+              message_count: created.messages.length,
+            },
+          ]);
+          setActiveSessionId(created.id);
+          setMessages(created.messages);
+        }
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : t('chat.deleteSessionFailed'));
+    }
+  };
+
   const handleEndpointChange = async (endpointName: string) => {
     if (!activeSessionId) return;
     setError(null);
@@ -140,9 +167,16 @@ export function ChatPage() {
     }
   };
 
+  const handleStop = useCallback(() => {
+    abortRef.current?.abort();
+  }, []);
+
   const send = async () => {
     const text = input.trim();
     if (!text || loading) return;
+
+    const controller = new AbortController();
+    abortRef.current = controller;
 
     const localUserMessage: ChatMessage = { role: 'user', content: text };
     setInput('');
@@ -166,15 +200,25 @@ export function ChatPage() {
             }
             return next;
           });
-        }
+        },
+        controller.signal
       );
       setActiveSessionId(res.conversation_id);
       setMessages(res.session.messages || []);
       setSessions((prev) => upsertSessionSummary(prev, res.session));
     } catch (e) {
-      setMessages((prev) => prev.slice(0, Math.max(0, prev.length - 2)));
-      setError(e instanceof Error ? e.message : t('chat.sendFailed'));
+      if (e instanceof Error && e.name === 'AbortError') {
+        // 用户主动停止：移除空的 assistant 占位，保留已流出的内容
+        setMessages((prev) => {
+          const last = prev[prev.length - 1];
+          return last?.role === 'assistant' && !last.content ? prev.slice(0, -2) : prev;
+        });
+      } else {
+        setMessages((prev) => prev.slice(0, Math.max(0, prev.length - 2)));
+        setError(e instanceof Error ? e.message : t('chat.sendFailed'));
+      }
     } finally {
+      abortRef.current = null;
       setLoading(false);
     }
   };
@@ -196,6 +240,7 @@ export function ChatPage() {
             sessions={sessions}
             activeSessionId={activeSessionId}
             onSelect={handleSelectSession}
+            onDelete={handleDeleteSession}
           />
         </div>
       </aside>
@@ -222,52 +267,62 @@ export function ChatPage() {
           </div>
         </div>
 
-        <div className="flex-1 overflow-auto px-6 py-4 space-y-4">
+        <div className="flex-1 flex flex-col overflow-hidden">
           {bootLoading ? (
-            <div className="h-full flex items-center justify-center text-sm text-muted-foreground">
+            <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground">
               {t('common.loading')}
             </div>
           ) : messages.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full gap-3 text-center">
-              <div className="w-12 h-12 rounded-full bg-accent/10 flex items-center justify-center">
-                <MessageOutlined className="text-accent text-xl" />
-              </div>
-              <p className="text-muted-foreground text-sm max-w-xs">{t('chat.emptyHint')}</p>
+            <div className="flex-1 flex items-center justify-center">
+              <Welcome
+                variant="borderless"
+                icon={<RobotOutlined style={{ fontSize: 32, color: 'var(--accent)' }} />}
+                title={t('chat.title')}
+                description={t('chat.emptyHint')}
+              />
             </div>
           ) : (
-            messages.map((m, i) => (
-              <div
-                key={i}
-                className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}
-              >
-                <div
-                  className={`max-w-[75%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${
-                    m.role === 'user'
-                      ? 'bg-accent text-accent-foreground rounded-br-sm'
-                      : 'bg-muted text-foreground rounded-bl-sm'
-                  }`}
-                >
-                  {m.content}
-                </div>
-              </div>
-            ))
+            <Bubble.List
+              style={{ flex: 1 }}
+              styles={{ scroll: { padding: '16px 24px' } }}
+              autoScroll
+              role={{
+                user: {
+                  placement: 'end',
+                  avatar: <Avatar size="small" icon={<UserOutlined />} />,
+                },
+                assistant: {
+                  placement: 'start',
+                  avatar: <Avatar size="small" icon={<RobotOutlined />} />,
+                },
+              }}
+              items={messages.map((m, i) => {
+                const isLastAssistant =
+                  loading && m.role === 'assistant' && i === messages.length - 1;
+                return {
+                  key: i,
+                  role: m.role === 'user' ? 'user' : 'assistant',
+                  content: m.content,
+                  loading: isLastAssistant && m.content === '',
+                  streaming: isLastAssistant && m.content !== '',
+                };
+              })}
+            />
           )}
-
-          {loading && messages[messages.length - 1]?.content === '' && (
-            <div className="flex justify-start">
-              <div className="bg-muted rounded-2xl rounded-bl-sm px-4 py-3 flex gap-1 items-center">
-                <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground/60 animate-bounce [animation-delay:0ms]" />
-                <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground/60 animate-bounce [animation-delay:150ms]" />
-                <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground/60 animate-bounce [animation-delay:300ms]" />
-              </div>
+          {error && (
+            <div className="px-6 py-2 shrink-0">
+              <Alert type="error" message={error} showIcon />
             </div>
           )}
-
-          {error && <Alert type="error" message={error} showIcon />}
-          <div ref={bottomRef} />
         </div>
 
-        <ChatComposer input={input} loading={loading} onInputChange={setInput} onSend={send} />
+        <ChatComposer
+          input={input}
+          loading={loading}
+          onInputChange={setInput}
+          onSend={send}
+          onStop={handleStop}
+        />
       </div>
     </div>
   );

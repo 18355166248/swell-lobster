@@ -94,6 +94,12 @@ chatRouter.get("/api/sessions/:id", (c) => {
   return c.json({ session });
 });
 
+chatRouter.delete("/api/sessions/:id", (c) => {
+  const deleted = service.deleteSession(c.req.param("id"));
+  if (!deleted) return c.json({ detail: "session not found" }, 404);
+  return c.json({ status: "ok" });
+});
+
 chatRouter.patch("/api/sessions/:id", async (c) => {
   try {
     const body = await c.req.json<{ endpoint_name?: string; title?: string }>();

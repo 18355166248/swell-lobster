@@ -72,6 +72,15 @@ export class ChatSessionStore {
     return session;
   }
 
+  deleteSession(sessionId: string): boolean {
+    const sessions = this.load();
+    const idx = sessions.findIndex((s) => s.id === sessionId);
+    if (idx < 0) return false;
+    sessions.splice(idx, 1);
+    this.save(sessions);
+    return true;
+  }
+
   appendTurn(args: {
     sessionId: string;
     userContent: string;

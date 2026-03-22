@@ -69,6 +69,9 @@ const zh = {
     sessionList: '对话列表',
     selectEndpoint: '选择端点',
     messageCount: '{{count}} 条消息',
+    deleteSession: '删除对话',
+    deleteSessionConfirm: '确定删除这个对话吗？',
+    deleteSessionFailed: '删除失败',
   },
 
   // LLM 配置

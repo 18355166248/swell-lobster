@@ -67,6 +67,9 @@ const en: Translations = {
     sessionList: 'Sessions',
     selectEndpoint: 'Select endpoint',
     messageCount: '{{count}} messages',
+    deleteSession: 'Delete',
+    deleteSessionConfirm: 'Delete this conversation?',
+    deleteSessionFailed: 'Failed to delete session',
   },
 
   llm: {

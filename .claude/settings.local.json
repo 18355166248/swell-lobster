@@ -33,7 +33,11 @@
       "Bash(cmd /c \"taskkill /PID 19644 /F\")",
       "Bash(cmd /c taskkill /PID 19644 /F)",
       "Bash(cmd /c taskkill /PID 25008 /F)",
-      "Bash(powershell -Command \"Stop-Process -Id 19644 -Force; Stop-Process -Id 25008 -Force\")"
+      "Bash(powershell -Command \"Stop-Process -Id 19644 -Force; Stop-Process -Id 25008 -Force\")",
+      "Bash(node -e \"const pkg = require\\(''./node_modules/@ant-design/x/package.json''\\); console.log\\(''version:'', pkg.version, ''peerDeps:'', JSON.stringify\\(pkg.peerDependencies\\)\\)\")",
+      "Bash(node -e \"const d=require\\(''''fs''''\\).readFileSync\\(''''/dev/stdin'''',''''utf8''''\\); const p=JSON.parse\\(d\\); console.log\\(''''version:'''', p.version, ''''\\\\npeerDeps:'''', JSON.stringify\\(p.peerDependencies, null, 2\\)\\)\")",
+      "Bash(node -e \"const p=require\\(''''F:/FrontEnd/Code/swell-lobster/node_modules/@ant-design/x/package.json''''\\); console.log\\(p.version, JSON.stringify\\(p.peerDependencies\\)\\)\")",
+      "Bash(node -e \"const t = require\\(''''F:/FrontEnd/Code/swell-lobster/node_modules/@ant-design/x/es/conversations/index.d.ts''''\\); console.log\\(t\\)\")"
     ]
   }
 }

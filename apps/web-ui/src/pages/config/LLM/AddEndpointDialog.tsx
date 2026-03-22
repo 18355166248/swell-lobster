@@ -187,6 +187,11 @@ export function AddEndpointDialog({
     const effectiveKey =
       apiKeyValue.trim() ||
       (isLocalProvider(selectedProvider) ? localPlaceholderKey(selectedProvider) : '');
+    const currentApiType = (form.getFieldValue('apiType') as string) || 'openai';
+    const currentBaseUrl =
+      ((form.getFieldValue('baseUrl') as string) || '').trim() ||
+      selectedProvider?.default_base_url ||
+      '';
     setModelsLoading(true);
     setModels([]);
     form.setFieldValue('selectedModelId', '');
@@ -194,8 +199,8 @@ export function AddEndpointDialog({
       const data = await apiPost<{ models?: ListedModel[]; error?: string }>(
         '/api/config/list-models',
         {
-          api_type: apiType,
-          base_url: effectiveBaseUrl,
+          api_type: currentApiType,
+          base_url: currentBaseUrl,
           provider_slug: selectedProvider?.slug ?? null,
           api_key: effectiveKey,
         }
@@ -212,12 +217,17 @@ export function AddEndpointDialog({
     } finally {
       setModelsLoading(false);
     }
-  }, [apiType, effectiveBaseUrl, selectedProvider, apiKeyValue, form, messageApi, t]);
+  }, [selectedProvider, apiKeyValue, form, messageApi, t]);
 
   const testConnection = useCallback(async () => {
     const effectiveKey =
       apiKeyValue.trim() ||
       (isLocalProvider(selectedProvider) ? localPlaceholderKey(selectedProvider) : '');
+    const currentApiType = (form.getFieldValue('apiType') as string) || 'openai';
+    const currentBaseUrl =
+      ((form.getFieldValue('baseUrl') as string) || '').trim() ||
+      selectedProvider?.default_base_url ||
+      '';
     setConnTesting(true);
     setConnTestResult(null);
     const t0 = performance.now();
@@ -225,8 +235,8 @@ export function AddEndpointDialog({
       const data = await apiPost<{ models?: unknown[]; error?: string }>(
         '/api/config/list-models',
         {
-          api_type: apiType,
-          base_url: effectiveBaseUrl,
+          api_type: currentApiType,
+          base_url: currentBaseUrl,
           provider_slug: selectedProvider?.slug ?? null,
           api_key: effectiveKey,
         }
@@ -250,7 +260,7 @@ export function AddEndpointDialog({
     } finally {
       setConnTesting(false);
     }
-  }, [apiType, effectiveBaseUrl, selectedProvider, apiKeyValue]);
+  }, [selectedProvider, apiKeyValue, form]);
 
   const onFinish = useCallback(
     (values: FormValues) => {
@@ -424,6 +434,7 @@ export function AddEndpointDialog({
                 form.setFieldsValue({
                   selectedModelId: '',
                   capSelected: [],
+                  baseUrl: '',
                 });
               }}
             />

@@ -72,7 +72,8 @@ function dispatcherForUrl(url: string): Dispatcher | undefined {
 
 function anthropicModelsUrl(baseUrl: string): string {
   const base = (baseUrl || ANTHROPIC_DEFAULT_BASE).replace(/\/+$/, "");
-  if (base.endsWith("/v1")) return `${base}/models`;
+  // 已含版本路径段（/v1, /v2, /v1beta 等）直接拼 /models
+  if (/\/v\d/.test(base)) return `${base}/models`;
   return `${base}/v1/models`;
 }
 
@@ -143,11 +144,15 @@ export async function listModelsAnthropic(
   const allModels: Record<string, unknown>[] = [];
   let afterId: string | null = null;
 
+  const isNativeAnthropic = (baseUrl || ANTHROPIC_DEFAULT_BASE).includes("anthropic.com");
+
   while (true) {
-    const params = new URLSearchParams({ limit: "1000" });
+    const params = new URLSearchParams();
+    if (isNativeAnthropic) params.set("limit", "1000");
     if (afterId) params.set("after_id", afterId);
 
-    const resp = await fetchWithTimeout(`${url}?${params}`, { headers });
+    const queryString = params.toString();
+    const resp = await fetchWithTimeout(queryString ? `${url}?${queryString}` : url, { headers });
 
     if (!resp.ok) {
       const snippet = (await resp.text()).slice(0, 300);

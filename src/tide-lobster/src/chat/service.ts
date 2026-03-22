@@ -3,7 +3,7 @@ import { resolve } from "node:path";
 
 import { parseEnv } from "../utils/envUtils.js";
 import type { ChatSession, EndpointConfig, SessionSummary } from "./models.js";
-import { requestChatCompletion } from "./llmClient.js";
+import { requestChatCompletion, streamChatCompletion } from "./llmClient.js";
 import { ChatSessionStore } from "./store.js";
 
 export class ChatService {
@@ -73,6 +73,56 @@ export class ChatService {
       apiKey,
       history: session.messages,
       userMessage,
+    });
+
+    const updated = this.store.appendTurn({
+      sessionId: session.id,
+      userContent: userMessage,
+      assistantContent: assistant,
+      endpointName: endpoint.name,
+    });
+
+    if (!updated) throw new Error("failed to persist chat session");
+    return { session: updated, message: assistant };
+  }
+
+  async chatStream(
+    args: {
+      conversation_id?: string | null;
+      message: string;
+      endpoint_name?: string | null;
+    },
+    onChunk: (delta: string) => void
+  ): Promise<{ session: ChatSession; message: string }> {
+    const userMessage = (args.message ?? "").trim();
+    if (!userMessage) throw new Error("message is empty");
+
+    let session = args.conversation_id ? this.store.getSession(args.conversation_id) : undefined;
+    let endpoint: EndpointConfig | undefined;
+
+    if (!session) {
+      endpoint = this.resolveEndpoint(args.endpoint_name);
+      session = this.store.createSession(endpoint?.name ?? args.endpoint_name ?? null);
+    } else {
+      endpoint = this.resolveEndpoint(args.endpoint_name ?? session.endpoint_name ?? null);
+    }
+
+    if (!endpoint) {
+      throw new Error("未找到可用端点，请先在 LLM 配置里添加并启用端点");
+    }
+
+    let apiKey = this.resolveApiKey(endpoint.api_key_env);
+    if (endpoint.api_key_env && !apiKey) {
+      throw new Error(`环境变量 ${endpoint.api_key_env} 未配置 API Key`);
+    }
+    if (!apiKey) apiKey = "local";
+
+    const assistant = await streamChatCompletion({
+      endpoint,
+      apiKey,
+      history: session.messages,
+      userMessage,
+      onChunk,
     });
 
     const updated = this.store.appendTurn({

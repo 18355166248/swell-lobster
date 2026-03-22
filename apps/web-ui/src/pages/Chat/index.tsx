@@ -6,7 +6,7 @@ import {
   createSession,
   fetchChatBootstrap,
   fetchSessionDetail,
-  sendMessage,
+  sendMessageStream,
   updateSession,
 } from './api';
 import type { ChatMessage, ChatSession, EndpointItem, SessionSummary } from './types';
@@ -146,21 +146,33 @@ export function ChatPage() {
 
     const localUserMessage: ChatMessage = { role: 'user', content: text };
     setInput('');
-    setMessages((prev) => [...prev, localUserMessage]);
+    setMessages((prev) => [...prev, localUserMessage, { role: 'assistant', content: '' }]);
     setLoading(true);
     setError(null);
 
     try {
-      const res = await sendMessage({
-        conversation_id: activeSessionId,
-        message: text,
-        endpoint_name: selectedEndpointName,
-      });
+      const res = await sendMessageStream(
+        {
+          conversation_id: activeSessionId,
+          message: text,
+          endpoint_name: selectedEndpointName,
+        },
+        (delta) => {
+          setMessages((prev) => {
+            const next = [...prev];
+            const last = next[next.length - 1];
+            if (last?.role === 'assistant') {
+              next[next.length - 1] = { role: 'assistant', content: last.content + delta };
+            }
+            return next;
+          });
+        }
+      );
       setActiveSessionId(res.conversation_id);
       setMessages(res.session.messages || []);
       setSessions((prev) => upsertSessionSummary(prev, res.session));
     } catch (e) {
-      setMessages((prev) => prev.slice(0, Math.max(0, prev.length - 1)));
+      setMessages((prev) => prev.slice(0, Math.max(0, prev.length - 2)));
       setError(e instanceof Error ? e.message : t('chat.sendFailed'));
     } finally {
       setLoading(false);
@@ -241,7 +253,7 @@ export function ChatPage() {
             ))
           )}
 
-          {loading && (
+          {loading && messages[messages.length - 1]?.content === '' && (
             <div className="flex justify-start">
               <div className="bg-muted rounded-2xl rounded-bl-sm px-4 py-3 flex gap-1 items-center">
                 <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground/60 animate-bounce [animation-delay:0ms]" />

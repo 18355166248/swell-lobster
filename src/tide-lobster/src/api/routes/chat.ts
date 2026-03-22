@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import { streamSSE } from "hono/streaming";
 
 import { settings } from "../../config.js";
 import { ChatService } from "../../chat/service.js";
@@ -35,6 +36,39 @@ chatRouter.post("/api/chat", async (c) => {
       msg.includes("未配置 API Key");
     return c.json({ detail: msg }, isBadRequest ? 400 : 502);
   }
+});
+
+chatRouter.post("/api/chat/stream", async (c) => {
+  const body = await c.req.json<{
+    conversation_id?: string;
+    message?: string;
+    endpoint_name?: string;
+  }>();
+
+  return streamSSE(c, async (stream) => {
+    try {
+      const result = await service.chatStream(
+        {
+          conversation_id: body.conversation_id,
+          message: body.message ?? "",
+          endpoint_name: body.endpoint_name,
+        },
+        async (delta) => {
+          await stream.writeSSE({ data: JSON.stringify({ delta }) });
+        }
+      );
+      await stream.writeSSE({
+        data: JSON.stringify({
+          done: true,
+          conversation_id: result.session.id,
+          session: result.session,
+        }),
+      });
+    } catch (e) {
+      const msg = String((e as Error)?.message || e || "chat failed");
+      await stream.writeSSE({ data: JSON.stringify({ error: msg }) });
+    }
+  });
 });
 
 chatRouter.get("/api/sessions", (c) => {

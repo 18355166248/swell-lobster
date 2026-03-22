@@ -14,7 +14,9 @@ function openAIChatUrl(baseUrl: string): string {
 
 function anthropicMessagesUrl(baseUrl: string): string {
   const base = baseUrl.replace(/\/+$/, "");
-  return base.endsWith("/v1") ? `${base}/messages` : `${base}/v1/messages`;
+  // 已含版本路径段（/v1, /v2, /v1beta 等）直接拼 /messages
+  if (/\/v\d/.test(base)) return `${base}/messages`;
+  return `${base}/v1/messages`;
 }
 
 async function fetchWithTimeout(url: string, init: RequestInit, timeoutSec: number): Promise<Response> {
@@ -26,6 +28,24 @@ async function fetchWithTimeout(url: string, init: RequestInit, timeoutSec: numb
   } finally {
     clearTimeout(timer);
   }
+}
+
+export async function streamChatCompletion(args: {
+  endpoint: EndpointConfig;
+  apiKey: string;
+  history: ChatMessage[];
+  userMessage: string;
+  onChunk: (delta: string) => void | Promise<void>;
+}): Promise<string> {
+  const { endpoint, apiKey, history, userMessage, onChunk } = args;
+  if (!endpoint.base_url) throw new Error("endpoint base_url is empty");
+  if (!endpoint.model) throw new Error("endpoint model is empty");
+
+  const messages = normalizeMessages(history, userMessage);
+  if ((endpoint.api_type || "openai").toLowerCase() === "anthropic") {
+    return streamAnthropic(endpoint, apiKey, messages, onChunk);
+  }
+  return streamOpenAI(endpoint, apiKey, messages, onChunk);
 }
 
 export async function requestChatCompletion(args: {
@@ -139,4 +159,122 @@ async function requestAnthropic(
 
   if (texts.length === 0) throw new Error("chat completion response has no readable content");
   return texts.join("\n");
+}
+
+async function streamOpenAI(
+  endpoint: EndpointConfig,
+  apiKey: string,
+  messages: Array<{ role: "user" | "assistant"; content: string }>,
+  onChunk: (delta: string) => void | Promise<void>
+): Promise<string> {
+  const body: Record<string, unknown> = { model: endpoint.model, messages, stream: true };
+  if (endpoint.max_tokens > 0) body.max_tokens = endpoint.max_tokens;
+
+  const res = await fetchWithTimeout(
+    openAIChatUrl(endpoint.base_url),
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+        Accept: "text/event-stream",
+      },
+      body: JSON.stringify(body),
+    },
+    endpoint.timeout
+  );
+
+  if (!res.ok) {
+    const text = (await res.text()).slice(0, 200);
+    throw new Error(`chat completion failed(${res.status}): ${text}`);
+  }
+
+  let full = "";
+  const decoder = new TextDecoder();
+  const reader = res.body!.getReader();
+  let buf = "";
+  let streamDone = false;
+
+  while (!streamDone) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buf += decoder.decode(value, { stream: true });
+    const lines = buf.split("\n");
+    buf = lines.pop() ?? "";
+    for (const line of lines) {
+      if (!line.startsWith("data:")) continue;
+      const raw = line.slice(5).trim();
+      if (raw === "[DONE]") { streamDone = true; break; }
+      try {
+        const chunk = JSON.parse(raw) as Record<string, unknown>;
+        const choices = Array.isArray(chunk.choices) ? chunk.choices : [];
+        const delta = (choices[0] as Record<string, unknown>)?.delta as Record<string, unknown> | undefined;
+        const text = typeof delta?.content === "string" ? delta.content : "";
+        if (text) { await onChunk(text); full += text; }
+      } catch { /* skip malformed */ }
+    }
+  }
+
+  return full;
+}
+
+async function streamAnthropic(
+  endpoint: EndpointConfig,
+  apiKey: string,
+  messages: Array<{ role: "user" | "assistant"; content: string }>,
+  onChunk: (delta: string) => void | Promise<void>
+): Promise<string> {
+  const body: Record<string, unknown> = {
+    model: endpoint.model,
+    messages,
+    max_tokens: endpoint.max_tokens > 0 ? endpoint.max_tokens : 1024,
+    stream: true,
+  };
+
+  const res = await fetchWithTimeout(
+    anthropicMessagesUrl(endpoint.base_url),
+    {
+      method: "POST",
+      headers: {
+        "x-api-key": apiKey,
+        "anthropic-version": "2023-06-01",
+        "content-type": "application/json",
+        accept: "text/event-stream",
+      },
+      body: JSON.stringify(body),
+    },
+    endpoint.timeout
+  );
+
+  if (!res.ok) {
+    const text = (await res.text()).slice(0, 200);
+    throw new Error(`chat completion failed(${res.status}): ${text}`);
+  }
+
+  let full = "";
+  const decoder = new TextDecoder();
+  const reader = res.body!.getReader();
+  let buf = "";
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buf += decoder.decode(value, { stream: true });
+    const lines = buf.split("\n");
+    buf = lines.pop() ?? "";
+    for (const line of lines) {
+      if (!line.startsWith("data:")) continue;
+      const raw = line.slice(5).trim();
+      try {
+        const chunk = JSON.parse(raw) as Record<string, unknown>;
+        if (chunk.type === "content_block_delta") {
+          const delta = chunk.delta as Record<string, unknown> | undefined;
+          const text = typeof delta?.text === "string" ? delta.text : "";
+          if (text) { await onChunk(text); full += text; }
+        }
+      } catch { /* skip malformed */ }
+    }
+  }
+
+  return full;
 }

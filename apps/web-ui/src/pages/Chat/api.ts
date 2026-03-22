@@ -1,4 +1,4 @@
-import { apiGet, apiPatch, apiPost } from '../../api/base';
+import { apiGet, apiPatch, apiPost, getApiBase } from '../../api/base';
 import type { ChatSession, EndpointItem, SessionSummary } from './types';
 
 export async function fetchChatBootstrap(): Promise<{
@@ -39,4 +39,55 @@ export async function sendMessage(payload: {
   session: ChatSession;
 }> {
   return apiPost('/api/chat', payload);
+}
+
+export async function sendMessageStream(
+  payload: {
+    conversation_id?: string;
+    message: string;
+    endpoint_name?: string;
+  },
+  onDelta: (delta: string) => void
+): Promise<{ conversation_id: string; session: ChatSession }> {
+  const res = await fetch(`${getApiBase()}/api/chat/stream`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok || !res.body) {
+    throw new Error(`API /api/chat/stream: ${res.status}`);
+  }
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buf = '';
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buf += decoder.decode(value, { stream: true });
+    const lines = buf.split('\n');
+    buf = lines.pop() ?? '';
+    for (const line of lines) {
+      if (!line.startsWith('data:')) continue;
+      const raw = line.slice(5).trim();
+      try {
+        const chunk = JSON.parse(raw) as Record<string, unknown>;
+        if (chunk.error) throw new Error(chunk.error as string);
+        if (typeof chunk.delta === 'string') onDelta(chunk.delta);
+        if (chunk.done) {
+          return {
+            conversation_id: chunk.conversation_id as string,
+            session: chunk.session as ChatSession,
+          };
+        }
+      } catch (e) {
+        if (e instanceof SyntaxError) continue;
+        throw e;
+      }
+    }
+  }
+
+  throw new Error('Stream ended without done event');
 }

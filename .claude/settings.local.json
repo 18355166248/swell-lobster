@@ -11,7 +11,29 @@
       "Bash(lsof -ti:18900)",
       "Bash(xargs kill:*)",
       "Bash(mkdir -p ~/.claude/channels/telegram/approved)",
-      "Bash(~/.claude/channels/telegram/approved/6877408325)"
+      "Bash(~/.claude/channels/telegram/approved/6877408325)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(json.dumps\\(d.get\\(''''env'''', {}\\), indent=2\\)\\)\")",
+      "Bash(find C:/Users/lang/.claude -name access.json -o -name *.env -o -name telegram*.json)",
+      "Bash(cc-connect --help)",
+      "Bash(timeout 5 cc-connect --config .cc-connect/config.toml)",
+      "Bash(cc-connect:*)",
+      "Bash(taskkill /F /IM cc-connect.exe)",
+      "Bash(pkill -f cc-connect)",
+      "Bash(tasklist)",
+      "Bash(taskkill:*)",
+      "Bash(cmd /c \"taskkill /PID 21376 /F\")",
+      "Bash(cmd /c \"taskkill /IM cc-connect.exe /F\")",
+      "Bash(cmd /c \"taskkill /F /IM cc-connect.exe\" 2>&1)",
+      "Bash(powershell -Command \"Stop-Process -Name cc-connect -Force -ErrorAction SilentlyContinue; Get-Process cc-connect -ErrorAction SilentlyContinue\")",
+      "Bash(powershell -Command \"Stop-Process -Id 21376 -Force; Start-Sleep 1; Get-Process cc-connect -ErrorAction SilentlyContinue | Select-Object Id,Name\")",
+      "Bash(powershell -Command \"Get-Process cc-connect | Select-Object Id,Name,StartTime\")",
+      "Bash(netstat -ano)",
+      "Bash(cmd /c \"taskkill /PID 19644 /F && taskkill /PID 25008 /F\")",
+      "Bash(cmd /c \"taskkill /PID 19644 /F\")",
+      "Bash(cmd /c taskkill /PID 19644 /F)",
+      "Bash(cmd /c taskkill /PID 25008 /F)",
+      "Bash(powershell -Command \"Stop-Process -Id 19644 -Force; Stop-Process -Id 25008 -Force\")"
     ]
   }
 }

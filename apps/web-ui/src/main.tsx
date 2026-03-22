@@ -1,4 +1,4 @@
-import { StrictMode } from 'react';
+import { StrictMode, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
 import { useAtomValue } from 'jotai';
 import { RouterProvider } from 'react-router';
@@ -12,7 +12,7 @@ import './index.css';
 import { router } from './router';
 import { ThemeSync } from './components/ThemeSync';
 import { themeModeAtom, resolveTheme } from './store/theme';
-import { localeAtom, applyLocale } from './store/locale';
+import { localeAtom } from './store/locale';
 
 const ACCENT_COLOR = '#aa3bff';
 
@@ -22,7 +22,9 @@ function AppWithTheme() {
   const isDark = resolveTheme(mode) === 'dark';
 
   // 语言切换时同步到 i18next
-  applyLocale(locale);
+  useEffect(() => {
+    i18n.changeLanguage(locale);
+  }, [locale]);
 
   const antdLocale = locale === 'zh' ? zhCN : enUS;
 

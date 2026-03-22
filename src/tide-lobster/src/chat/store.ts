@@ -1,8 +1,8 @@
-import { randomUUID } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname } from "node:path";
+import { randomUUID } from 'node:crypto';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { dirname } from 'node:path';
 
-import type { ChatSession, SessionSummary } from "./models.js";
+import type { ChatSession, SessionSummary } from './models.js';
 
 function nowIso(): string {
   return new Date().toISOString();
@@ -36,8 +36,10 @@ export class ChatSessionStore {
     const sessions = this.load();
     const now = nowIso();
     const session: ChatSession = {
-      id: randomUUID?.() ? `chat_${randomUUID().replace(/-/g, "").slice(0, 10)}` : fallbackSessionId(),
-      title: "新对话",
+      id: randomUUID?.()
+        ? `chat_${randomUUID().replace(/-/g, '').slice(0, 10)}`
+        : fallbackSessionId(),
+      title: '新对话',
       endpoint_name: endpointName ?? null,
       created_at: now,
       updated_at: now,
@@ -81,12 +83,12 @@ export class ChatSessionStore {
     if (idx < 0) return undefined;
 
     const s = sessions[idx];
-    s.messages.push({ role: "user", content: args.userContent });
-    s.messages.push({ role: "assistant", content: args.assistantContent });
+    s.messages.push({ role: 'user', content: args.userContent });
+    s.messages.push({ role: 'assistant', content: args.assistantContent });
     if (args.endpointName) s.endpoint_name = args.endpointName;
-    if (s.title === "新对话") {
-      const short = args.userContent.trim().replace(/\n+/g, " ").slice(0, 24);
-      s.title = short || "新对话";
+    if (s.title === '新对话') {
+      const short = args.userContent.trim().replace(/\n+/g, ' ').slice(0, 24);
+      s.title = short || '新对话';
     }
     s.updated_at = nowIso();
 
@@ -98,9 +100,9 @@ export class ChatSessionStore {
   private load(): ChatSession[] {
     if (!existsSync(this.dataPath)) return [];
     try {
-      const raw = JSON.parse(readFileSync(this.dataPath, "utf-8"));
+      const raw = JSON.parse(readFileSync(this.dataPath, 'utf-8'));
       const items = Array.isArray(raw?.sessions) ? raw.sessions : [];
-      return items.filter((x) => typeof x === "object" && x && Array.isArray(x.messages));
+      return items.filter((x: any) => typeof x === 'object' && x && Array.isArray(x.messages));
     } catch {
       return [];
     }
@@ -108,6 +110,6 @@ export class ChatSessionStore {
 
   private save(sessions: ChatSession[]): void {
     mkdirSync(dirname(this.dataPath), { recursive: true });
-    writeFileSync(this.dataPath, JSON.stringify({ sessions }, null, 2) + "\n", "utf-8");
+    writeFileSync(this.dataPath, JSON.stringify({ sessions }, null, 2) + '\n', 'utf-8');
   }
 }

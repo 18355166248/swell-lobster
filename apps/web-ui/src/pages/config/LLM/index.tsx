@@ -158,7 +158,7 @@ export function ConfigLLMPage() {
         loading={loading}
         dataSource={endpoints}
         columns={columns}
-        rowKey={(_, i) => String(i)}
+        rowKey={(r) => String(r.name ?? '')}
         locale={{ emptyText: t('llm.emptyEndpoints') }}
         pagination={false}
       />

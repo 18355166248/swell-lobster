@@ -1,4 +1,4 @@
-export type ChatRole = "user" | "assistant";
+export type ChatRole = 'user' | 'assistant';
 
 export type ChatMessage = {
   role: ChatRole;
@@ -25,7 +25,7 @@ export type SessionSummary = {
 export type EndpointConfig = {
   name: string;
   model: string;
-  api_type: "openai" | "anthropic" | string;
+  api_type: 'openai' | 'anthropic' | string;
   base_url: string;
   api_key_env: string;
   timeout: number;

@@ -4,27 +4,27 @@
  * 对应 Python: swell_lobster/api/routes/config.py
  */
 
-import { Hono } from "hono";
-import { existsSync } from "node:fs";
-import { resolve } from "node:path";
-import { settings } from "../../config.js";
+import { Hono } from 'hono';
+import { existsSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { settings } from '../../config.js';
 
 export const configRouter = new Hono();
 
-configRouter.get("/api/config/workspace-info", (c) => {
+configRouter.get('/api/config/workspace-info', (c) => {
   const root = settings.projectRoot;
   return c.json({
     workspace_path: root,
-    workspace_name: root.split("/").pop() ?? root,
-    env_exists: existsSync(resolve(root, ".env")),
-    endpoints_exists: existsSync(resolve(root, "data", "llm_endpoints.json")),
+    workspace_name: root.split('/').pop() ?? root,
+    env_exists: existsSync(resolve(root, '.env')),
+    endpoints_exists: existsSync(resolve(root, 'data', 'llm_endpoints.json')),
   });
 });
 
-configRouter.post("/api/config/reload", (c) => {
-  return c.json({ status: "ok", reloaded: false, reason: "agent not initialized" });
+configRouter.post('/api/config/reload', (c) => {
+  return c.json({ status: 'ok', reloaded: false, reason: 'agent not initialized' });
 });
 
-configRouter.post("/api/config/restart", (c) => {
-  return c.json({ status: "ok", message: "restart not available in this mode" });
+configRouter.post('/api/config/restart', (c) => {
+  return c.json({ status: 'ok', message: 'restart not available in this mode' });
 });

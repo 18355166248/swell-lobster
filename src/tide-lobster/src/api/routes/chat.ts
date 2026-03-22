@@ -1,13 +1,13 @@
-import { Hono } from "hono";
-import { streamSSE } from "hono/streaming";
+import { Hono } from 'hono';
+import { streamSSE } from 'hono/streaming';
 
-import { settings } from "../../config.js";
-import { ChatService } from "../../chat/service.js";
+import { settings } from '../../config.js';
+import { ChatService } from '../../chat/service.js';
 
 export const chatRouter = new Hono();
 const service = new ChatService(settings.projectRoot);
 
-chatRouter.post("/api/chat", async (c) => {
+chatRouter.post('/api/chat', async (c) => {
   try {
     const body = await c.req.json<{
       conversation_id?: string;
@@ -17,7 +17,7 @@ chatRouter.post("/api/chat", async (c) => {
 
     const result = await service.chat({
       conversation_id: body.conversation_id,
-      message: body.message ?? "",
+      message: body.message ?? '',
       endpoint_name: body.endpoint_name,
     });
 
@@ -28,17 +28,17 @@ chatRouter.post("/api/chat", async (c) => {
       session: result.session,
     });
   } catch (e) {
-    const msg = String((e as Error)?.message || e || "chat failed");
+    const msg = String((e as Error)?.message || e || 'chat failed');
     const isBadRequest =
-      msg.includes("not found") ||
-      msg.includes("empty") ||
-      msg.includes("未找到") ||
-      msg.includes("未配置 API Key");
+      msg.includes('not found') ||
+      msg.includes('empty') ||
+      msg.includes('未找到') ||
+      msg.includes('未配置 API Key');
     return c.json({ detail: msg }, isBadRequest ? 400 : 502);
   }
 });
 
-chatRouter.post("/api/chat/stream", async (c) => {
+chatRouter.post('/api/chat/stream', async (c) => {
   const body = await c.req.json<{
     conversation_id?: string;
     message?: string;
@@ -50,7 +50,7 @@ chatRouter.post("/api/chat/stream", async (c) => {
       const result = await service.chatStream(
         {
           conversation_id: body.conversation_id,
-          message: body.message ?? "",
+          message: body.message ?? '',
           endpoint_name: body.endpoint_name,
         },
         async (delta) => {
@@ -65,51 +65,51 @@ chatRouter.post("/api/chat/stream", async (c) => {
         }),
       });
     } catch (e) {
-      const msg = String((e as Error)?.message || e || "chat failed");
+      const msg = String((e as Error)?.message || e || 'chat failed');
       await stream.writeSSE({ data: JSON.stringify({ error: msg }) });
     }
   });
 });
 
-chatRouter.get("/api/sessions", (c) => {
+chatRouter.get('/api/sessions', (c) => {
   return c.json({
     sessions: service.listSessions(),
     endpoints: service.listEndpoints(),
   });
 });
 
-chatRouter.post("/api/sessions", async (c) => {
+chatRouter.post('/api/sessions', async (c) => {
   try {
     const body = await c.req.json<{ endpoint_name?: string }>();
     const session = service.createSession(body?.endpoint_name);
     return c.json({ session });
   } catch (e) {
-    return c.json({ detail: String((e as Error)?.message || e || "create session failed") }, 400);
+    return c.json({ detail: String((e as Error)?.message || e || 'create session failed') }, 400);
   }
 });
 
-chatRouter.get("/api/sessions/:id", (c) => {
-  const session = service.getSession(c.req.param("id"));
-  if (!session) return c.json({ detail: "session not found" }, 404);
+chatRouter.get('/api/sessions/:id', (c) => {
+  const session = service.getSession(c.req.param('id'));
+  if (!session) return c.json({ detail: 'session not found' }, 404);
   return c.json({ session });
 });
 
-chatRouter.delete("/api/sessions/:id", (c) => {
-  const deleted = service.deleteSession(c.req.param("id"));
-  if (!deleted) return c.json({ detail: "session not found" }, 404);
-  return c.json({ status: "ok" });
+chatRouter.delete('/api/sessions/:id', (c) => {
+  const deleted = service.deleteSession(c.req.param('id'));
+  if (!deleted) return c.json({ detail: 'session not found' }, 404);
+  return c.json({ status: 'ok' });
 });
 
-chatRouter.patch("/api/sessions/:id", async (c) => {
+chatRouter.patch('/api/sessions/:id', async (c) => {
   try {
     const body = await c.req.json<{ endpoint_name?: string; title?: string }>();
-    const session = service.updateSession(c.req.param("id"), {
+    const session = service.updateSession(c.req.param('id'), {
       endpoint_name: body.endpoint_name,
       title: body.title,
     });
-    if (!session) return c.json({ detail: "session not found" }, 404);
+    if (!session) return c.json({ detail: 'session not found' }, 404);
     return c.json({ session });
   } catch (e) {
-    return c.json({ detail: String((e as Error)?.message || e || "update session failed") }, 400);
+    return c.json({ detail: String((e as Error)?.message || e || 'update session failed') }, 400);
   }
 });

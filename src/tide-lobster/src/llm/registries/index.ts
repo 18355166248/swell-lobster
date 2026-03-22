@@ -10,24 +10,20 @@
  * 合并规则：内置列表为基础，工作区文件按 slug 覆盖或追加。
  */
 
-import { readFileSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
-import { resolve } from "node:path";
-import { settings } from "../../config.js";
-import {
-  type ProviderInfo,
-  type ModelInfo,
-  providerInfoToDict,
-} from "./base.js";
+import { readFileSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { settings } from '../../config.js';
+import { type ProviderInfo, type ModelInfo, providerInfoToDict } from './base.js';
 
 export type { ProviderInfo, ModelInfo };
 export { providerInfoToDict };
 
 // ── 内置 providers.json 路径（repo 根 registries/，两端共用）──────────────────
-const _PROVIDERS_JSON_PATH = resolve(settings.projectRoot, "registries", "providers.json");
+const _PROVIDERS_JSON_PATH = resolve(settings.projectRoot, 'registries', 'providers.json');
 
 function _loadBuiltinEntries(): Record<string, unknown>[] {
   try {
-    const raw = readFileSync(_PROVIDERS_JSON_PATH, "utf-8");
+    const raw = readFileSync(_PROVIDERS_JSON_PATH, 'utf-8');
     return JSON.parse(raw) as Record<string, unknown>[];
   } catch {
     console.warn(
@@ -40,14 +36,14 @@ function _loadBuiltinEntries(): Record<string, unknown>[] {
 // ── 工作区自定义服务商 ──────────────────────────────────────────────────────────
 
 function _customProvidersPath(): string {
-  return resolve(settings.projectRoot, "data", "custom_providers.json");
+  return resolve(settings.projectRoot, 'data', 'custom_providers.json');
 }
 
 export function loadCustomProviders(): Record<string, unknown>[] {
   const path = _customProvidersPath();
   if (!existsSync(path)) return [];
   try {
-    const data = JSON.parse(readFileSync(path, "utf-8"));
+    const data = JSON.parse(readFileSync(path, 'utf-8'));
     return Array.isArray(data) ? data : [];
   } catch (e) {
     console.warn(`[tide-lobster] Failed to load custom providers: ${e}`);
@@ -57,8 +53,8 @@ export function loadCustomProviders(): Record<string, unknown>[] {
 
 export function saveCustomProviders(entries: Record<string, unknown>[]): void {
   const path = _customProvidersPath();
-  mkdirSync(resolve(path, ".."), { recursive: true });
-  writeFileSync(path, JSON.stringify(entries, null, 2) + "\n", "utf-8");
+  mkdirSync(resolve(path, '..'), { recursive: true });
+  writeFileSync(path, JSON.stringify(entries, null, 2) + '\n', 'utf-8');
 }
 
 // ── 合并 + 构建 ─────────────────────────────────────────────────────────────────
@@ -72,7 +68,7 @@ function _mergeProviderEntries(): Record<string, unknown>[] {
     merged.set(entry.slug as string, entry);
   }
   for (const entry of custom) {
-    const slug = (entry.slug as string) || "";
+    const slug = (entry.slug as string) || '';
     if (!slug) continue;
     if (merged.has(slug)) {
       merged.set(slug, { ...merged.get(slug), ...entry });
@@ -88,8 +84,8 @@ function _entryToProviderInfo(entry: Record<string, unknown>): ProviderInfo {
     name: entry.name as string,
     slug: entry.slug as string,
     api_type: entry.api_type as string,
-    default_base_url: (entry.default_base_url as string) ?? "",
-    api_key_env_suggestion: (entry.api_key_env_suggestion as string) ?? "",
+    default_base_url: (entry.default_base_url as string) ?? '',
+    api_key_env_suggestion: (entry.api_key_env_suggestion as string) ?? '',
     supports_model_list: (entry.supports_model_list as boolean) ?? true,
     supports_capability_api: (entry.supports_capability_api as boolean) ?? false,
     requires_api_key: (entry.requires_api_key as boolean) ?? true,
@@ -115,9 +111,7 @@ function _buildRegistries(): void {
       _allProviders.push(info);
       _bySlug.set(info.slug, info);
     } catch (e) {
-      console.warn(
-        `[tide-lobster] Failed to build provider '${entry.name}': ${e}`
-      );
+      console.warn(`[tide-lobster] Failed to build provider '${entry.name}': ${e}`);
     }
   }
 }

@@ -737,21 +737,21 @@ SOUL (为什么) → AGENT (怎么做) → USER (为谁) → MEMORY (做什么)
 
 ## 十三、文件索引
 
-| 文件                                | 类型 | 说明                 |
-| ----------------------------------- | ---- | -------------------- |
-| `identity/SOUL.md`                  | 静态 | 核心哲学             |
-| `identity/AGENT.md`                 | 静态 | 行为规范             |
-| `identity/USER.md`                  | 动态 | 用户档案             |
-| `identity/MEMORY.md`                | 动态 | 工作记忆             |
-| `docs/prompts/PROMPT_plan.md`       | 静态 | 计划模式提示词       |
-| `docs/prompts/PROMPT_build.md`      | 静态 | 构建模式提示词       |
+| 文件                                    | 类型 | 说明                 |
+| --------------------------------------- | ---- | -------------------- |
+| `identity/SOUL.md`                      | 静态 | 核心哲学             |
+| `identity/AGENT.md`                     | 静态 | 行为规范             |
+| `identity/USER.md`                      | 动态 | 用户档案             |
+| `identity/MEMORY.md`                    | 动态 | 工作记忆             |
+| `docs/prompts/PROMPT_plan.md`           | 静态 | 计划模式提示词       |
+| `docs/prompts/PROMPT_build.md`          | 静态 | 构建模式提示词       |
 | `src/swell-lobster/core/identity.py`    | 代码 | 身份管理，提示词生成 |
 | `src/swell-lobster/core/agent.py`       | 代码 | 主类，动态提示词组装 |
 | `src/swell-lobster/core/brain.py`       | 代码 | LLM 交互，内置提示词 |
 | `src/swell-lobster/memory/extractor.py` | 代码 | 记忆提取提示词       |
-| `specs/core-agent.md`               | 规格 | 核心模块规格         |
-| `specs/skill-system.md`             | 规格 | 技能系统规格         |
-| `specs/tool-system.md`              | 规格 | 工具系统规格         |
+| `specs/core-agent.md`                   | 规格 | 核心模块规格         |
+| `specs/skill-system.md`                 | 规格 | 技能系统规格         |
+| `specs/tool-system.md`                  | 规格 | 工具系统规格         |
 
 ---
 

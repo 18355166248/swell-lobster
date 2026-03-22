@@ -15,18 +15,18 @@
 
 用 Node.js 替代 Python 实现同类后端**可行**。核心链路在 Node 生态中均有对应：
 
-| 能力 | Python 常见实现 | Node 对应 |
-|------|-----------------|-----------|
-| 异步 | asyncio | Event Loop + async/await |
-| HTTP/SSE | FastAPI | Fastify / Express / Hono |
-| LLM | 自研 client / LangChain | Vercel AI SDK / LangChain.js / 各厂 SDK |
-| ReAct/工具循环 | 自实现循环 | 同逻辑，无语言依赖 |
-| 会话/存储 | SQLite + 内存 | better-sqlite3 / pg |
-| 向量检索 | 自研或 Chroma 等 | pgvector / Qdrant 等 HTTP 客户端 |
-| Shell/子进程 | subprocess | child_process + Promise |
-| IM 通道 | Webhook/WS | 同上，协议与语言无关 |
-| MCP | stdio 子进程 | @modelcontextprotocol/sdk 或自实现 |
-| 技能/进化 | 配置 + pip/动态加载 | 配置 + npm/动态 require，注意沙箱 |
+| 能力           | Python 常见实现         | Node 对应                               |
+| -------------- | ----------------------- | --------------------------------------- |
+| 异步           | asyncio                 | Event Loop + async/await                |
+| HTTP/SSE       | FastAPI                 | Fastify / Express / Hono                |
+| LLM            | 自研 client / LangChain | Vercel AI SDK / LangChain.js / 各厂 SDK |
+| ReAct/工具循环 | 自实现循环              | 同逻辑，无语言依赖                      |
+| 会话/存储      | SQLite + 内存           | better-sqlite3 / pg                     |
+| 向量检索       | 自研或 Chroma 等        | pgvector / Qdrant 等 HTTP 客户端        |
+| Shell/子进程   | subprocess              | child_process + Promise                 |
+| IM 通道        | Webhook/WS              | 同上，协议与语言无关                    |
+| MCP            | stdio 子进程            | @modelcontextprotocol/sdk 或自实现      |
+| 技能/进化      | 配置 + pip/动态加载     | 配置 + npm/动态 require，注意沙箱       |
 
 需注意：若技能实现为 Python 脚本，可保留「子进程调 Python」的桥接；桌面端仍可用 Tauri，通过 HTTP 与 Node 后端通信。
 
@@ -34,14 +34,14 @@
 
 ## 三、技术选型（Node 栈）
 
-| 层级 | 推荐选型 | 备选 |
-|------|----------|------|
-| 运行时 | Node 18+ | — |
-| Web 框架 | Fastify | Express、Hono |
-| LLM | Vercel AI SDK 或 LangChain.js | 各厂官方 SDK 封装 |
-| 存储 | SQLite（better-sqlite3） | PostgreSQL |
-| 向量 | pgvector / 外部向量服务 HTTP 接口 | 内存向量库（仅开发） |
-| MCP 客户端 | @modelcontextprotocol/sdk | 自实现 stdio 协议 |
+| 层级       | 推荐选型                          | 备选                 |
+| ---------- | --------------------------------- | -------------------- |
+| 运行时     | Node 18+                          | —                    |
+| Web 框架   | Fastify                           | Express、Hono        |
+| LLM        | Vercel AI SDK 或 LangChain.js     | 各厂官方 SDK 封装    |
+| 存储       | SQLite（better-sqlite3）          | PostgreSQL           |
+| 向量       | pgvector / 外部向量服务 HTTP 接口 | 内存向量库（仅开发） |
+| MCP 客户端 | @modelcontextprotocol/sdk         | 自实现 stdio 协议    |
 
 ---
 

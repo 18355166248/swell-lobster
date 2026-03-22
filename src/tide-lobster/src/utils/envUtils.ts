@@ -14,12 +14,12 @@
  */
 export function parseEnv(content: string): Record<string, string> {
   const env: Record<string, string> = {};
-  for (let line of content.split("\n")) {
+  for (let line of content.split('\n')) {
     line = line.trim();
-    if (!line || line.startsWith("#")) continue;
-    if (!line.includes("=")) continue;
+    if (!line || line.startsWith('#')) continue;
+    if (!line.includes('=')) continue;
 
-    const eqIdx = line.indexOf("=");
+    const eqIdx = line.indexOf('=');
     const key = line.slice(0, eqIdx).trim();
     let value = line.slice(eqIdx + 1).trim();
 
@@ -30,7 +30,7 @@ export function parseEnv(content: string): Record<string, string> {
     ) {
       value = value.slice(1, -1);
     } else {
-      for (const sep of [" #", "\t#"]) {
+      for (const sep of [' #', '\t#']) {
         const idx = value.indexOf(sep);
         if (idx !== -1) {
           value = value.slice(0, idx).trimEnd();
@@ -50,28 +50,25 @@ export function parseEnv(content: string): Record<string, string> {
  * - 已有键：直接替换该行（value === "" 时删除该行）
  * - 新键：追加到文件末尾
  */
-export function updateEnvContent(
-  existing: string,
-  entries: Record<string, string>
-): string {
-  const lines = existing.split("\n");
+export function updateEnvContent(existing: string, entries: Record<string, string>): string {
+  const lines = existing.split('\n');
   const updatedKeys = new Set<string>();
   const newLines: string[] = [];
 
   for (const line of lines) {
     const stripped = line.trim();
-    if (!stripped || stripped.startsWith("#")) {
+    if (!stripped || stripped.startsWith('#')) {
       newLines.push(line);
       continue;
     }
-    if (!stripped.includes("=")) {
+    if (!stripped.includes('=')) {
       newLines.push(line);
       continue;
     }
-    const key = stripped.split("=")[0].trim();
+    const key = stripped.split('=')[0].trim();
     if (key in entries) {
       const value = entries[key];
-      if (value === "") {
+      if (value === '') {
         // 空值 → 删除该行
         updatedKeys.add(key);
         continue;
@@ -85,10 +82,10 @@ export function updateEnvContent(
 
   // 追加不在原文件中的新键
   for (const [key, value] of Object.entries(entries)) {
-    if (!updatedKeys.has(key) && value !== "") {
+    if (!updatedKeys.has(key) && value !== '') {
       newLines.push(`${key}=${value}`);
     }
   }
 
-  return newLines.join("\n") + "\n";
+  return newLines.join('\n') + '\n';
 }

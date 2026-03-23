@@ -13,16 +13,20 @@ import { router } from './router';
 import { ThemeSync } from './components/ThemeSync';
 import { themeModeAtom, resolveTheme } from './store/theme';
 import { localeAtom } from './store/locale';
+import { brandTheme, applyBrandToCss } from './theme';
 import mermaid from 'mermaid';
 
 mermaid.initialize({ startOnLoad: true });
-
-const ACCENT_COLOR = '#aa3bff';
 
 function AppWithTheme() {
   const mode = useAtomValue(themeModeAtom);
   const locale = useAtomValue(localeAtom);
   const isDark = resolveTheme(mode) === 'dark';
+
+  // 主题切换时同步 CSS 变量
+  useEffect(() => {
+    applyBrandToCss(isDark);
+  }, [isDark]);
 
   // 语言切换时同步到 i18next
   useEffect(() => {
@@ -30,6 +34,7 @@ function AppWithTheme() {
   }, [locale]);
 
   const antdLocale = locale === 'zh' ? zhCN : enUS;
+  const { h, dark: darkHsl } = brandTheme.hsl;
 
   return (
     <ConfigProvider
@@ -37,7 +42,7 @@ function AppWithTheme() {
       theme={{
         algorithm: isDark ? antdTheme.darkAlgorithm : antdTheme.defaultAlgorithm,
         token: {
-          colorPrimary: ACCENT_COLOR,
+          colorPrimary: isDark ? brandTheme.dark : brandTheme.light,
           borderRadius: 8,
           fontFamily: 'system-ui, "Segoe UI", Roboto, sans-serif',
           fontSize: 15,
@@ -46,8 +51,8 @@ function AppWithTheme() {
           Menu: isDark
             ? {
                 itemSelectedColor: '#ffffff',
-                itemSelectedBg: 'rgba(170, 59, 255, 0.25)',
-                itemColor: 'rgba(255, 255, 255, 0.65)',
+                itemSelectedBg: `hsl(${h} ${darkHsl.s} ${darkHsl.l} / 0.25)`,
+                itemColor: 'rgb(255 255 255 / 0.65)',
                 itemHoverColor: '#ffffff',
               }
             : {},
@@ -69,3 +74,5 @@ createRoot(document.getElementById('root')!).render(
     </I18nextProvider>
   </StrictMode>
 );
+
+export default AppWithTheme;

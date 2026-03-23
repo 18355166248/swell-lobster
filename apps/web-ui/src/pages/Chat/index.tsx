@@ -15,6 +15,7 @@ import {
 import type { ChatMessage, ChatSession, EndpointItem, SessionSummary } from './types';
 import { SessionList } from './components/SessionList';
 import { ChatComposer } from './components/ChatComposer';
+import { LoadingBubble } from './components/LoadingBubble';
 
 function upsertSessionSummary(list: SessionSummary[], session: ChatSession): SessionSummary[] {
   const next: SessionSummary = {
@@ -231,7 +232,7 @@ export function ChatPage() {
         // 用户主动停止：移除空的 assistant 占位，保留已流出的内容
         setMessages((prev) => {
           const last = prev[prev.length - 1];
-          return last?.role === 'assistant' && !last.content ? prev.slice(0, -2) : prev;
+          return last?.role === 'assistant' && !last.content ? prev.slice(0, -1) : prev;
         });
       } else {
         setMessages((prev) => prev.slice(0, Math.max(0, prev.length - 2)));
@@ -317,35 +318,38 @@ export function ChatPage() {
               </div>
             </div>
           ) : (
-            <div
-              ref={messagesEndRef}
-              className="flex-1 overflow-y-auto px-6 py-4 flex flex-col gap-4"
-            >
-              {bubbleItems.map((item) => (
-                <div
-                  key={item.key}
-                  className={`flex items-start gap-3 ${item.role === 'user' ? 'justify-end' : 'justify-start'}`}
-                >
-                  {item.role === 'assistant' && (
-                    <Avatar size="small" icon={<RobotOutlined />} className="shrink-0" />
-                  )}
+            <div className="flex-1 overflow-y-auto px-6 py-4 flex flex-col gap-4">
+              {bubbleItems.map((item) => {
+                if (item.loading) {
+                  return <LoadingBubble key={item.key} />;
+                }
+                return (
                   <div
-                    className={`max-w-[70%]
-                    ${
-                      item.role === 'user'
-                        ? 'bg-primary text-primary-foreground rounded-br-none'
-                        : 'bg-muted rounded-bl-none'
-                    }
-                    px-3 py-2 rounded-lg text-sm
-                    `}
+                    key={item.key}
+                    className={`flex items-start gap-3 ${item.role === 'user' ? 'justify-end' : 'justify-start'}`}
                   >
-                    {item.content}
+                    {item.role === 'assistant' && (
+                      <Avatar size="small" icon={<RobotOutlined />} className="shrink-0" />
+                    )}
+                    <div
+                      className={`max-w-[70%]
+                      ${
+                        item.role === 'user'
+                          ? 'bg-primary text-primary-foreground rounded-br-none'
+                          : 'bg-muted rounded-bl-none'
+                      }
+                      px-3 py-2 rounded-lg text-sm
+                      `}
+                    >
+                      {item.content}
+                    </div>
+                    {item.role === 'user' && (
+                      <Avatar size="small" icon={<UserOutlined />} className="shrink-0" />
+                    )}
                   </div>
-                  {item.role === 'user' && (
-                    <Avatar size="small" icon={<UserOutlined />} className="shrink-0" />
-                  )}
-                </div>
-              ))}
+                );
+              })}
+              <div ref={messagesEndRef} />
             </div>
           )}
           {error && (

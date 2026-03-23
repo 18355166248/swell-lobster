@@ -74,6 +74,7 @@ const zh = {
     deleteSession: '删除对话',
     deleteSessionConfirm: '确定删除这个对话吗？',
     deleteSessionFailed: '删除失败',
+    thinking: '思考中...',
   },
 
   // LLM 配置

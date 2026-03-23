@@ -72,6 +72,7 @@ const en: Translations = {
     deleteSession: 'Delete',
     deleteSessionConfirm: 'Delete this conversation?',
     deleteSessionFailed: 'Failed to delete session',
+    thinking: 'Thinking...',
   },
 
   llm: {

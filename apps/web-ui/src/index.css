@@ -3,15 +3,29 @@
 @tailwind utilities;
 
 :root {
+  /* =====================================================
+   * 主题色由 src/theme.ts 统一管理，JS 启动时注入。
+   * 以下为首屏渲染兜底值，请勿在此修改 — 修改 theme.ts。
+   * ===================================================== */
+  --brand-h: 272;
+  --brand-s: 100%;
+  --brand-l: 61%;
+
+  /* 以下由主题色自动派生，无需手动修改 */
+  --accent: hsl(var(--brand-h) var(--brand-s) var(--brand-l));
+  --accent-bg: hsl(var(--brand-h) var(--brand-s) var(--brand-l) / 0.1);
+  --accent-border: hsl(var(--brand-h) var(--brand-s) var(--brand-l) / 0.5);
+  --accent-foreground: #ffffff;
+  --ring: var(--accent);
+  --primary: var(--accent);
+  --primary-foreground: var(--accent-foreground);
+
   --text: #6b6375;
   --text-h: #08060d;
   --bg: #fff;
   --border: #e5e4e7;
   --code-bg: #f4f3ec;
-  --accent: #aa3bff;
-  --accent-bg: rgba(170, 59, 255, 0.1);
-  --accent-border: rgba(170, 59, 255, 0.5);
-  --shadow: rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
+  --shadow: rgb(0 0 0 / 0.1) 0 10px 15px -3px, rgb(0 0 0 / 0.05) 0 4px 6px -2px;
 
   /* 语义化变量（供 Tailwind 与组件使用） */
   --background: #ffffff;
@@ -19,16 +33,11 @@
   --muted: #f4f4f5;
   --muted-foreground: #71717a;
   --input: #e4e4e7;
-  --ring: #aa3bff;
-  --accent-foreground: #ffffff;
   --sidebar: #f4f4f5;
   --sidebar-foreground: #18181b;
   --sidebar-border: #e4e4e7;
   --card: #ffffff;
   --card-foreground: #0a0a0a;
-
-  --primary: var(--accent);
-  --primary-foreground: var(--accent-foreground);
 
   --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
   --heading: system-ui, 'Segoe UI', Roboto, sans-serif;
@@ -48,58 +57,48 @@
 /* 深色模式 */
 @media (prefers-color-scheme: dark) {
   :root:not(.light) {
+    --brand-s: 93%;
+    --brand-l: 74%;
+
     --text: #9ca3af;
     --text-h: #f3f4f6;
     --bg: #16171d;
     --border: #2e303a;
     --code-bg: #1f2028;
-    --accent: #c084fc;
-    --accent-bg: rgba(192, 132, 252, 0.15);
-    --accent-border: rgba(192, 132, 252, 0.5);
-    --shadow: rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
+    --shadow: rgb(0 0 0 / 0.4) 0 10px 15px -3px, rgb(0 0 0 / 0.25) 0 4px 6px -2px;
     --background: #09090b;
     --foreground: #fafafa;
     --muted: #27272a;
     --muted-foreground: #a1a1aa;
     --input: #3f3f46;
-    --ring: #c084fc;
-    --accent-foreground: #ffffff;
     --sidebar: #18181b;
     --sidebar-foreground: #fafafa;
     --sidebar-border: #3f3f46;
     --card: #18181b;
     --card-foreground: #fafafa;
-
-    --primary: var(--accent);
-    --primary-foreground: var(--accent-foreground);
   }
 }
 
 .dark {
+  --brand-s: 93%;
+  --brand-l: 74%;
+
   --text: #9ca3af;
   --text-h: #f3f4f6;
   --bg: #16171d;
   --border: #2e303a;
   --code-bg: #1f2028;
-  --accent: #c084fc;
-  --accent-bg: rgba(192, 132, 252, 0.15);
-  --accent-border: rgba(192, 132, 252, 0.5);
-  --shadow: rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
+  --shadow: rgb(0 0 0 / 0.4) 0 10px 15px -3px, rgb(0 0 0 / 0.25) 0 4px 6px -2px;
   --background: #09090b;
   --foreground: #fafafa;
   --muted: #27272a;
   --muted-foreground: #a1a1aa;
   --input: #3f3f46;
-  --ring: #c084fc;
-  --accent-foreground: #ffffff;
   --sidebar: #18181b;
   --sidebar-foreground: #fafafa;
   --sidebar-border: #3f3f46;
   --card: #18181b;
   --card-foreground: #fafafa;
-
-  --primary: var(--accent);
-  --primary-foreground: var(--accent-foreground);
 }
 
 #root {
@@ -126,6 +125,12 @@ code {
   line-height: 135%;
   padding: 2px 6px;
   background: var(--code-bg);
+}
+
+/* 文本选中色（跟随主题色） */
+::selection {
+  background: hsl(var(--brand-h) var(--brand-s) var(--brand-l) / 0.18);
+  color: inherit;
 }
 
 /* 滚动条美化 */

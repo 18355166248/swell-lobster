@@ -4,13 +4,16 @@ import { resolve } from 'node:path';
 import { parseEnv } from '../utils/envUtils.js';
 import type { ChatSession, EndpointConfig, SessionSummary } from './models.js';
 import { requestChatCompletion, streamChatCompletion } from './llmClient.js';
-import { ChatSessionStore } from './store.js';
+import { ChatStore } from './chatStore.js';
+import { EndpointStore } from '../store/endpointStore.js';
 
 export class ChatService {
-  private readonly store: ChatSessionStore;
+  private readonly store: ChatStore;
+  private readonly endpointStore: EndpointStore;
 
   constructor(private readonly projectRoot: string) {
-    this.store = new ChatSessionStore(resolve(projectRoot, 'data', 'chat_sessions.json'));
+    this.store = new ChatStore();
+    this.endpointStore = new EndpointStore();
   }
 
   listSessions(): SessionSummary[] {
@@ -144,33 +147,19 @@ export class ChatService {
   }
 
   listEndpoints(): Array<Record<string, unknown>> {
-    return this.readEndpointsRaw();
-  }
-
-  private readEndpointsRaw(): Array<Record<string, unknown>> {
-    const path = resolve(this.projectRoot, 'data', 'llm_endpoints.json');
-    if (!existsSync(path)) return [];
-
-    try {
-      const raw = JSON.parse(readFileSync(path, 'utf-8'));
-      return Array.isArray(raw?.endpoints)
-        ? raw.endpoints.filter((x: unknown) => x && typeof x === 'object')
-        : [];
-    } catch {
-      return [];
-    }
+    return this.endpointStore.listEndpoints();
   }
 
   private resolveEndpoint(endpointName?: string | null): EndpointConfig | undefined {
-    const endpoints = this.readEndpointsRaw().filter((ep) => ep.enabled !== false);
+    const endpoints = this.endpointStore.listEndpoints().filter((ep: any) => ep.enabled !== 0);
     if (endpoints.length === 0) return undefined;
 
     if (endpointName) {
-      const found = endpoints.find((ep) => String(ep.name ?? '') === endpointName);
+      const found = endpoints.find((ep: any) => String(ep.name ?? '') === endpointName);
       return found ? this.toEndpointConfig(found) : undefined;
     }
 
-    const sorted = [...endpoints].sort((a, b) => {
+    const sorted = [...endpoints].sort((a: any, b: any) => {
       const ap = Number(a.priority ?? 999);
       const bp = Number(b.priority ?? 999);
       return (Number.isFinite(ap) ? ap : 999) - (Number.isFinite(bp) ? bp : 999);

@@ -11,41 +11,29 @@
  */
 
 import { Hono } from 'hono';
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
-import { resolve } from 'node:path';
-import { settings } from '../../config.js';
+import { EndpointStore } from '../../store/endpointStore.js';
 import { listProviders, providerInfoToDict } from '../../llm/registries/index.js';
 import { listModelsAnthropic, listModelsOpenAI } from '../../llm/bridge.js';
 
 export const configEndpointsRouter = new Hono();
-
-const dataDir = () => resolve(settings.projectRoot, 'data');
-
-// ── GET /api/config/endpoints ──────────────────────────────────────────────────
+const store = new EndpointStore();
 
 configEndpointsRouter.get('/api/config/endpoints', (c) => {
-  const epPath = resolve(dataDir(), 'llm_endpoints.json');
-  if (!existsSync(epPath)) return c.json({ endpoints: [], raw: {} });
-  try {
-    const data = JSON.parse(readFileSync(epPath, 'utf-8'));
-    return c.json({ endpoints: data.endpoints ?? [], raw: data });
-  } catch (e) {
-    return c.json({ error: String(e), endpoints: [], raw: {} });
-  }
+  const endpoints = store.listEndpoints();
+  return c.json({ endpoints });
 });
 
 // ── POST /api/config/endpoints ─────────────────────────────────────────────────
 
 configEndpointsRouter.post('/api/config/endpoints', async (c) => {
-  const body = await c.req.json<{ content: Record<string, unknown> }>();
-  const dir = dataDir();
-  mkdirSync(dir, { recursive: true });
-  writeFileSync(
-    resolve(dir, 'llm_endpoints.json'),
-    JSON.stringify(body.content, null, 2) + '\n',
-    'utf-8'
-  );
-  return c.json({ status: 'ok' });
+  try {
+    const body = await c.req.json<{ content: { endpoints: any[] } }>();
+    const endpoints = Array.isArray(body.content?.endpoints) ? body.content.endpoints : [];
+    store.updateEndpoints(endpoints);
+    return c.json({ status: 'ok' });
+  } catch (e) {
+    return c.json({ detail: String((e as Error)?.message || e) }, 500);
+  }
 });
 
 // ── GET /api/config/providers ──────────────────────────────────────────────────

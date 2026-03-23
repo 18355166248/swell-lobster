@@ -15,6 +15,8 @@
   },
   "dependencies": {
     "@hono/node-server": "^1.19.11",
+    "@types/better-sqlite3": "^7.6.13",
+    "better-sqlite3": "^12.8.0",
     "dotenv": "^16.4.0",
     "hono": "^4.12.8",
     "undici": "^7.5.0"

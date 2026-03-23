@@ -12,6 +12,7 @@ import { configRouter } from './routes/config.js';
 import { configEndpointsRouter } from './routes/configEndpoints.js';
 import { configEnvRouter } from './routes/configEnv.js';
 import { configViewsRouter } from './routes/configViews.js';
+import { configSkillsRouter } from './routes/configSkills.js';
 import { identityRouter } from './routes/identity.js';
 import { skillsRouter } from './routes/skills.js';
 import { chatRouter } from './routes/chat.js';
@@ -42,6 +43,7 @@ export function createApp(): Hono {
   app.route('/', configEndpointsRouter);
   app.route('/', configEnvRouter);
   app.route('/', configViewsRouter);
+  app.route('/', configSkillsRouter);
 
   // 其他路由
   app.route('/', identityRouter);

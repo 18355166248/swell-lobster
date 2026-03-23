@@ -44,7 +44,9 @@
       "Bash(powershell -Command \"Stop-Process -Id 11532 -Force\")",
       "Bash(find F:FrontEndCodeswell-lobster -path */node_modules/@google/genai/package.json)",
       "Bash(grep -r \"HttpOptions\\\\|fetchImplementation\\\\|customFetch\\\\|fetch?\" F:FrontEndCodeswell-lobsternode_modules@googlegenaidist --include=*.d.ts -l)",
-      "Bash(chmod:*)"
+      "Bash(chmod:*)",
+      "Bash(wc:*)",
+      "Bash(grep -rh \"^async def\\\\|^def\" /Users/xmly/Swell/other-code/openakita/src/openakita/api/routes/*.py)"
     ]
   }
 }

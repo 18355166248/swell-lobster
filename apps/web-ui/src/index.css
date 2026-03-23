@@ -27,6 +27,9 @@
   --card: #ffffff;
   --card-foreground: #0a0a0a;
 
+  --primary: var(--accent);
+  --primary-foreground: var(--accent-foreground);
+
   --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
   --heading: system-ui, 'Segoe UI', Roboto, sans-serif;
   --mono: ui-monospace, Consolas, monospace;
@@ -66,6 +69,9 @@
     --sidebar-border: #3f3f46;
     --card: #18181b;
     --card-foreground: #fafafa;
+
+    --primary: var(--accent);
+    --primary-foreground: var(--accent-foreground);
   }
 }
 
@@ -91,6 +97,9 @@
   --sidebar-border: #3f3f46;
   --card: #18181b;
   --card-foreground: #fafafa;
+
+  --primary: var(--accent);
+  --primary-foreground: var(--accent-foreground);
 }
 
 #root {

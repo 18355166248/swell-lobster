@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState, useCallback, memo } from 'react';
 import { Alert, Avatar, Button, Select } from 'antd';
 import { PlusOutlined, RobotOutlined, UserOutlined } from '@ant-design/icons';
-import { Bubble, Welcome, Mermaid } from '@ant-design/x';
-import { XMarkdown } from '@ant-design/x-markdown';
+
+import MarkdownContent from '../../components/MarkdownContent';
 import { useTranslation } from 'react-i18next';
 import {
   createSession,
@@ -24,8 +24,18 @@ function upsertSessionSummary(list: SessionSummary[], session: ChatSession): Ses
     updated_at: session.updated_at,
     message_count: session.messages.length,
   };
-  const filtered = list.filter((x) => x.id !== session.id);
-  return [next, ...filtered];
+
+  const existingIndex = list.findIndex((x) => x.id === session.id);
+
+  if (existingIndex !== -1) {
+    // Session exists, replace it in its current position
+    const newList = [...list];
+    newList[existingIndex] = next;
+    return newList;
+  } else {
+    // Session is new, prepend it to maintain existing behavior for new sessions.
+    return [next, ...list];
+  }
 }
 
 export function ChatPage() {
@@ -40,6 +50,11 @@ export function ChatPage() {
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
 
   const activeSession = useMemo(
     () => sessions.find((s) => s.id === activeSessionId),
@@ -172,27 +187,8 @@ export function ChatPage() {
     abortRef.current?.abort();
   }, []);
 
-  const MarkdownCode = (props: { className?: string; children?: React.ReactNode }) => {
-    const { className, children } = props;
-    const lang =
-      (className || '')
-        .split(' ')
-        .find((c) => c.startsWith('language-'))
-        ?.replace('language-', '') || '';
-    const raw =
-      typeof children === 'string' ? children : Array.isArray(children) ? children.join('') : '';
-    if (lang === 'mermaid') return <Mermaid>{raw}</Mermaid>;
-    return <code>{raw}</code>;
-  };
-
-  const ChatMarkdown = memo(({ text, enableMermaid }: { text: string; enableMermaid: boolean }) => {
-    return (
-      <XMarkdown
-        content={text}
-        components={enableMermaid ? { code: MarkdownCode } : undefined}
-        paragraphTag="div"
-      />
-    );
+  const ChatMarkdown = memo(({ text }: { text: string }) => {
+    return <MarkdownContent content={text} />;
   });
 
   const send = async () => {
@@ -254,12 +250,7 @@ export function ChatPage() {
         const item = {
           key: i,
           role: m.role === 'user' ? 'user' : 'assistant',
-          content: (
-            <ChatMarkdown
-              text={m.content}
-              enableMermaid={!isLastAssistant || m.content === '' ? true : !loading}
-            />
-          ),
+          content: <ChatMarkdown text={m.content} />,
           loading: isLastAssistant && m.content === '',
           streaming: isLastAssistant && m.content !== '',
         };
@@ -319,30 +310,43 @@ export function ChatPage() {
             </div>
           ) : messages.length === 0 ? (
             <div className="flex-1 flex items-center justify-center">
-              <Welcome
-                variant="borderless"
-                icon={<RobotOutlined style={{ fontSize: 32, color: 'var(--accent)' }} />}
-                title={t('chat.title')}
-                description={t('chat.emptyHint')}
-              />
+              <div className="flex flex-col items-center gap-2">
+                <RobotOutlined style={{ fontSize: 32, color: 'var(--accent)' }} />
+                <h2 className="text-lg font-semibold text-foreground">{t('chat.title')}</h2>
+                <p className="text-sm text-muted-foreground">{t('chat.emptyHint')}</p>
+              </div>
             </div>
           ) : (
-            <Bubble.List
-              style={{ flex: 1 }}
-              styles={{ scroll: { padding: '16px 24px' } }}
-              autoScroll
-              role={{
-                user: {
-                  placement: 'end',
-                  avatar: <Avatar size="small" icon={<UserOutlined />} />,
-                },
-                assistant: {
-                  placement: 'start',
-                  avatar: <Avatar size="small" icon={<RobotOutlined />} />,
-                },
-              }}
-              items={bubbleItems}
-            />
+            <div
+              ref={messagesEndRef}
+              className="flex-1 overflow-y-auto px-6 py-4 flex flex-col gap-4"
+            >
+              {bubbleItems.map((item) => (
+                <div
+                  key={item.key}
+                  className={`flex items-start gap-3 ${item.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                >
+                  {item.role === 'assistant' && (
+                    <Avatar size="small" icon={<RobotOutlined />} className="shrink-0" />
+                  )}
+                  <div
+                    className={`max-w-[70%]
+                    ${
+                      item.role === 'user'
+                        ? 'bg-primary text-primary-foreground rounded-br-none'
+                        : 'bg-muted rounded-bl-none'
+                    }
+                    px-3 py-2 rounded-lg text-sm
+                    `}
+                  >
+                    {item.content}
+                  </div>
+                  {item.role === 'user' && (
+                    <Avatar size="small" icon={<UserOutlined />} className="shrink-0" />
+                  )}
+                </div>
+              ))}
+            </div>
           )}
           {error && (
             <div className="px-6 py-2 shrink-0">
@@ -357,6 +361,7 @@ export function ChatPage() {
           onInputChange={setInput}
           onSend={send}
           onStop={handleStop}
+          activeSessionId={activeSessionId}
         />
       </div>
     </div>

@@ -1,6 +1,5 @@
 import { Modal } from 'antd';
 import { DeleteOutlined } from '@ant-design/icons';
-import { Conversations } from '@ant-design/x';
 import { useTranslation } from 'react-i18next';
 import type { SessionSummary } from '../types';
 
@@ -12,6 +11,7 @@ type SessionListProps = {
 };
 
 export function SessionList({ sessions, activeSessionId, onSelect, onDelete }: SessionListProps) {
+  console.log('🚀 ~ SessionList ~ activeSessionId:', activeSessionId);
   const { t } = useTranslation();
 
   const handleDelete = (sessionId: string) => {
@@ -25,24 +25,27 @@ export function SessionList({ sessions, activeSessionId, onSelect, onDelete }: S
   };
 
   return (
-    <Conversations
-      items={sessions.map((s) => ({
-        key: s.id,
-        label: s.title || t('chat.newSession'),
-      }))}
-      activeKey={activeSessionId}
-      onActiveChange={(key) => onSelect(key as string)}
-      menu={(conversation) => ({
-        items: [
-          {
-            key: 'delete',
-            label: t('common.delete'),
-            icon: <DeleteOutlined />,
-            danger: true,
-            onClick: () => handleDelete(conversation.key as string),
-          },
-        ],
-      })}
-    />
+    <div className="flex flex-col gap-1">
+      {sessions.map((s) => (
+        <div
+          key={s.id}
+          className={`flex items-center justify-between rounded-md p-2 cursor-pointer group
+            ${s.id === activeSessionId ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'}
+          `}
+          onClick={() => onSelect(s.id)}
+        >
+          <span className="flex-1 truncate">{s.title || t('chat.newSession')}</span>
+          <button
+            className={`ml-2 p-1 rounded-full hover:bg-red-500 hover:text-white ${s.id === activeSessionId ? 'text-primary-foreground' : 'text-muted-foreground group-hover:opacity-100 opacity-0'}`}
+            onClick={(e) => {
+              e.stopPropagation();
+              handleDelete(s.id);
+            }}
+          >
+            <DeleteOutlined />
+          </button>
+        </div>
+      ))}
+    </div>
   );
 }

@@ -60,6 +60,8 @@ const en: Translations = {
     emptyHint: 'Send a message to start chatting',
     sendFailed: 'Failed to send',
     loadFailed: 'Failed to initialize chat',
+    stopGenerating: 'Stop Generating',
+    send: 'Send',
     createSessionFailed: 'Failed to create session',
     loadSessionFailed: 'Failed to load session',
     updateSessionFailed: 'Failed to update session',

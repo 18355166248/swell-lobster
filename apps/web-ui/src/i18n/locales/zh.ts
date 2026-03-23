@@ -62,6 +62,8 @@ const zh = {
     emptyHint: '输入消息开始对话',
     sendFailed: '发送失败',
     loadFailed: '聊天初始化失败',
+    stopGenerating: '停止生成',
+    send: '发送',
     createSessionFailed: '创建会话失败',
     loadSessionFailed: '加载会话失败',
     updateSessionFailed: '更新会话失败',

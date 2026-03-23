@@ -1,5 +1,7 @@
-import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo, useId } from 'react';
+import type { ComponentPropsWithoutRef } from 'react';
 import ReactMarkdown from 'react-markdown';
+import type { Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
@@ -9,6 +11,7 @@ import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { CopyOutlined, CheckOutlined } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next'; // Using useTranslation instead of i18nService
+import mermaid from 'mermaid';
 
 const CODE_BLOCK_LINE_LIMIT = 200;
 const CODE_BLOCK_CHAR_LIMIT = 20000;
@@ -17,7 +20,113 @@ const SYNTAX_HIGHLIGHTER_STYLE = {
   borderRadius: 0,
   background: '#282c34',
 };
+
+// Initialize mermaid with configuration
+mermaid.initialize({
+  startOnLoad: false, // 禁用自动渲染 自定义渲染
+  theme: 'default',
+  securityLevel: 'loose',
+  themeVariables: {
+    darkMode: true,
+    background: '#1a1a1a',
+    primaryColor: '#4a90e2',
+    primaryTextColor: '#ffffff',
+    primaryBorderColor: '#4a90e2',
+    lineColor: '#ffffff',
+    secondaryColor: '#75a3e2',
+    tertiaryColor: '#96b8e2',
+  },
+});
 const SAFE_URL_PROTOCOLS = new Set(['http', 'https', 'mailto', 'tel', 'file']);
+
+const MermaidBlock: React.FC<{ code: string }> = ({ code }) => {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [svg, setSvg] = useState<string>('');
+  const [error, setError] = useState<string>('');
+  const uniqueId = useId();
+
+  useEffect(() => {
+    const renderMermaid = async () => {
+      if (!containerRef.current) return;
+
+      try {
+        setError('');
+
+        // First validate the diagram syntax
+        try {
+          await mermaid.parse(code);
+        } catch (parseError) {
+          console.error('Mermaid syntax validation failed:', parseError);
+          setError(parseError instanceof Error ? parseError.message : 'Invalid Mermaid syntax');
+          return;
+        }
+
+        // Generate a unique ID for this diagram
+        const diagramId = `mermaid-${uniqueId}-${Date.now()}`;
+
+        // Render the diagram
+        const { svg: renderedSvg } = await mermaid.render(diagramId, code);
+
+        // Check if SVG is empty or just contains empty elements
+        const isEmptySvg =
+          !renderedSvg ||
+          renderedSvg.trim() === '' ||
+          renderedSvg.includes('<svg></svg>') ||
+          renderedSvg.includes('<svg/>') ||
+          (renderedSvg.includes('<svg') &&
+            renderedSvg.includes('</svg>') &&
+            !renderedSvg
+              .replace(/<svg[^>]*>/g, '')
+              .replace(/<\/svg>/g, '')
+              .trim());
+
+        if (isEmptySvg) {
+          console.error('Mermaid rendered empty SVG for code:', code);
+          setError('Diagram rendered empty - check your Mermaid syntax');
+          return;
+        }
+
+        setSvg(renderedSvg);
+      } catch (err) {
+        console.error('Mermaid rendering error:', err);
+        const errorMessage = err instanceof Error ? err.message : 'Failed to render diagram';
+        setError(errorMessage);
+      }
+    };
+
+    renderMermaid();
+  }, [code, uniqueId]);
+
+  if (error) {
+    return (
+      <div className="my-3 rounded-xl overflow-hidden border dark:border-claude-darkBorder border-claude-border">
+        <div className="dark:bg-claude-darkSurfaceMuted bg-claude-surfaceMuted px-4 py-2 text-xs dark:text-claude-darkTextSecondary text-claude-textSecondary font-medium">
+          mermaid (error)
+        </div>
+        <div className="p-4 text-red-500 text-sm">
+          <div className="font-medium mb-2">Error rendering diagram:</div>
+          <div className="text-xs font-mono bg-red-50 dark:bg-red-900/20 p-2 rounded border border-red-200 dark:border-red-800">
+            {error}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="my-3 rounded-xl overflow-hidden">
+      <div className="dark:bg-claude-darkSurfaceMuted bg-claude-surfaceMuted px-4 py-2 text-xs dark:text-claude-darkTextSecondary text-claude-textSecondary font-medium">
+        Mermaid
+      </div>
+      <div
+        ref={containerRef}
+        className="p-4 bg-white dark:bg-gray-900 overflow-auto"
+        // eslint-disable-next-line react/no-danger
+        dangerouslySetInnerHTML={{ __html: svg }}
+      />
+    </div>
+  );
+};
 
 const encodeFileUrl = (url: string): string => {
   const encoded = encodeURI(url);
@@ -146,15 +255,15 @@ const safeUrlTransform = (url: string): string => {
 // const getLocalPathFromLink = ( /* ... */ ) => { /* ... */ };
 // const findFallbackPathFromContext = ( /* ... */ ) => { /* ... */ };
 
-const CodeBlock: React.FC<any> = ({ node, className, children, ...props }) => {
+const CodeBlock: Components['code'] = ({ node, className, children, ...props }) => {
   const { t } = useTranslation(); // Use useTranslation hook
   const normalizedClassName = Array.isArray(className) ? className.join(' ') : className || '';
   const match = /language-([\w-]+)/.exec(normalizedClassName);
   const hasPosition = node?.position?.start?.line != null && node?.position?.end?.line != null;
   const isInline =
-    typeof props.inline === 'boolean'
-      ? props.inline
-      : hasPosition
+    typeof (props as { inline?: boolean }).inline === 'boolean'
+      ? (props as { inline?: boolean }).inline
+      : hasPosition && node?.position
         ? node.position.start.line === node.position.end.line
         : !match;
   const codeText = Array.isArray(children) ? children.join('') : String(children);
@@ -190,6 +299,11 @@ const CodeBlock: React.FC<any> = ({ node, className, children, ...props }) => {
   }, [trimmedCodeText]);
 
   if (!isInline) {
+    // Check if this is a mermaid code block
+    if (match && match[1] === 'mermaid') {
+      return <MermaidBlock code={trimmedCodeText} />;
+    }
+
     // Simple code block without language - minimal styling
     if (!match) {
       return (
@@ -271,9 +385,8 @@ const CodeBlock: React.FC<any> = ({ node, className, children, ...props }) => {
 
 const createMarkdownComponents = () => {
   // Removed resolveLocalFilePath parameter
-  const { t } = useTranslation(); // Use useTranslation hook
   return {
-    p: ({ node, className, children, ...props }: any) => (
+    p: ({ children, ...props }: ComponentPropsWithoutRef<'p'>) => (
       <p
         className="my-1 first:mt-0 last:mb-0 leading-6 dark:text-claude-darkText text-claude-text"
         {...props}
@@ -281,12 +394,12 @@ const createMarkdownComponents = () => {
         {children}
       </p>
     ),
-    strong: ({ node, className, children, ...props }: any) => (
+    strong: ({ children, ...props }: ComponentPropsWithoutRef<'strong'>) => (
       <strong className="font-semibold dark:text-claude-darkText text-claude-text" {...props}>
         {children}
       </strong>
     ),
-    h1: ({ node, className, children, ...props }: any) => (
+    h1: ({ children, ...props }: ComponentPropsWithoutRef<'h1'>) => (
       <h1
         className="text-2xl font-semibold mt-6 mb-3 dark:text-claude-darkText text-claude-text"
         {...props}
@@ -294,7 +407,7 @@ const createMarkdownComponents = () => {
         {children}
       </h1>
     ),
-    h2: ({ node, className, children, ...props }: any) => (
+    h2: ({ children, ...props }: ComponentPropsWithoutRef<'h2'>) => (
       <h2
         className="text-xl font-semibold mt-5 mb-2 dark:text-claude-darkText text-claude-text"
         {...props}
@@ -302,7 +415,7 @@ const createMarkdownComponents = () => {
         {children}
       </h2>
     ),
-    h3: ({ node, className, children, ...props }: any) => (
+    h3: ({ children, ...props }: ComponentPropsWithoutRef<'h3'>) => (
       <h3
         className="text-lg font-semibold mt-4 mb-2 dark:text-claude-darkText text-claude-text"
         {...props}
@@ -310,12 +423,12 @@ const createMarkdownComponents = () => {
         {children}
       </h3>
     ),
-    ul: ({ node, className, children, ...props }: any) => (
+    ul: ({ children, ...props }: ComponentPropsWithoutRef<'ul'>) => (
       <ul className="list-disc pl-5 my-1.5 dark:text-claude-darkText text-claude-text" {...props}>
         {children}
       </ul>
     ),
-    ol: ({ node, className, children, ...props }: any) => (
+    ol: ({ children, ...props }: ComponentPropsWithoutRef<'ol'>) => (
       <ol
         className="list-decimal pl-6 my-1.5 dark:text-claude-darkText text-claude-text"
         {...props}
@@ -323,12 +436,12 @@ const createMarkdownComponents = () => {
         {children}
       </ol>
     ),
-    li: ({ node, className, children, ...props }: any) => (
+    li: ({ children, ...props }: ComponentPropsWithoutRef<'li'>) => (
       <li className="my-0.5 leading-6 dark:text-claude-darkText text-claude-text" {...props}>
         {children}
       </li>
     ),
-    blockquote: ({ node, className, children, ...props }: any) => (
+    blockquote: ({ children, ...props }: ComponentPropsWithoutRef<'blockquote'>) => (
       <blockquote
         className="border-l-4 border-claude-accent pl-4 py-1 my-2 dark:bg-claude-darkSurface/30 bg-claude-surfaceHover/30 rounded-r-lg dark:text-claude-darkText text-claude-text"
         {...props}
@@ -337,29 +450,29 @@ const createMarkdownComponents = () => {
       </blockquote>
     ),
     code: CodeBlock,
-    table: ({ node, className, children, ...props }: any) => (
+    table: ({ children, ...props }: ComponentPropsWithoutRef<'table'>) => (
       <div className="my-4 overflow-x-auto rounded-xl border dark:border-claude-darkBorder border-claude-border">
         <table className="border-collapse w-full" {...props}>
           {children}
         </table>
       </div>
     ),
-    thead: ({ node, className, children, ...props }: any) => (
+    thead: ({ children, ...props }: ComponentPropsWithoutRef<'thead'>) => (
       <thead className="dark:bg-claude-darkSurface bg-claude-surfaceHover" {...props}>
         {children}
       </thead>
     ),
-    tbody: ({ node, className, children, ...props }: any) => (
+    tbody: ({ children, ...props }: ComponentPropsWithoutRef<'tbody'>) => (
       <tbody className="divide-y dark:divide-claude-darkBorder divide-claude-border" {...props}>
         {children}
       </tbody>
     ),
-    tr: ({ node, className, children, ...props }: any) => (
+    tr: ({ children, ...props }: ComponentPropsWithoutRef<'tr'>) => (
       <tr className="divide-x dark:divide-claude-darkBorder divide-claude-border" {...props}>
         {children}
       </tr>
     ),
-    th: ({ node, className, children, ...props }: any) => (
+    th: ({ children, ...props }: ComponentPropsWithoutRef<'th'>) => (
       <th
         className="px-4 py-2 text-left font-semibold dark:text-claude-darkText text-claude-text"
         {...props}
@@ -367,18 +480,18 @@ const createMarkdownComponents = () => {
         {children}
       </th>
     ),
-    td: ({ node, className, children, ...props }: any) => (
+    td: ({ children, ...props }: ComponentPropsWithoutRef<'td'>) => (
       <td className="px-4 py-2 dark:text-claude-darkText text-claude-text" {...props}>
         {children}
       </td>
     ),
-    img: ({ node, className, ...props }: any) => (
+    img: (props: ComponentPropsWithoutRef<'img'>) => (
       <img className="max-w-full h-auto rounded-xl my-4" {...props} />
     ),
-    hr: ({ node, ...props }: any) => (
+    hr: (props: ComponentPropsWithoutRef<'hr'>) => (
       <hr className="my-5 dark:border-claude-darkBorder border-claude-border" {...props} />
     ),
-    a: ({ node, href, className, children, ...props }: any) => {
+    a: ({ href, children, ...props }: ComponentPropsWithoutRef<'a'>) => {
       // Simplified anchor handling for web-ui, removed Electron-specific and local file logic
       const hrefValue = typeof href === 'string' ? href.trim() : '';
 
@@ -425,7 +538,7 @@ const MarkdownContent: React.FC<MarkdownContentProps> = ({
   className = '',
   // resolveLocalFilePath, // Removed Electron-specific prop
 }) => {
-  const components = useMemo(() => createMarkdownComponents(), []); // Removed resolveLocalFilePath
+  const components = useMemo(() => createMarkdownComponents(), []); // No dependencies needed
   const normalizedContent = useMemo(
     () => normalizeDisplayMath(encodeFileUrlsInMarkdown(content)),
     [content]

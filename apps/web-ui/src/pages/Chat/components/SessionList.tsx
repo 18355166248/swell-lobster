@@ -11,7 +11,6 @@ type SessionListProps = {
 };
 
 export function SessionList({ sessions, activeSessionId, onSelect, onDelete }: SessionListProps) {
-  console.log('🚀 ~ SessionList ~ activeSessionId:', activeSessionId);
   const { t } = useTranslation();
 
   const handleDelete = (sessionId: string) => {

@@ -13,6 +13,9 @@ import { router } from './router';
 import { ThemeSync } from './components/ThemeSync';
 import { themeModeAtom, resolveTheme } from './store/theme';
 import { localeAtom } from './store/locale';
+import mermaid from 'mermaid';
+
+mermaid.initialize({ startOnLoad: true });
 
 const ACCENT_COLOR = '#aa3bff';
 

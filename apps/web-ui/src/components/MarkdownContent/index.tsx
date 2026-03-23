@@ -25,17 +25,7 @@ const SYNTAX_HIGHLIGHTER_STYLE = {
 mermaid.initialize({
   startOnLoad: false, // 禁用自动渲染 自定义渲染
   theme: 'default',
-  securityLevel: 'loose',
-  themeVariables: {
-    darkMode: true,
-    background: '#1a1a1a',
-    primaryColor: '#4a90e2',
-    primaryTextColor: '#ffffff',
-    primaryBorderColor: '#4a90e2',
-    lineColor: '#ffffff',
-    secondaryColor: '#75a3e2',
-    tertiaryColor: '#96b8e2',
-  },
+  securityLevel: 'strict',
 });
 const SAFE_URL_PROTOCOLS = new Set(['http', 'https', 'mailto', 'tel', 'file']);
 

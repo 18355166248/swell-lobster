@@ -39,12 +39,35 @@ const MermaidBlock: React.FC<{ code: string }> = ({ code }) => {
     const renderMermaid = async () => {
       if (!containerRef.current) return;
 
+      // Sanitize LLM-generated Mermaid code:
+      // 1. Remove inline class annotations (:::className) — often unsupported or misconfigured
+      // 2. For mindmap: collapse multiple consecutive spaces within node content (not indentation)
+      //    to prevent SPACELIST parse errors when LLM puts multiple items on one line
+      let sanitizedCode = code.replace(/\s*:::[a-zA-Z][\w-]*/g, '');
+      if (sanitizedCode.trimStart().startsWith('mindmap')) {
+        sanitizedCode = sanitizedCode
+          .split('\n')
+          .map((line) => {
+            const indentMatch = line.match(/^(\s*)/);
+            const indent = indentMatch ? indentMatch[1] : '';
+            const content = line.slice(indent.length);
+            let sanitized = content.replace(/ {2,}/g, ' ');
+            // Mermaid mindmap treats "(text)" as shape notation.
+            // When (text) appears mid-line with content after it (e.g. "Poke (生鱼饭) 🍚"),
+            // the parser errors with SPACELIST on the next line.
+            // Strip parens only when something follows the closing ")" on the same line.
+            sanitized = sanitized.replace(/\(([^)]*)\)(?=.)/g, '$1');
+            return indent + sanitized;
+          })
+          .join('\n');
+      }
+
       try {
         setError('');
 
         // First validate the diagram syntax
         try {
-          await mermaid.parse(code);
+          await mermaid.parse(sanitizedCode);
         } catch (parseError) {
           console.error('Mermaid syntax validation failed:', parseError);
           setError(parseError instanceof Error ? parseError.message : 'Invalid Mermaid syntax');
@@ -55,7 +78,7 @@ const MermaidBlock: React.FC<{ code: string }> = ({ code }) => {
         const diagramId = `mermaid-${uniqueId}-${Date.now()}`;
 
         // Render the diagram
-        const { svg: renderedSvg } = await mermaid.render(diagramId, code);
+        const { svg: renderedSvg } = await mermaid.render(diagramId, sanitizedCode);
 
         // Check if SVG is empty or just contains empty elements
         const isEmptySvg =

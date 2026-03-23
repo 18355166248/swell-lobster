@@ -9,7 +9,8 @@ import 'katex/dist/katex.min.css';
 import 'katex/contrib/mhchem';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
-import { CopyOutlined, CheckOutlined } from '@ant-design/icons';
+import { CopyOutlined, CheckOutlined, ExpandOutlined } from '@ant-design/icons';
+import { Modal } from 'antd';
 import { useTranslation } from 'react-i18next'; // Using useTranslation instead of i18nService
 import mermaid from 'mermaid';
 
@@ -33,6 +34,7 @@ const MermaidBlock: React.FC<{ code: string }> = ({ code }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [svg, setSvg] = useState<string>('');
   const [error, setError] = useState<string>('');
+  const [previewOpen, setPreviewOpen] = useState(false);
   const uniqueId = useId();
 
   useEffect(() => {
@@ -127,17 +129,42 @@ const MermaidBlock: React.FC<{ code: string }> = ({ code }) => {
   }
 
   return (
-    <div className="my-3 rounded-xl overflow-hidden">
-      <div className="dark:bg-claude-darkSurfaceMuted bg-claude-surfaceMuted px-4 py-2 text-xs dark:text-claude-darkTextSecondary text-claude-textSecondary font-medium">
-        Mermaid
+    <>
+      <div className="my-3 rounded-xl overflow-hidden">
+        <div className="dark:bg-claude-darkSurfaceMuted bg-claude-surfaceMuted px-4 py-2 text-xs dark:text-claude-darkTextSecondary text-claude-textSecondary font-medium flex items-center justify-between">
+          <span>Mermaid</span>
+          {svg && (
+            <button
+              onClick={() => setPreviewOpen(true)}
+              className="flex items-center gap-1 hover:opacity-70 transition-opacity cursor-pointer"
+              title="放大预览"
+            >
+              <ExpandOutlined />
+            </button>
+          )}
+        </div>
+        <div
+          ref={containerRef}
+          className="p-4 bg-white dark:bg-gray-900 overflow-auto cursor-zoom-in"
+          onClick={() => svg && setPreviewOpen(true)}
+          dangerouslySetInnerHTML={{ __html: svg }}
+        />
       </div>
-      <div
-        ref={containerRef}
-        className="p-4 bg-white dark:bg-gray-900 overflow-auto"
-        // eslint-disable-next-line react/no-danger
-        dangerouslySetInnerHTML={{ __html: svg }}
-      />
-    </div>
+      <Modal
+        open={previewOpen}
+        onCancel={() => setPreviewOpen(false)}
+        footer={null}
+        width="90vw"
+        style={{ top: 20 }}
+        styles={{ body: { padding: '24px', maxHeight: '85vh', overflow: 'auto' } }}
+        title="Mermaid 预览"
+      >
+        <div
+          className="flex items-center justify-center bg-white dark:bg-gray-900 rounded"
+          dangerouslySetInnerHTML={{ __html: svg }}
+        />
+      </Modal>
+    </>
   );
 };
 

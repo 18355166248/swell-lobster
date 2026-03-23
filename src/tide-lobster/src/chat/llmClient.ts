@@ -42,9 +42,10 @@ export async function streamChatCompletion(args: {
   apiKey: string;
   history: ChatMessage[];
   userMessage: string;
+  systemPrompt?: string;
   onChunk: (delta: string) => void | Promise<void>;
 }): Promise<string> {
-  const { endpoint, apiKey, history, userMessage, onChunk } = args;
+  const { endpoint, apiKey, history, userMessage, systemPrompt, onChunk } = args;
   if (!endpoint.model) throw new Error('endpoint model is empty');
 
   const apiType = (endpoint.api_type || 'openai').toLowerCase();
@@ -52,9 +53,9 @@ export async function streamChatCompletion(args: {
   if (!endpoint.base_url) throw new Error('endpoint base_url is empty');
   const messages = normalizeMessages(history, userMessage);
   if (apiType === 'anthropic') {
-    return streamAnthropic(endpoint, apiKey, messages, onChunk);
+    return streamAnthropic(endpoint, apiKey, messages, onChunk, systemPrompt);
   }
-  return streamOpenAI(endpoint, apiKey, messages, onChunk);
+  return streamOpenAI(endpoint, apiKey, messages, onChunk, systemPrompt);
 }
 
 export async function requestChatCompletion(args: {
@@ -62,8 +63,9 @@ export async function requestChatCompletion(args: {
   apiKey: string;
   history: ChatMessage[];
   userMessage: string;
+  systemPrompt?: string;
 }): Promise<string> {
-  const { endpoint, apiKey, history, userMessage } = args;
+  const { endpoint, apiKey, history, userMessage, systemPrompt } = args;
   if (!endpoint.model) throw new Error('endpoint model is empty');
 
   const apiType = (endpoint.api_type || 'openai').toLowerCase();
@@ -71,17 +73,21 @@ export async function requestChatCompletion(args: {
   if (!endpoint.base_url) throw new Error('endpoint base_url is empty');
   const messages = normalizeMessages(history, userMessage);
   if (apiType === 'anthropic') {
-    return requestAnthropic(endpoint, apiKey, messages);
+    return requestAnthropic(endpoint, apiKey, messages, systemPrompt);
   }
-  return requestOpenAI(endpoint, apiKey, messages);
+  return requestOpenAI(endpoint, apiKey, messages, systemPrompt);
 }
 
 async function requestOpenAI(
   endpoint: EndpointConfig,
   apiKey: string,
-  messages: Array<{ role: 'user' | 'assistant'; content: string }>
+  messages: Array<{ role: 'user' | 'assistant'; content: string }>,
+  systemPrompt?: string
 ): Promise<string> {
-  const body: Record<string, unknown> = { model: endpoint.model, messages };
+  const finalMessages = systemPrompt
+    ? [{ role: 'system' as const, content: systemPrompt }, ...messages]
+    : messages;
+  const body: Record<string, unknown> = { model: endpoint.model, messages: finalMessages };
   if (endpoint.max_tokens > 0) body.max_tokens = endpoint.max_tokens;
 
   const res = await fetchWithTimeout(
@@ -129,12 +135,14 @@ async function requestOpenAI(
 async function requestAnthropic(
   endpoint: EndpointConfig,
   apiKey: string,
-  messages: Array<{ role: 'user' | 'assistant'; content: string }>
+  messages: Array<{ role: 'user' | 'assistant'; content: string }>,
+  systemPrompt?: string
 ): Promise<string> {
   const body: Record<string, unknown> = {
     model: endpoint.model,
     messages,
     max_tokens: endpoint.max_tokens > 0 ? endpoint.max_tokens : 1024,
+    ...(systemPrompt ? { system: systemPrompt } : {}),
   };
 
   const res = await fetchWithTimeout(
@@ -176,9 +184,13 @@ async function streamOpenAI(
   endpoint: EndpointConfig,
   apiKey: string,
   messages: Array<{ role: 'user' | 'assistant'; content: string }>,
-  onChunk: (delta: string) => void | Promise<void>
+  onChunk: (delta: string) => void | Promise<void>,
+  systemPrompt?: string
 ): Promise<string> {
-  const body: Record<string, unknown> = { model: endpoint.model, messages, stream: true };
+  const finalMessages = systemPrompt
+    ? [{ role: 'system' as const, content: systemPrompt }, ...messages]
+    : messages;
+  const body: Record<string, unknown> = { model: endpoint.model, messages: finalMessages, stream: true };
   if (endpoint.max_tokens > 0) body.max_tokens = endpoint.max_tokens;
 
   const res = await fetchWithTimeout(
@@ -243,13 +255,15 @@ async function streamAnthropic(
   endpoint: EndpointConfig,
   apiKey: string,
   messages: Array<{ role: 'user' | 'assistant'; content: string }>,
-  onChunk: (delta: string) => void | Promise<void>
+  onChunk: (delta: string) => void | Promise<void>,
+  systemPrompt?: string
 ): Promise<string> {
   const body: Record<string, unknown> = {
     model: endpoint.model,
     messages,
     max_tokens: endpoint.max_tokens > 0 ? endpoint.max_tokens : 1024,
     stream: true,
+    ...(systemPrompt ? { system: systemPrompt } : {}),
   };
 
   const res = await fetchWithTimeout(

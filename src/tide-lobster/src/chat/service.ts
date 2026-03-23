@@ -2,10 +2,22 @@ import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 import { parseEnv } from '../utils/envUtils.js';
-import type { ChatSession, EndpointConfig, SessionSummary } from './models.js';
+import type { ChatMessage, ChatSession, EndpointConfig, SessionSummary } from './models.js';
 import { requestChatCompletion, streamChatCompletion } from './llmClient.js';
 import { ChatStore } from './chatStore.js';
 import { EndpointStore } from '../store/endpointStore.js';
+import { IdentityService } from '../identity/identityService.js';
+
+function trimMessages(messages: ChatMessage[], maxChars = 60000): ChatMessage[] {
+  let total = 0;
+  const result: ChatMessage[] = [];
+  for (let i = messages.length - 1; i >= 0; i--) {
+    total += messages[i].content.length;
+    if (total > maxChars) break;
+    result.unshift(messages[i]);
+  }
+  return result;
+}
 
 export class ChatService {
   private readonly store: ChatStore;
@@ -24,17 +36,17 @@ export class ChatService {
     return this.store.getSession(sessionId);
   }
 
-  createSession(endpointName?: string | null): ChatSession {
+  createSession(endpointName?: string | null, personaPath?: string | null): ChatSession {
     const endpoint = this.resolveEndpoint(endpointName);
     if (endpointName && !endpoint) {
       throw new Error(`endpoint not found: ${endpointName}`);
     }
-    return this.store.createSession(endpoint?.name ?? endpointName ?? null);
+    return this.store.createSession(endpoint?.name ?? endpointName ?? null, personaPath ?? null);
   }
 
   updateSession(
     sessionId: string,
-    patch: { endpoint_name?: string | null; title?: string | null }
+    patch: { endpoint_name?: string | null; title?: string | null; persona_path?: string | null }
   ): ChatSession | undefined {
     if (patch.endpoint_name) {
       const endpoint = this.resolveEndpoint(patch.endpoint_name);
@@ -74,11 +86,15 @@ export class ChatService {
 
     console.log('apiKey', endpoint, apiKey);
 
+    const identityService = new IdentityService();
+    const systemPrompt = identityService.loadSystemPrompt(session.persona_path ?? undefined);
+
     const assistant = await requestChatCompletion({
       endpoint,
       apiKey,
-      history: session.messages,
+      history: trimMessages(session.messages),
       userMessage,
+      systemPrompt: systemPrompt || undefined,
     });
 
     const updated = this.store.appendTurn({
@@ -127,11 +143,15 @@ export class ChatService {
     }
     if (!apiKey) apiKey = 'local';
 
+    const identityService = new IdentityService();
+    const systemPrompt = identityService.loadSystemPrompt(session.persona_path ?? undefined);
+
     const assistant = await streamChatCompletion({
       endpoint,
       apiKey,
-      history: session.messages,
+      history: trimMessages(session.messages),
       userMessage,
+      systemPrompt: systemPrompt || undefined,
       onChunk,
     });
 

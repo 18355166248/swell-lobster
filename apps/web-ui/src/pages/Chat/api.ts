@@ -1,5 +1,5 @@
 import { apiGet, apiPatch, apiPost, getApiBase } from '../../api/base';
-import type { ChatSession, EndpointItem, SessionSummary } from './types';
+import type { ChatSession, EndpointItem, PersonaInfo, SessionSummary } from './types';
 
 export async function fetchChatBootstrap(): Promise<{
   sessions: SessionSummary[];
@@ -13,19 +13,27 @@ export async function fetchSessionDetail(sessionId: string): Promise<ChatSession
   return res.session;
 }
 
-export async function createSession(endpointName?: string): Promise<ChatSession> {
+export async function createSession(
+  endpointName?: string,
+  personaPath?: string | null
+): Promise<ChatSession> {
   const res = await apiPost<{ session: ChatSession }>('/api/sessions', {
     endpoint_name: endpointName,
+    ...(personaPath != null ? { persona_path: personaPath } : {}),
   });
   return res.session;
 }
 
 export async function updateSession(
   sessionId: string,
-  payload: { endpoint_name?: string; title?: string }
+  payload: { endpoint_name?: string; title?: string; persona_path?: string | null }
 ): Promise<ChatSession> {
   const res = await apiPatch<{ session: ChatSession }>(`/api/sessions/${sessionId}`, payload);
   return res.session;
+}
+
+export async function fetchPersonas(): Promise<PersonaInfo[]> {
+  return apiGet<PersonaInfo[]>('/api/identity/personas');
 }
 
 export async function deleteSession(sessionId: string): Promise<void> {

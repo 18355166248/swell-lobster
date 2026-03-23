@@ -75,6 +75,17 @@ const zh = {
     deleteSessionConfirm: '确定删除这个对话吗？',
     deleteSessionFailed: '删除失败',
     thinking: '思考中',
+    copyMessage: '复制',
+    retryMessage: '重试',
+    messageCopied: '已复制',
+  },
+
+  // 人设
+  persona: {
+    label: '人设',
+    default: '默认',
+    select: '选择人设',
+    noPersonas: '未找到人设文件',
   },
 
   // LLM 配置

@@ -73,6 +73,16 @@ const en: Translations = {
     deleteSessionConfirm: 'Delete this conversation?',
     deleteSessionFailed: 'Failed to delete session',
     thinking: 'Thinking',
+    copyMessage: 'Copy',
+    retryMessage: 'Retry',
+    messageCopied: 'Copied',
+  },
+
+  persona: {
+    label: 'Persona',
+    default: 'Default',
+    select: 'Select persona',
+    noPersonas: 'No persona files found',
   },
 
   llm: {

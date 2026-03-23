@@ -9,6 +9,7 @@ export type ChatSession = {
   id: string;
   title: string;
   endpoint_name?: string | null;
+  persona_path?: string | null;
   created_at: string;
   updated_at: string;
   messages: ChatMessage[];
@@ -18,6 +19,7 @@ export type SessionSummary = {
   id: string;
   title: string;
   endpoint_name?: string | null;
+  persona_path?: string | null;
   updated_at: string;
   message_count: number;
 };

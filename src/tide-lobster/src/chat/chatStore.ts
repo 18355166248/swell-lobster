@@ -15,19 +15,20 @@ export class ChatStore {
 
   listSessions(): SessionSummary[] {
     const stmt = this.db.prepare(`
-      SELECT s.id, s.title, s.endpoint_name, s.updated_at, COUNT(m.id) as message_count
+      SELECT s.id, s.title, s.endpoint_name, s.persona_path, s.updated_at, COUNT(m.id) as message_count
       FROM chat_sessions s
       LEFT JOIN chat_messages m ON s.id = m.session_id
-      GROUP BY s.id, s.title, s.endpoint_name, s.updated_at
+      GROUP BY s.id, s.title, s.endpoint_name, s.persona_path, s.updated_at
       ORDER BY s.updated_at DESC
     `);
-    
+
     const rows = stmt.all() as any[];
-    
-    return rows.map(row => ({
+
+    return rows.map((row) => ({
       id: row.id,
       title: row.title,
       endpoint_name: row.endpoint_name,
+      persona_path: row.persona_path ?? null,
       updated_at: row.updated_at,
       message_count: row.message_count,
     }));
@@ -36,7 +37,7 @@ export class ChatStore {
   getSession(sessionId: string): ChatSession | undefined {
     // Get session
     const sessionStmt = this.db.prepare(`
-      SELECT id, title, endpoint_name, created_at, updated_at
+      SELECT id, title, endpoint_name, persona_path, created_at, updated_at
       FROM chat_sessions
       WHERE id = ?
     `);
@@ -64,28 +65,30 @@ export class ChatStore {
       id: sessionRow.id,
       title: sessionRow.title,
       endpoint_name: sessionRow.endpoint_name,
+      persona_path: sessionRow.persona_path ?? null,
       created_at: sessionRow.created_at,
       updated_at: sessionRow.updated_at,
       messages,
     };
   }
 
-  createSession(endpointName?: string | null): ChatSession {
+  createSession(endpointName?: string | null, personaPath?: string | null): ChatSession {
     const now = nowIso();
     const sessionId = randomUUID?.()
       ? `chat_${randomUUID().replace(/-/g, '').slice(0, 10)}`
       : fallbackSessionId();
-    
+
     const stmt = this.db.prepare(`
-      INSERT INTO chat_sessions (id, title, endpoint_name, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?)
+      INSERT INTO chat_sessions (id, title, endpoint_name, persona_path, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?)
     `);
-    stmt.run(sessionId, '新对话', endpointName ?? null, now, now);
-    
+    stmt.run(sessionId, '新对话', endpointName ?? null, personaPath ?? null, now, now);
+
     return {
       id: sessionId,
       title: '新对话',
       endpoint_name: endpointName ?? null,
+      persona_path: personaPath ?? null,
       created_at: now,
       updated_at: now,
       messages: [],
@@ -94,11 +97,11 @@ export class ChatStore {
 
   updateSession(
     sessionId: string,
-    patch: { endpoint_name?: string | null; title?: string | null }
+    patch: { endpoint_name?: string | null; title?: string | null; persona_path?: string | null }
   ): ChatSession | undefined {
     const updates: string[] = ['updated_at = ?'];
     const values: any[] = [nowIso()];
-    
+
     if (patch.endpoint_name !== undefined) {
       updates.push('endpoint_name = ?');
       values.push(patch.endpoint_name);
@@ -106,6 +109,10 @@ export class ChatStore {
     if (patch.title && patch.title.trim()) {
       updates.push('title = ?');
       values.push(patch.title.trim());
+    }
+    if (patch.persona_path !== undefined) {
+      updates.push('persona_path = ?');
+      values.push(patch.persona_path);
     }
     
     values.push(sessionId);

@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState, useCallback, memo } from 'react';
 import { Alert, Avatar, Button, Select } from 'antd';
 import { PlusOutlined, RobotOutlined, UserOutlined } from '@ant-design/icons';
+import { useAtom } from 'jotai';
+import { atomWithStorage } from 'jotai/utils';
 
 import MarkdownContent from '../../components/MarkdownContent';
 import { useTranslation } from 'react-i18next';
@@ -16,6 +18,10 @@ import type { ChatMessage, ChatSession, EndpointItem, SessionSummary } from './t
 import { SessionList } from './components/SessionList';
 import { ChatComposer } from './components/ChatComposer';
 import { LoadingBubble } from './components/LoadingBubble';
+import { PersonaSelect } from './components/PersonaSelect';
+import { MessageActions } from './components/MessageActions';
+
+const lastPersonaAtom = atomWithStorage<string | null>('chat_last_persona', null);
 
 function upsertSessionSummary(list: SessionSummary[], session: ChatSession): SessionSummary[] {
   const next: SessionSummary = {
@@ -44,12 +50,14 @@ export function ChatPage() {
   const [sessions, setSessions] = useState<SessionSummary[]>([]);
   const [endpoints, setEndpoints] = useState<EndpointItem[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string>('');
+  const [activePersonaPath, setActivePersonaPath] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [bootLoading, setBootLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [lastPersona, setLastPersona] = useAtom(lastPersonaAtom);
   const abortRef = useRef<AbortController | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -76,6 +84,7 @@ export function ChatPage() {
   const loadSession = async (sessionId: string) => {
     const detail = await fetchSessionDetail(sessionId);
     setActiveSessionId(detail.id);
+    setActivePersonaPath(detail.persona_path ?? null);
     setMessages(detail.messages || []);
     setSessions((prev) => upsertSessionSummary(prev, detail));
   };
@@ -91,18 +100,20 @@ export function ChatPage() {
 
         let sessionList = Array.isArray(data.sessions) ? data.sessions : [];
         if (sessionList.length === 0) {
-          const created = await createSession(epList[0]?.name);
+          const created = await createSession(epList[0]?.name, lastPersona);
           sessionList = [
             {
               id: created.id,
               title: created.title,
               endpoint_name: created.endpoint_name,
+              persona_path: created.persona_path ?? null,
               updated_at: created.updated_at,
               message_count: created.messages.length,
             },
           ];
           setMessages(created.messages);
           setActiveSessionId(created.id);
+          setActivePersonaPath(created.persona_path ?? null);
         } else {
           await loadSession(sessionList[0].id);
         }
@@ -124,9 +135,10 @@ export function ChatPage() {
     setCreating(true);
     setError(null);
     try {
-      const session = await createSession(selectedEndpointName);
+      const session = await createSession(selectedEndpointName, lastPersona);
       setSessions((prev) => upsertSessionSummary(prev, session));
       setActiveSessionId(session.id);
+      setActivePersonaPath(session.persona_path ?? null);
       setMessages(session.messages);
     } catch (e) {
       setError(e instanceof Error ? e.message : t('chat.createSessionFailed'));
@@ -154,17 +166,19 @@ export function ChatPage() {
         if (remaining.length > 0) {
           await loadSession(remaining[0].id);
         } else {
-          const created = await createSession(selectedEndpointName);
+          const created = await createSession(selectedEndpointName, lastPersona);
           setSessions([
             {
               id: created.id,
               title: created.title,
               endpoint_name: created.endpoint_name,
+              persona_path: created.persona_path ?? null,
               updated_at: created.updated_at,
               message_count: created.messages.length,
             },
           ]);
           setActiveSessionId(created.id);
+          setActivePersonaPath(created.persona_path ?? null);
           setMessages(created.messages);
         }
       }
@@ -187,6 +201,60 @@ export function ChatPage() {
   const handleStop = useCallback(() => {
     abortRef.current?.abort();
   }, []);
+
+  const handleRetry = useCallback(
+    async (msgIndex: number) => {
+      if (loading) return;
+      // Find the last user message at or before msgIndex
+      let userContent = '';
+      for (let i = msgIndex - 1; i >= 0; i--) {
+        if (messages[i].role === 'user') {
+          userContent = messages[i].content;
+          break;
+        }
+      }
+      if (!userContent) return;
+
+      const controller = new AbortController();
+      abortRef.current = controller;
+
+      setMessages((prev) => [...prev, { role: 'assistant', content: '' }]);
+      setLoading(true);
+      setError(null);
+
+      try {
+        const res = await sendMessageStream(
+          {
+            conversation_id: activeSessionId,
+            message: userContent,
+            endpoint_name: selectedEndpointName,
+          },
+          (delta) => {
+            setMessages((prev) => {
+              const next = [...prev];
+              const last = next[next.length - 1];
+              if (last?.role === 'assistant') {
+                next[next.length - 1] = { role: 'assistant', content: last.content + delta };
+              }
+              return next;
+            });
+          },
+          controller.signal
+        );
+        setMessages(res.session.messages || []);
+        setSessions((prev) => upsertSessionSummary(prev, res.session));
+      } catch (e) {
+        if (!(e instanceof Error && e.name === 'AbortError')) {
+          setMessages((prev) => prev.slice(0, -1));
+          setError(e instanceof Error ? e.message : t('chat.sendFailed'));
+        }
+      } finally {
+        abortRef.current = null;
+        setLoading(false);
+      }
+    },
+    [loading, messages, activeSessionId, selectedEndpointName, t]
+  );
 
   const ChatMarkdown = memo(({ text }: { text: string }) => {
     return <MarkdownContent content={text} />;
@@ -248,14 +316,14 @@ export function ChatPage() {
     () =>
       messages.map((m, i) => {
         const isLastAssistant = loading && m.role === 'assistant' && i === messages.length - 1;
-        const item = {
+        return {
           key: i,
           role: m.role === 'user' ? 'user' : 'assistant',
+          rawContent: m.content,
           content: <ChatMarkdown text={m.content} />,
           loading: isLastAssistant && m.content === '',
           streaming: isLastAssistant && m.content !== '',
         };
-        return item;
       }),
     [messages, loading]
   );
@@ -288,19 +356,34 @@ export function ChatPage() {
             <h1 className="text-lg font-semibold text-foreground">{t('chat.title')}</h1>
             <p className="text-xs text-muted-foreground mt-0.5">{t('chat.subtitle')}</p>
           </div>
-          <div className="w-80 max-w-[45%] min-w-[220px]">
-            <Select
-              size="middle"
-              value={selectedEndpointName}
-              placeholder={t('chat.selectEndpoint')}
-              options={enabledEndpoints.map((ep) => ({
-                value: String(ep.name),
-                label: `${ep.name}${ep.model ? ` (${ep.model})` : ''}`,
-              }))}
-              onChange={handleEndpointChange}
-              disabled={!activeSessionId || enabledEndpoints.length === 0}
-              className="w-full"
-            />
+          <div className="flex items-center gap-2">
+            {activeSessionId && (
+              <PersonaSelect
+                sessionId={activeSessionId}
+                value={activePersonaPath}
+                onUpdate={(path) => {
+                  setActivePersonaPath(path);
+                  setLastPersona(path);
+                  setSessions((prev) =>
+                    prev.map((s) => (s.id === activeSessionId ? { ...s, persona_path: path } : s))
+                  );
+                }}
+              />
+            )}
+            <div className="w-64 min-w-[180px]">
+              <Select
+                size="middle"
+                value={selectedEndpointName}
+                placeholder={t('chat.selectEndpoint')}
+                options={enabledEndpoints.map((ep) => ({
+                  value: String(ep.name),
+                  label: `${ep.name}${ep.model ? ` (${ep.model})` : ''}`,
+                }))}
+                onChange={handleEndpointChange}
+                disabled={!activeSessionId || enabledEndpoints.length === 0}
+                className="w-full"
+              />
+            </div>
           </div>
         </div>
 
@@ -326,22 +409,35 @@ export function ChatPage() {
                 return (
                   <div
                     key={item.key}
-                    className={`flex items-start gap-3 ${item.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                    className={`flex items-start gap-3 group ${item.role === 'user' ? 'justify-end' : 'justify-start'}`}
                   >
                     {item.role === 'assistant' && (
                       <Avatar size="small" icon={<RobotOutlined />} className="shrink-0" />
                     )}
                     <div
-                      className={`max-w-[70%]
-                      ${
-                        item.role === 'user'
-                          ? 'bg-primary text-primary-foreground rounded-br-none'
-                          : 'bg-muted rounded-bl-none'
-                      }
-                      px-3 py-2 rounded-lg text-sm
-                      `}
+                      className={`flex flex-col ${item.role === 'user' ? 'items-end' : 'items-start'} max-w-[70%]`}
                     >
-                      {item.content}
+                      <div
+                        className={`
+                          ${
+                            item.role === 'user'
+                              ? 'bg-primary text-primary-foreground rounded-br-none'
+                              : 'bg-muted rounded-bl-none'
+                          }
+                          px-3 py-2 rounded-lg text-sm
+                        `}
+                      >
+                        {item.content}
+                      </div>
+                      <MessageActions
+                        content={item.rawContent}
+                        role={item.role as 'user' | 'assistant'}
+                        onRetry={
+                          item.role === 'assistant' && !loading && item.key === messages.length - 1
+                            ? () => handleRetry(item.key as number)
+                            : undefined
+                        }
+                      />
                     </div>
                     {item.role === 'user' && (
                       <Avatar size="small" icon={<UserOutlined />} className="shrink-0" />

@@ -13,6 +13,7 @@ import { Hono } from 'hono';
 import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, statSync } from 'node:fs';
 import { resolve, sep, dirname } from 'node:path';
 import { settings } from '../../config.js';
+import { IdentityService } from '../../identity/identityService.js';
 
 export const identityRouter = new Hono();
 
@@ -46,6 +47,13 @@ function listFilesRecursive(
   }
   return results.sort((a, b) => a.path.localeCompare(b.path));
 }
+
+// ── GET /api/identity/personas ────────────────────────────────────────────────
+
+identityRouter.get('/api/identity/personas', (c) => {
+  const svc = new IdentityService();
+  return c.json(svc.listPersonas());
+});
 
 // ── GET /api/identity/files ────────────────────────────────────────────────────
 

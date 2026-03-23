@@ -80,8 +80,8 @@ chatRouter.get('/api/sessions', (c) => {
 
 chatRouter.post('/api/sessions', async (c) => {
   try {
-    const body = await c.req.json<{ endpoint_name?: string }>();
-    const session = service.createSession(body?.endpoint_name);
+    const body = await c.req.json<{ endpoint_name?: string; persona_path?: string }>();
+    const session = service.createSession(body?.endpoint_name, body?.persona_path);
     return c.json({ session });
   } catch (e) {
     return c.json({ detail: String((e as Error)?.message || e || 'create session failed') }, 400);
@@ -102,10 +102,15 @@ chatRouter.delete('/api/sessions/:id', (c) => {
 
 chatRouter.patch('/api/sessions/:id', async (c) => {
   try {
-    const body = await c.req.json<{ endpoint_name?: string; title?: string }>();
+    const body = await c.req.json<{
+      endpoint_name?: string;
+      title?: string;
+      persona_path?: string | null;
+    }>();
     const session = service.updateSession(c.req.param('id'), {
       endpoint_name: body.endpoint_name,
       title: body.title,
+      persona_path: body.persona_path,
     });
     if (!session) return c.json({ detail: 'session not found' }, 404);
     return c.json({ session });

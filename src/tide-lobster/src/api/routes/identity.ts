@@ -40,7 +40,7 @@ function listFilesRecursive(
     if (entry.isDirectory()) {
       results.push(...listFilesRecursive(fullPath, root, exts));
     } else if (entry.isFile() && exts.some((ext) => entry.name.endsWith(ext))) {
-      const rel = fullPath.slice(root.length + 1); // relative path
+      const rel = fullPath.slice(root.length + 1).replace(/\\/g, '/'); // relative path, forward slashes
       results.push({ path: rel, name: entry.name });
     }
   }
@@ -62,7 +62,7 @@ identityRouter.get('/api/identity/files', (c) => {
 
 identityRouter.get('/api/identity/files/*', (c) => {
   const root = identityDir();
-  const path = c.req.param('*') ?? '';
+  const path = c.req.path.slice('/api/identity/files/'.length);
   const full = resolve(root, path);
 
   if (!isPathSafe(root, full) || !existsSync(full) || !statSync(full).isFile()) {
@@ -80,7 +80,7 @@ identityRouter.get('/api/identity/files/*', (c) => {
 
 identityRouter.post('/api/identity/files/*', async (c) => {
   const root = identityDir();
-  const path = c.req.param('*') ?? '';
+  const path = c.req.path.slice('/api/identity/files/'.length);
   const full = resolve(root, path);
 
   if (!isPathSafe(root, full)) {

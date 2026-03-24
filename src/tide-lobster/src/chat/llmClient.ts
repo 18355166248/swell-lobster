@@ -1,4 +1,5 @@
-import type { ChatMessage, EndpointConfig } from './models.js';
+import type { EndpointConfig } from './models.js';
+import type { AnthropicTool, OpenAITool, ToolCall } from '../tools/types.js';
 
 export interface LLMUsage {
   prompt_tokens: number;
@@ -6,8 +7,14 @@ export interface LLMUsage {
   total_tokens: number;
 }
 
+export type LLMRequestMessage =
+  | { role: 'user' | 'assistant'; content: string }
+  | { role: 'assistant'; content: string | null; tool_calls: ToolCall[] }
+  | { role: 'tool'; content: string; tool_call_id: string; name?: string };
+
 export interface ChatCompletionResult {
   content: string;
+  tool_calls?: ToolCall[];
   usage?: LLMUsage;
 }
 
@@ -20,12 +27,18 @@ function estimateTokens(text: string): number {
 }
 
 function estimateUsage(args: {
-  messages: Array<{ role: 'user' | 'assistant'; content: string }>;
+  messages: LLMRequestMessage[];
   content: string;
   systemPrompt?: string;
 }): LLMUsage {
   const promptText =
-    args.messages.map((message) => message.content).join('\n') +
+    args.messages
+      .map((message) => {
+        if (message.role === 'tool') return message.content;
+        if ('content' in message && typeof message.content === 'string') return message.content;
+        return '';
+      })
+      .join('\n') +
     (args.systemPrompt ? `\n${args.systemPrompt}` : '');
   const promptTokens = estimateTokens(promptText);
   const completionTokens = estimateTokens(args.content);
@@ -63,17 +76,6 @@ function parseAnthropicUsage(raw: unknown): LLMUsage | undefined {
   };
 }
 
-function normalizeMessages(
-  history: ChatMessage[],
-  userMessage: string
-): Array<{ role: 'user' | 'assistant'; content: string }> {
-  const normalized = history
-    .filter((m) => m.role === 'user' || m.role === 'assistant')
-    .map((m) => ({ role: m.role, content: m.content }));
-  normalized.push({ role: 'user', content: userMessage });
-  return normalized;
-}
-
 function openAIChatUrl(baseUrl: string): string {
   return `${baseUrl.replace(/\/+$/, '')}/chat/completions`;
 }
@@ -107,56 +109,144 @@ async function fetchWithTimeout(
 export async function streamChatCompletion(args: {
   endpoint: EndpointConfig;
   apiKey: string;
-  history: ChatMessage[];
-  userMessage: string;
+  messages: LLMRequestMessage[];
   systemPrompt?: string;
   onChunk: (delta: string) => void | Promise<void>;
   signal?: AbortSignal;
 }): Promise<ChatCompletionResult> {
-  const { endpoint, apiKey, history, userMessage, systemPrompt, onChunk, signal } = args;
+  const { endpoint, apiKey, messages, systemPrompt, onChunk, signal } = args;
   if (!endpoint.model) throw new Error('endpoint model is empty');
 
   const apiType = (endpoint.api_type || 'openai').toLowerCase();
 
   if (!endpoint.base_url) throw new Error('endpoint base_url is empty');
-  const messages = normalizeMessages(history, userMessage);
   if (apiType === 'anthropic') {
     return streamAnthropic(endpoint, apiKey, messages, onChunk, systemPrompt, signal);
   }
   return streamOpenAI(endpoint, apiKey, messages, onChunk, systemPrompt, signal);
 }
 
+/**
+ * 请求 LLM 完成
+ * @param args 请求参数
+ * @param args.endpoint 端点配置
+ * @param args.apiKey API密钥
+ * @param args.messages 对话消息
+ * @param args.systemPrompt 系统提示词
+ * @param args.tools 工具
+ * @returns 完成结果
+ */
 export async function requestChatCompletion(args: {
   endpoint: EndpointConfig;
   apiKey: string;
-  history: ChatMessage[];
-  userMessage: string;
+  messages: LLMRequestMessage[];
   systemPrompt?: string;
+  tools?: OpenAITool[] | AnthropicTool[];
 }): Promise<ChatCompletionResult> {
-  const { endpoint, apiKey, history, userMessage, systemPrompt } = args;
+  const { endpoint, apiKey, messages, systemPrompt, tools } = args;
   if (!endpoint.model) throw new Error('endpoint model is empty');
 
   const apiType = (endpoint.api_type || 'openai').toLowerCase();
 
   if (!endpoint.base_url) throw new Error('endpoint base_url is empty');
-  const messages = normalizeMessages(history, userMessage);
   if (apiType === 'anthropic') {
-    return requestAnthropic(endpoint, apiKey, messages, systemPrompt);
+    return requestAnthropic(endpoint, apiKey, messages, systemPrompt, tools as AnthropicTool[] | undefined);
   }
-  return requestOpenAI(endpoint, apiKey, messages, systemPrompt);
+  return requestOpenAI(endpoint, apiKey, messages, systemPrompt, tools as OpenAITool[] | undefined);
+}
+
+function normalizeOpenAIMessages(
+  messages: LLMRequestMessage[],
+  systemPrompt?: string
+): Array<Record<string, unknown>> {
+  const normalized = messages.map((message) => {
+    if (message.role === 'tool') {
+      return {
+        role: 'tool',
+        content: message.content,
+        tool_call_id: message.tool_call_id,
+        ...(message.name ? { name: message.name } : {}),
+      };
+    }
+
+    return {
+      role: message.role,
+      content: message.content,
+      ...('tool_calls' in message ? { tool_calls: message.tool_calls.map((toolCall) => ({
+        id: toolCall.id,
+        type: 'function',
+        function: {
+          name: toolCall.name,
+          arguments: JSON.stringify(toolCall.arguments),
+        },
+      })) } : {}),
+    };
+  });
+
+  return systemPrompt
+    ? [{ role: 'system', content: systemPrompt }, ...normalized]
+    : normalized;
+}
+
+function normalizeAnthropicMessages(messages: LLMRequestMessage[]): Array<Record<string, unknown>> {
+  return messages
+    .filter((message) => message.role !== 'tool')
+    .map((message) => {
+      if ('tool_calls' in message) {
+        return {
+          role: 'assistant',
+          content: message.tool_calls.map((toolCall) => ({
+            type: 'tool_use',
+            id: toolCall.id,
+            name: toolCall.name,
+            input: toolCall.arguments,
+          })),
+        };
+      }
+      return {
+        role: message.role,
+        content: [{ type: 'text', text: message.content }],
+      };
+    });
+}
+
+function openAIToolCallsFromMessage(message: Record<string, unknown>): ToolCall[] {
+  const toolCalls = Array.isArray(message.tool_calls) ? message.tool_calls : [];
+  return toolCalls
+    .map((item) => {
+      const raw = item as Record<string, unknown>;
+      const fn = (raw.function ?? {}) as Record<string, unknown>;
+      const argsText = String(fn.arguments ?? '{}');
+      try {
+        return {
+          id: String(raw.id ?? ''),
+          name: String(fn.name ?? ''),
+          arguments: JSON.parse(argsText) as Record<string, unknown>,
+        } satisfies ToolCall;
+      } catch {
+        return {
+          id: String(raw.id ?? ''),
+          name: String(fn.name ?? ''),
+          arguments: {},
+        } satisfies ToolCall;
+      }
+    })
+    .filter((item) => item.id && item.name);
 }
 
 async function requestOpenAI(
   endpoint: EndpointConfig,
   apiKey: string,
-  messages: Array<{ role: 'user' | 'assistant'; content: string }>,
-  systemPrompt?: string
+  messages: LLMRequestMessage[],
+  systemPrompt?: string,
+  tools?: OpenAITool[]
 ): Promise<ChatCompletionResult> {
-  const finalMessages = systemPrompt
-    ? [{ role: 'system' as const, content: systemPrompt }, ...messages]
-    : messages;
-  const body: Record<string, unknown> = { model: endpoint.model, messages: finalMessages };
+  const body: Record<string, unknown> = {
+    model: endpoint.model,
+    messages: normalizeOpenAIMessages(messages, systemPrompt),
+  };
   if (endpoint.max_tokens > 0) body.max_tokens = endpoint.max_tokens;
+  if (tools?.length) body.tools = tools;
 
   const res = await fetchWithTimeout(
     openAIChatUrl(endpoint.base_url),
@@ -181,12 +271,14 @@ async function requestOpenAI(
   const choices = Array.isArray(data.choices) ? data.choices : [];
   const first = (choices[0] ?? {}) as Record<string, unknown>;
   const message = (first.message ?? {}) as Record<string, unknown>;
+  const toolCalls = openAIToolCallsFromMessage(message);
   const content = message.content;
 
   if (typeof content === 'string') {
     const trimmed = content.trim();
     return {
       content: trimmed,
+      ...(toolCalls.length > 0 ? { tool_calls: toolCalls } : {}),
       usage:
         parseOpenAIUsage(data.usage) ?? estimateUsage({ messages, content: trimmed, systemPrompt }),
     };
@@ -205,11 +297,20 @@ async function requestOpenAI(
       const joined = texts.join('\n');
       return {
         content: joined,
+        ...(toolCalls.length > 0 ? { tool_calls: toolCalls } : {}),
         usage:
           parseOpenAIUsage(data.usage) ??
           estimateUsage({ messages, content: joined, systemPrompt }),
       };
     }
+  }
+
+  if (toolCalls.length > 0) {
+    return {
+      content: '',
+      tool_calls: toolCalls,
+      usage: parseOpenAIUsage(data.usage) ?? estimateUsage({ messages, content: '', systemPrompt }),
+    };
   }
 
   throw new Error('chat completion response has no readable content');
@@ -218,15 +319,17 @@ async function requestOpenAI(
 async function requestAnthropic(
   endpoint: EndpointConfig,
   apiKey: string,
-  messages: Array<{ role: 'user' | 'assistant'; content: string }>,
-  systemPrompt?: string
+  messages: LLMRequestMessage[],
+  systemPrompt?: string,
+  tools?: AnthropicTool[]
 ): Promise<ChatCompletionResult> {
   const body: Record<string, unknown> = {
     model: endpoint.model,
-    messages,
+    messages: normalizeAnthropicMessages(messages),
     max_tokens: endpoint.max_tokens > 0 ? endpoint.max_tokens : 1024,
     ...(systemPrompt ? { system: systemPrompt } : {}),
   };
+  if (tools?.length) body.tools = tools;
 
   const res = await fetchWithTimeout(
     anthropicMessagesUrl(endpoint.base_url),
@@ -250,19 +353,35 @@ async function requestAnthropic(
 
   const data = (await res.json()) as Record<string, unknown>;
   const content = Array.isArray(data.content) ? data.content : [];
+  const toolCalls: ToolCall[] = [];
   const texts = content
     .map((item) => {
       if (!item || typeof item !== 'object') return '';
       const row = item as Record<string, unknown>;
-      if (String(row.type ?? '') !== 'text') return '';
+      const type = String(row.type ?? '');
+      if (type === 'tool_use') {
+        toolCalls.push({
+          id: String(row.id ?? ''),
+          name: String(row.name ?? ''),
+          arguments:
+            row.input && typeof row.input === 'object'
+              ? (row.input as Record<string, unknown>)
+              : {},
+        });
+        return '';
+      }
+      if (type !== 'text') return '';
       return String(row.text ?? '').trim();
     })
     .filter(Boolean);
 
-  if (texts.length === 0) throw new Error('chat completion response has no readable content');
   const contentText = texts.join('\n');
+  if (!contentText && toolCalls.length === 0) {
+    throw new Error('chat completion response has no readable content');
+  }
   return {
     content: contentText,
+    ...(toolCalls.length > 0 ? { tool_calls: toolCalls } : {}),
     usage:
       parseAnthropicUsage(data.usage) ??
       estimateUsage({ messages, content: contentText, systemPrompt }),
@@ -272,17 +391,14 @@ async function requestAnthropic(
 async function streamOpenAI(
   endpoint: EndpointConfig,
   apiKey: string,
-  messages: Array<{ role: 'user' | 'assistant'; content: string }>,
+  messages: LLMRequestMessage[],
   onChunk: (delta: string) => void | Promise<void>,
   systemPrompt?: string,
   signal?: AbortSignal
 ): Promise<ChatCompletionResult> {
-  const finalMessages = systemPrompt
-    ? [{ role: 'system' as const, content: systemPrompt }, ...messages]
-    : messages;
   const body: Record<string, unknown> = {
     model: endpoint.model,
-    messages: finalMessages,
+    messages: normalizeOpenAIMessages(messages, systemPrompt),
     stream: true,
   };
   if (endpoint.max_tokens > 0) body.max_tokens = endpoint.max_tokens;
@@ -356,14 +472,14 @@ async function streamOpenAI(
 async function streamAnthropic(
   endpoint: EndpointConfig,
   apiKey: string,
-  messages: Array<{ role: 'user' | 'assistant'; content: string }>,
+  messages: LLMRequestMessage[],
   onChunk: (delta: string) => void | Promise<void>,
   systemPrompt?: string,
   signal?: AbortSignal
 ): Promise<ChatCompletionResult> {
   const body: Record<string, unknown> = {
     model: endpoint.model,
-    messages,
+    messages: normalizeAnthropicMessages(messages),
     stream: true,
     max_tokens: endpoint.max_tokens > 0 ? endpoint.max_tokens : 1024,
     ...(systemPrompt ? { system: systemPrompt } : {}),

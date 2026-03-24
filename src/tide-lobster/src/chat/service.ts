@@ -1,26 +1,78 @@
+/**
+ * 聊天业务编排层：会话 CRUD、端点解析、系统提示（人格 + 记忆）、
+ * 调用 LLM（含多轮工具循环）、流式增量推送、用量落库与记忆抽取触发。
+ * 持久化会话走 ChatStore；token 统计走 SQLite（getDb）。
+ */
 import { existsSync, readFileSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import { resolve } from 'node:path';
 
 import { parseEnv } from '../utils/envUtils.js';
 import type { ChatMessage, ChatSession, EndpointConfig, SessionSummary } from './models.js';
-import { requestChatCompletion, streamChatCompletion, type LLMUsage } from './llmClient.js';
+import { requestChatCompletion, type LLMRequestMessage, type LLMUsage } from './llmClient.js';
 import { ChatStore } from './chatStore.js';
 import { EndpointStore } from '../store/endpointStore.js';
 import { IdentityService } from '../identity/identityService.js';
 import { getDb } from '../db/index.js';
+import { memoryStore } from '../memory/store.js';
+import { extractorService } from '../memory/extractorService.js';
+import { globalToolRegistry } from '../tools/registry.js';
+import type { ToolCall, ToolExecutionTrace } from '../tools/types.js';
 
-function trimMessages(messages: ChatMessage[], maxChars = 60000): ChatMessage[] {
+/** 单次用户提问内，模型最多可发起多少轮「助手带 tool_calls → 执行工具 → 再请求模型」；防止死循环。 */
+const MAX_TOOL_ROUNDS = 5;
+
+/** 流式对话推送给前端的统一事件：文本增量或工具执行状态。 */
+export type ChatStreamEvent =
+  | { type: 'delta'; delta: string }
+  | { type: 'tool_call'; name: string; status: 'running'; arguments: Record<string, unknown> }
+  | { type: 'tool_result'; name: string; status: 'completed' | 'failed'; content: string };
+
+/**
+ * 从最新消息往前截断，控制发给模型的上下文总字符数（默认约 60k），避免超长请求。
+ * tool 消息的 content 按字符串计；非 string 的 content 视为空。
+ */
+function trimMessages(messages: LLMRequestMessage[], maxChars = 60000): LLMRequestMessage[] {
   let total = 0;
-  const result: ChatMessage[] = [];
+  const result: LLMRequestMessage[] = [];
   for (let i = messages.length - 1; i >= 0; i--) {
-    total += messages[i].content.length;
+    const message = messages[i];
+    const content =
+      message.role === 'tool'
+        ? message.content
+        : typeof message.content === 'string'
+          ? message.content
+          : '';
+    total += content.length;
     if (total > maxChars) break;
-    result.unshift(messages[i]);
+    result.unshift(message);
   }
   return result;
 }
 
+/** 将持久化的 ChatMessage 转为 LLM 请求用的扁平 role/content 结构。 */
+function toLLMMessages(messages: ChatMessage[]): LLMRequestMessage[] {
+  return messages.map((message) => ({
+    role: message.role,
+    content: message.content,
+  }));
+}
+
+async function emitTextAsChunks(
+  content: string,
+  emit: (delta: string) => void | Promise<void>
+): Promise<void> {
+  // 工具回合是同步执行的；最终回答这里按小块回放，前端仍能复用原有 delta 渲染逻辑。
+  const chunkSize = 48;
+  for (let index = 0; index < content.length; index += chunkSize) {
+    await emit(content.slice(index, index + chunkSize));
+  }
+}
+
+/**
+ * 对外暴露：非流式 chat、流式 chatStream，以及会话/端点查询。
+ * 核心路径：落盘用户消息 → buildSystemPrompt → runCompletion（可能多轮工具）→ 落盘助手消息 → 用量与记忆。
+ */
 export class ChatService {
   private readonly store: ChatStore;
   private readonly endpointStore: EndpointStore;
@@ -39,8 +91,9 @@ export class ChatService {
     return this.store.getSession(sessionId);
   }
 
+  /** 新建会话；可指定默认端点名与 persona 文件路径。 */
   createSession(endpointName?: string | null, personaPath?: string | null): ChatSession {
-    const endpoint = this.resolveEndpoint(endpointName);
+    const endpoint = this.getEndpointConfig(endpointName);
     if (endpointName && !endpoint) {
       throw new Error(`endpoint not found: ${endpointName}`);
     }
@@ -52,12 +105,15 @@ export class ChatService {
     patch: { endpoint_name?: string | null; title?: string | null; persona_path?: string | null }
   ): ChatSession | undefined {
     if (patch.endpoint_name) {
-      const endpoint = this.resolveEndpoint(patch.endpoint_name);
+      const endpoint = this.getEndpointConfig(patch.endpoint_name);
       if (!endpoint) throw new Error(`endpoint not found: ${patch.endpoint_name}`);
     }
     return this.store.updateSession(sessionId, patch);
   }
 
+  /**
+   * 非流式：一次请求拿完整助手回复。流程与 chatStream 相同，只是不向客户端推送 delta/tool 事件。
+   */
   async chat(args: {
     conversation_id?: string | null;
     message: string;
@@ -66,29 +122,29 @@ export class ChatService {
     const userMessage = (args.message ?? '').trim();
     if (!userMessage) throw new Error('message is empty');
 
+    // 无 conversation_id 或会话不存在时新建会话；端点优先用入参，否则用会话上已绑定的端点
     let session = args.conversation_id ? this.store.getSession(args.conversation_id) : undefined;
     let endpoint: EndpointConfig | undefined;
 
     if (!session) {
-      endpoint = this.resolveEndpoint(args.endpoint_name);
+      endpoint = this.getEndpointConfig(args.endpoint_name);
       session = this.store.createSession(endpoint?.name ?? args.endpoint_name ?? null);
     } else {
-      endpoint = this.resolveEndpoint(args.endpoint_name ?? session.endpoint_name ?? null);
+      endpoint = this.getEndpointConfig(args.endpoint_name ?? session.endpoint_name ?? null);
     }
 
     if (!endpoint) {
       throw new Error('未找到可用端点，请先在 LLM 配置里添加并启用端点');
     }
 
-    let apiKey = this.resolveApiKey(endpoint.api_key_env);
+    // 从环境变量 / .env 解析 API Key；无 key_env 时用占位，便于本地等特殊配置
+    let apiKey = this.getApiKeyValue(endpoint.api_key_env);
     if (endpoint.api_key_env && !apiKey) {
       throw new Error(`环境变量 ${endpoint.api_key_env} 未配置 API Key`);
     }
     if (!apiKey) apiKey = 'local';
 
-    const identityService = new IdentityService();
-    const systemPrompt = identityService.loadSystemPrompt(session.persona_path ?? undefined);
-
+    // 先写入用户消息再调模型，避免请求失败却未记录用户输入
     const sessionAfterUser = this.store.appendUserMessage({
       sessionId: session.id,
       userContent: userMessage,
@@ -96,12 +152,12 @@ export class ChatService {
     });
     if (!sessionAfterUser) throw new Error('failed to persist user message');
 
-    const assistant = await requestChatCompletion({
+    const systemPrompt = this.buildSystemPrompt(sessionAfterUser, userMessage);
+    const assistant = await this.runCompletion({
       endpoint,
       apiKey,
-      history: trimMessages(session.messages),
-      userMessage,
-      systemPrompt: systemPrompt || undefined,
+      messages: trimMessages(toLLMMessages(sessionAfterUser.messages)),
+      systemPrompt,
     });
 
     const appended = this.store.appendAssistantMessageWithMeta({
@@ -118,16 +174,20 @@ export class ChatService {
       usage: assistant.usage,
     });
 
+    this.attachToolInvocations(appended.session, assistant.toolInvocations);
+    this.triggerMemoryExtraction(session.id, endpoint, apiKey);
+
     return { session: appended.session, message: assistant.content };
   }
 
+  /** 删除会话（JSON 存储侧）。 */
   deleteSession(sessionId: string): boolean {
     return this.store.deleteSession(sessionId);
   }
 
   /**
-   * 流式对话：边生成边通过 onChunk 推送增量文本，结束后将完整助手回复落盘。
-   * signal 可用于取消上游流式请求。
+   * 流式对话：通过 onEvent 推送 delta（最终回复会分块模拟流）与 tool_call/tool_result，结束后将完整助手回复落盘。
+   * signal 可中止上游请求。
    */
   async chatStream(
     args: {
@@ -135,22 +195,22 @@ export class ChatService {
       message: string;
       endpoint_name?: string | null;
     },
-    onChunk: (delta: string) => void,
+    onEvent: (event: ChatStreamEvent) => void | Promise<void>,
     signal?: AbortSignal
   ): Promise<{ session: ChatSession; message: string }> {
     // 校验用户输入非空
     const userMessage = (args.message ?? '').trim();
     if (!userMessage) throw new Error('message is empty');
 
-    // 按 conversation_id 取已有会话；无则新建，并解析本次要用的 LLM 端点
+    // 无 conversation_id 或会话不存在时新建会话；端点优先用入参，否则用会话上已绑定的端点
     let session = args.conversation_id ? this.store.getSession(args.conversation_id) : undefined;
     let endpoint: EndpointConfig | undefined;
 
     if (!session) {
-      endpoint = this.resolveEndpoint(args.endpoint_name);
+      endpoint = this.getEndpointConfig(args.endpoint_name);
       session = this.store.createSession(endpoint?.name ?? args.endpoint_name ?? null);
     } else {
-      endpoint = this.resolveEndpoint(args.endpoint_name ?? session.endpoint_name ?? null);
+      endpoint = this.getEndpointConfig(args.endpoint_name ?? session.endpoint_name ?? null);
     }
 
     if (!endpoint) {
@@ -158,17 +218,13 @@ export class ChatService {
     }
 
     // 从环境变量 / .env 解析 API Key；无 key_env 时用占位，便于本地等特殊配置
-    let apiKey = this.resolveApiKey(endpoint.api_key_env);
+    let apiKey = this.getApiKeyValue(endpoint.api_key_env);
     if (endpoint.api_key_env && !apiKey) {
       throw new Error(`环境变量 ${endpoint.api_key_env} 未配置 API Key`);
     }
     if (!apiKey) apiKey = 'local';
 
-    // 按会话绑定的 persona 加载系统提示词
-    const identityService = new IdentityService();
-    const systemPrompt = identityService.loadSystemPrompt(session.persona_path ?? undefined);
-
-    // 先持久化用户消息，保证失败时不会白调模型
+    // buildSystemPrompt 会读 persona + 检索记忆；用户消息必须先落盘，避免白调模型
     const sessionAfterUser = this.store.appendUserMessage({
       sessionId: session.id,
       userContent: userMessage,
@@ -176,14 +232,14 @@ export class ChatService {
     });
     if (!sessionAfterUser) throw new Error('failed to persist user message');
 
-    // 流式调用 LLM；history 截断以控制上下文长度，完整回复在 Promise resolve 时得到
-    const assistant = await streamChatCompletion({
+    const systemPrompt = this.buildSystemPrompt(sessionAfterUser, userMessage);
+    const baseMessages = trimMessages(toLLMMessages(sessionAfterUser.messages));
+    const assistant = await this.runCompletion({
       endpoint,
       apiKey,
-      history: trimMessages(session.messages), // 截断以控制上下文长度
-      userMessage,
-      systemPrompt: systemPrompt || undefined,
-      onChunk,
+      messages: baseMessages,
+      systemPrompt,
+      onEvent,
       signal,
     });
 
@@ -202,6 +258,9 @@ export class ChatService {
       usage: assistant.usage,
     });
 
+    this.attachToolInvocations(appended.session, assistant.toolInvocations);
+    this.triggerMemoryExtraction(session.id, endpoint, apiKey);
+
     return { session: appended.session, message: assistant.content };
   }
 
@@ -209,7 +268,10 @@ export class ChatService {
     return this.endpointStore.listEndpoints();
   }
 
-  private resolveEndpoint(endpointName?: string | null): EndpointConfig | undefined {
+  /**
+   * 解析本次请求使用的 LLM 端点：按 name 精确匹配；未传 name 时取「已启用」列表中 priority 最小的一个。
+   */
+  getEndpointConfig(endpointName?: string | null): EndpointConfig | undefined {
     const endpoints = this.endpointStore.listEndpoints().filter((ep: any) => ep.enabled !== 0);
     if (endpoints.length === 0) return undefined;
 
@@ -226,6 +288,7 @@ export class ChatService {
     return this.toEndpointConfig(sorted[0]);
   }
 
+  /** 将 endpointStore 的原始行转为内部统一的 EndpointConfig（去尾斜杠 base_url 等）。 */
   private toEndpointConfig(raw: Record<string, unknown>): EndpointConfig {
     return {
       name: String(raw.name ?? ''),
@@ -238,7 +301,170 @@ export class ChatService {
     };
   }
 
-  private resolveApiKey(envName: string): string {
+  /** 人格系统提示 + 与当前用户句相关的记忆片段（无记忆则仅人格或 undefined）。 */
+  private buildSystemPrompt(session: ChatSession, userMessage: string): string | undefined {
+    const identityService = new IdentityService();
+    const basePrompt = identityService.loadSystemPrompt(session.persona_path ?? undefined);
+    const relevantMemories = memoryStore.findRelevant(userMessage, 5);
+
+    if (relevantMemories.length === 0) return basePrompt || undefined;
+    const memoryBlock = relevantMemories.map((item) => `- ${item.content}`).join('\n');
+    return `${basePrompt || ''}\n\n## 关于用户的记忆\n${memoryBlock}`.trim();
+  }
+
+  /**
+   * 单次「用户轮」内的 LLM 循环：请求 → 若无 tool_calls 则得到最终文案并返回；
+   * 若有 tool_calls 则执行工具、把 assistant/tool 消息追加进 currentMessages 再请求，直到无工具或达到 MAX_TOOL_ROUNDS。
+   * 流式场景下最终文案通过 emitTextAsChunks 模拟 delta；非流式直接整段 content。
+   */
+  private async runCompletion(args: {
+    endpoint: EndpointConfig;
+    apiKey: string;
+    messages: LLMRequestMessage[];
+    systemPrompt?: string;
+    onEvent?: (event: ChatStreamEvent) => void | Promise<void>;
+    signal?: AbortSignal;
+  }): Promise<{ content: string; usage?: LLMUsage; toolInvocations: ToolExecutionTrace[] }> {
+    let currentMessages = [...args.messages];
+    const toolInvocations: ToolExecutionTrace[] = [];
+    let lastContent = '';
+
+    for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
+      // anthropic / openai 两套 tools schema 由 registry 分别序列化
+      const result = await requestChatCompletion({
+        endpoint: args.endpoint,
+        apiKey: args.apiKey,
+        messages: currentMessages,
+        systemPrompt: args.systemPrompt,
+        tools:
+          args.endpoint.api_type === 'anthropic'
+            ? globalToolRegistry.toAnthropicFormat()
+            : globalToolRegistry.toOpenAIFormat(),
+      });
+
+      // 模型不再要工具：视为本轮对话的最终回复
+      if (!result.tool_calls?.length) {
+        if (args.onEvent && result.content) {
+          await emitTextAsChunks(result.content, async (delta) => {
+            lastContent += delta;
+            await args.onEvent?.({ type: 'delta', delta });
+          });
+        } else {
+          lastContent = result.content;
+        }
+        return {
+          content: result.content,
+          usage: result.usage,
+          toolInvocations,
+        };
+      }
+
+      // 保留助手可见文本（若有），并挂上 tool_calls，供下一轮请求前拼接 tool 角色消息
+      currentMessages = [
+        ...currentMessages,
+        {
+          role: 'assistant',
+          content: result.content || null,
+          tool_calls: result.tool_calls,
+        },
+      ];
+      lastContent = result.content || lastContent;
+
+      for (const toolCall of result.tool_calls) {
+        const trace = await this.executeTool(toolCall, toolInvocations, args.onEvent);
+        currentMessages = [
+          ...currentMessages,
+          {
+            role: 'tool',
+            tool_call_id: toolCall.id,
+            name: toolCall.name,
+            content: trace.result ?? '',
+          },
+        ];
+      }
+    }
+
+    // 多轮工具后仍要求工具：不再请求模型，返回提示语（无 usage 累加语义，由最后一次成功轮次决定）
+    return {
+      content: lastContent || '工具调用达到上限，已停止继续执行。',
+      toolInvocations,
+    };
+  }
+
+  /** 执行单个工具：写入 trace、推送 tool_call/tool_result 事件、捕获 execute 异常为 failed。 */
+  private async executeTool(
+    toolCall: ToolCall,
+    toolInvocations: ToolExecutionTrace[],
+    onEvent?: (event: ChatStreamEvent) => void | Promise<void>
+  ): Promise<ToolExecutionTrace> {
+    const trace: ToolExecutionTrace = {
+      id: toolCall.id,
+      name: toolCall.name,
+      arguments: toolCall.arguments,
+      status: 'running',
+    };
+    toolInvocations.push(trace);
+    await onEvent?.({
+      type: 'tool_call',
+      name: toolCall.name,
+      status: 'running',
+      arguments: toolCall.arguments,
+    });
+
+    const tool = globalToolRegistry.get(toolCall.name);
+    if (!tool) {
+      trace.status = 'failed';
+      trace.result = `工具 ${toolCall.name} 不存在`;
+      await onEvent?.({
+        type: 'tool_result',
+        name: toolCall.name,
+        status: 'failed',
+        content: trace.result,
+      });
+      return trace;
+    }
+
+    try {
+      trace.result = await tool.execute(toolCall.arguments);
+      trace.status = 'completed';
+    } catch (error) {
+      trace.status = 'failed';
+      trace.result = error instanceof Error ? error.message : String(error);
+    }
+
+    await onEvent?.({
+      type: 'tool_result',
+      name: toolCall.name,
+      status: trace.status,
+      content: trace.result ?? '',
+    });
+    return trace;
+  }
+
+  /** 把本轮工具执行轨迹挂到最后一条助手消息上，便于前端展示与审计。 */
+  private attachToolInvocations(session: ChatSession, toolInvocations: ToolExecutionTrace[]): void {
+    if (toolInvocations.length === 0) return;
+    const lastAssistant = [...session.messages]
+      .reverse()
+      .find((message) => message.role === 'assistant');
+    if (lastAssistant) {
+      lastAssistant.tool_invocations = toolInvocations;
+    }
+  }
+
+  /** 异步后台抽取记忆，失败只打日志，不影响本次聊天返回。 */
+  private triggerMemoryExtraction(
+    sessionId: string,
+    endpoint: EndpointConfig,
+    apiKey: string
+  ): void {
+    extractorService.extractFromSession(sessionId, endpoint, apiKey).catch((error) => {
+      console.error('[chat.memory] extract failed:', error);
+    });
+  }
+
+  /** 先读 process.env，再读项目根 .env（与端点配置里的 api_key_env 名称对应）。 */
+  getApiKeyValue(envName: string): string {
     if (!envName) return '';
     if (process.env[envName]) return String(process.env[envName]);
 

@@ -1,3 +1,5 @@
+import type { ToolExecutionTrace } from '../tools/types.js';
+
 export type ChatRole = 'user' | 'assistant';
 
 export type ChatMessage = {
@@ -5,6 +7,7 @@ export type ChatMessage = {
   role: ChatRole;
   content: string;
   created_at?: string;
+  tool_invocations?: ToolExecutionTrace[]; // 工具执行轨迹（非流式时仅最后一轮）
 };
 
 export type ChatSession = {

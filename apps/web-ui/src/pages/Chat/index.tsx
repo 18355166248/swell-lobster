@@ -16,10 +16,12 @@ import {
 } from './api';
 import type {
   ChatMessage,
+  ChatStreamEvent,
   ChatSession,
   EndpointItem,
   SessionSearchResult,
   SessionSummary,
+  ToolInvocation,
 } from './types';
 import { SessionList } from './components/SessionList';
 import { ChatComposer } from './components/ChatComposer';
@@ -49,6 +51,114 @@ function upsertSessionSummary(list: SessionSummary[], session: ChatSession): Ses
     // Session is new, prepend it to maintain existing behavior for new sessions.
     return [next, ...list];
   }
+}
+
+function updateLastAssistantMessage(
+  list: ChatMessage[],
+  updater: (message: ChatMessage) => ChatMessage
+): ChatMessage[] {
+  const next = [...list];
+  for (let index = next.length - 1; index >= 0; index -= 1) {
+    if (next[index].role === 'assistant') {
+      next[index] = updater(next[index]);
+      break;
+    }
+  }
+  return next;
+}
+
+function applyStreamEvent(messages: ChatMessage[], event: ChatStreamEvent): ChatMessage[] {
+  if (event.type === 'delta') {
+    return updateLastAssistantMessage(messages, (message) => ({
+      ...message,
+      content: message.content + event.delta,
+    }));
+  }
+
+  if (event.type === 'tool_call') {
+    return updateLastAssistantMessage(messages, (message) => ({
+      ...message,
+      tool_invocations: [
+        ...(message.tool_invocations ?? []),
+        {
+          id: `${event.name}_${Date.now()}_${message.tool_invocations?.length ?? 0}`,
+          name: event.name,
+          arguments: event.arguments,
+          status: 'running',
+        },
+      ],
+    }));
+  }
+
+  return updateLastAssistantMessage(messages, (message) => {
+    const toolInvocations = [...(message.tool_invocations ?? [])];
+    const lastRunningIndex = [...toolInvocations]
+      .reverse()
+      .findIndex((item) => item.name === event.name && item.status === 'running');
+    const targetIndex =
+      lastRunningIndex === -1 ? -1 : toolInvocations.length - 1 - lastRunningIndex;
+
+    if (targetIndex === -1) {
+      toolInvocations.push({
+        id: `${event.name}_${Date.now()}_${toolInvocations.length}`,
+        name: event.name,
+        arguments: {},
+        status: event.status,
+        result: event.content,
+      });
+    } else {
+      toolInvocations[targetIndex] = {
+        ...toolInvocations[targetIndex],
+        status: event.status,
+        result: event.content,
+      };
+    }
+
+    return {
+      ...message,
+      tool_invocations: toolInvocations,
+    };
+  });
+}
+
+function ToolInvocationPanel({
+  toolInvocations,
+  t,
+}: {
+  toolInvocations: ToolInvocation[];
+  t: (key: string) => string;
+}) {
+  if (toolInvocations.length === 0) return null;
+
+  return (
+    <div className="mt-3 flex flex-col gap-2">
+      {toolInvocations.map((item) => (
+        <details
+          key={item.id}
+          className="rounded-xl border border-border bg-muted/35 px-3 py-2 text-sm text-foreground"
+        >
+          <summary className="cursor-pointer list-none">
+            <div className="flex items-center justify-between gap-3">
+              <span className="font-medium">{item.name}</span>
+              <span className="text-xs text-muted-foreground">
+                {item.status === 'running' ? t('chat.toolCalling') : t('chat.toolResult')}
+              </span>
+            </div>
+          </summary>
+          <div className="mt-2 space-y-2">
+            <pre className="overflow-x-auto rounded-lg bg-background px-2 py-1.5 text-xs">
+              {JSON.stringify(item.arguments, null, 2)}
+            </pre>
+            {item.result ? (
+              <pre className="overflow-x-auto rounded-lg bg-background px-2 py-1.5 text-xs">
+                {item.result}
+              </pre>
+            ) : null}
+          </div>
+        </details>
+      ))}
+    </div>
+  );
 }
 
 export function ChatPage() {
@@ -310,15 +420,8 @@ export function ChatPage() {
             message: userContent,
             endpoint_name: selectedEndpointName,
           },
-          (delta) => {
-            setMessages((prev) => {
-              const next = [...prev];
-              const last = next[next.length - 1];
-              if (last?.role === 'assistant') {
-                next[next.length - 1] = { role: 'assistant', content: last.content + delta };
-              }
-              return next;
-            });
+          (event) => {
+            setMessages((prev) => applyStreamEvent(prev, event));
           },
           controller.signal
         );
@@ -349,8 +452,13 @@ export function ChatPage() {
     abortRef.current = controller;
 
     const localUserMessage: ChatMessage = { role: 'user', content: text };
+    // 在本地先插入一个 assistant 占位，工具事件与文本增量都挂到这条消息上。
     setInput('');
-    setMessages((prev) => [...prev, localUserMessage, { role: 'assistant', content: '' }]);
+    setMessages((prev) => [
+      ...prev,
+      localUserMessage,
+      { role: 'assistant', content: '', tool_invocations: [] },
+    ]);
     shouldScrollToBottomRef.current = true;
     setLoading(true);
     setError(null);
@@ -362,15 +470,8 @@ export function ChatPage() {
           message: text,
           endpoint_name: selectedEndpointName,
         },
-        (delta) => {
-          setMessages((prev) => {
-            const next = [...prev];
-            const last = next[next.length - 1];
-            if (last?.role === 'assistant') {
-              next[next.length - 1] = { role: 'assistant', content: last.content + delta };
-            }
-            return next;
-          });
+        (event) => {
+          setMessages((prev) => applyStreamEvent(prev, event));
         },
         controller.signal
       );
@@ -511,6 +612,10 @@ export function ChatPage() {
                         <div className="w-full min-w-0 text-foreground [&_.markdown-content]:max-w-none">
                           {item.content}
                         </div>
+                        <ToolInvocationPanel
+                          toolInvocations={messages[item.key as number]?.tool_invocations ?? []}
+                          t={t}
+                        />
                         <MessageActions
                           content={item.rawContent}
                           role="assistant"

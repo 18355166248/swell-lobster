@@ -47,3 +47,11 @@ export async function apiPatch<T = unknown>(path: string, body: unknown): Promis
   if (!res.ok) return parseApiError(path, res);
   return res.json() as Promise<T>;
 }
+
+export async function apiDelete<T = unknown>(path: string): Promise<T> {
+  const res = await fetch(`${getApiBase()}${path}`, {
+    method: 'DELETE',
+  });
+  if (!res.ok) return parseApiError(path, res);
+  return res.json() as Promise<T>;
+}

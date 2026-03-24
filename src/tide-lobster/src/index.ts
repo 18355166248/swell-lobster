@@ -9,6 +9,7 @@ import { settings } from './config.js';
 import { serve } from '@hono/node-server';
 import { setGlobalDispatcher, ProxyAgent } from 'undici';
 import { createApp } from './api/server.js';
+import { initializeBuiltinTools } from './tools/index.js';
 
 const proxyUrl =
   process.env.HTTPS_PROXY ??
@@ -20,6 +21,7 @@ if (proxyUrl) {
 }
 
 const app = createApp();
+initializeBuiltinTools();
 
 serve(
   {

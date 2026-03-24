@@ -74,7 +74,7 @@ const migrations: Array<{ version: number; up: (db: Database.Database) => void }
   {
     version: 4,
     up: (db) => {
-      // 按日、按端点聚合 LLM 用量；唯一键 (date, endpoint_name) 与 ChatService.recordUsage 中 UPSERT 一致。
+      // v4 同时引入 token 统计与长期记忆表，便于阶段 3 直接在同一迁移版本落地。
       db.exec(`
         CREATE TABLE IF NOT EXISTS token_stats (
           id TEXT PRIMARY KEY,
@@ -89,6 +89,22 @@ const migrations: Array<{ version: number; up: (db: Database.Database) => void }
         CREATE UNIQUE INDEX IF NOT EXISTS idx_token_stats_date_endpoint
           ON token_stats(date, endpoint_name);
         CREATE INDEX IF NOT EXISTS idx_token_stats_date ON token_stats(date);
+
+        CREATE TABLE IF NOT EXISTS memories (
+          id TEXT PRIMARY KEY,
+          content TEXT NOT NULL,
+          memory_type TEXT NOT NULL CHECK(memory_type IN ('fact', 'preference', 'event', 'rule')),
+          source_session_id TEXT,
+          tags TEXT DEFAULT '[]',
+          importance INTEGER DEFAULT 5 CHECK(importance BETWEEN 1 AND 10),
+          access_count INTEGER DEFAULT 0,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          expires_at TEXT
+        );
+        CREATE INDEX IF NOT EXISTS idx_memories_type ON memories(memory_type);
+        CREATE INDEX IF NOT EXISTS idx_memories_importance ON memories(importance DESC);
+        CREATE INDEX IF NOT EXISTS idx_memories_created ON memories(created_at DESC);
       `);
     },
   },

@@ -62,8 +62,8 @@ chatRouter.post('/api/chat/stream', async (c) => {
           message: body.message ?? '',
           endpoint_name: body.endpoint_name,
         },
-        async (delta) => {
-          await stream.writeSSE({ data: JSON.stringify({ delta }) });
+        async (event) => {
+          await stream.writeSSE({ data: JSON.stringify(event) });
         },
         signal
       );

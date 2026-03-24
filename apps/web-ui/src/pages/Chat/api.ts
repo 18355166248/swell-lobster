@@ -1,5 +1,6 @@
 import { apiGet, apiPatch, apiPost, getApiBase } from '../../api/base';
 import type {
+  ChatStreamEvent,
   ChatSession,
   EndpointItem,
   PersonaInfo,
@@ -78,7 +79,7 @@ export async function sendMessageStream(
     message: string;
     endpoint_name?: string;
   },
-  onDelta: (delta: string) => void,
+  onEvent: (event: ChatStreamEvent) => void,
   signal?: AbortSignal
 ): Promise<{ conversation_id: string; session: ChatSession }> {
   const res = await fetch(`${getApiBase()}/api/chat/stream`, {
@@ -108,7 +109,28 @@ export async function sendMessageStream(
       try {
         const chunk = JSON.parse(raw) as Record<string, unknown>;
         if (chunk.error) throw new Error(chunk.error as string);
-        if (typeof chunk.delta === 'string') onDelta(chunk.delta);
+        if (chunk.type === 'delta' && typeof chunk.delta === 'string') {
+          onEvent({ type: 'delta', delta: chunk.delta });
+        }
+        if (chunk.type === 'tool_call' && typeof chunk.name === 'string') {
+          onEvent({
+            type: 'tool_call',
+            name: chunk.name,
+            status: 'running',
+            arguments:
+              chunk.arguments && typeof chunk.arguments === 'object'
+                ? (chunk.arguments as Record<string, unknown>)
+                : {},
+          });
+        }
+        if (chunk.type === 'tool_result' && typeof chunk.name === 'string') {
+          onEvent({
+            type: 'tool_result',
+            name: chunk.name,
+            status: chunk.status === 'failed' ? 'failed' : 'completed',
+            content: String(chunk.content ?? ''),
+          });
+        }
         if (chunk.done) {
           return {
             conversation_id: chunk.conversation_id as string,

@@ -1,0 +1,149 @@
+/* Token 统计页：分层阴影与浅色内高光，明暗主题随 CSS 变量切换 */
+
+.page {
+  max-width: 1280px;
+  margin: 0 auto;
+}
+
+.heroTitle {
+  color: var(--text-h);
+  letter-spacing: -0.02em;
+}
+
+.statStrip {
+  padding: 1.25rem;
+  border-radius: 16px;
+  background: linear-gradient(
+    160deg,
+    hsl(var(--brand-h) var(--brand-s) var(--brand-l) / 0.07) 0%,
+    var(--muted) 42%,
+    var(--muted) 100%
+  );
+  border: 1px solid var(--border);
+  box-shadow:
+    inset 0 1px 0 0 rgb(255 255 255 / 0.55),
+    0 1px 2px rgb(0 0 0 / 0.04),
+    0 10px 28px rgb(0 0 0 / 0.06);
+}
+
+:global(.dark) .statStrip {
+  background: linear-gradient(
+    160deg,
+    hsl(var(--brand-h) var(--brand-s) var(--brand-l) / 0.14) 0%,
+    var(--muted) 48%,
+    var(--card) 100%
+  );
+  box-shadow:
+    inset 0 1px 0 0 rgb(255 255 255 / 0.05),
+    0 2px 4px rgb(0 0 0 / 0.2),
+    0 14px 36px rgb(0 0 0 / 0.38);
+}
+
+.statCard {
+  position: relative;
+  border-radius: 14px !important;
+  border: 1px solid var(--border) !important;
+  background: var(--card) !important;
+  overflow: hidden;
+  box-shadow:
+    inset 0 1px 0 0 rgb(255 255 255 / 0.65),
+    0 1px 2px rgb(0 0 0 / 0.05),
+    0 6px 16px rgb(0 0 0 / 0.06);
+  transition:
+    transform 0.22s ease,
+    box-shadow 0.22s ease;
+}
+
+.statCard::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  background: linear-gradient(
+    180deg,
+    var(--accent) 0%,
+    hsl(var(--brand-h) var(--brand-s) var(--brand-l) / 0.45) 100%
+  );
+  border-radius: 14px 0 0 14px;
+  pointer-events: none;
+}
+
+.statCard:hover {
+  transform: translateY(-3px);
+  box-shadow:
+    inset 0 1px 0 0 rgb(255 255 255 / 0.75),
+    0 4px 8px rgb(0 0 0 / 0.06),
+    0 14px 32px rgb(0 0 0 / 0.1);
+}
+
+:global(.dark) .statCard {
+  box-shadow:
+    inset 0 1px 0 0 rgb(255 255 255 / 0.08),
+    0 2px 4px rgb(0 0 0 / 0.22),
+    0 10px 24px rgb(0 0 0 / 0.35);
+}
+
+:global(.dark) .statCard:hover {
+  box-shadow:
+    inset 0 1px 0 0 rgb(255 255 255 / 0.1),
+    0 6px 12px rgb(0 0 0 / 0.28),
+    0 18px 40px rgb(0 0 0 / 0.45);
+}
+
+.statCard :global(.ant-card-body) {
+  padding: 16px 18px 16px 22px;
+}
+
+.tableCard {
+  border-radius: 14px !important;
+  border: 1px solid var(--border) !important;
+  background: var(--card) !important;
+  box-shadow:
+    inset 0 1px 0 0 rgb(255 255 255 / 0.5),
+    0 1px 2px rgb(0 0 0 / 0.04),
+    0 8px 24px rgb(0 0 0 / 0.05);
+  transition: box-shadow 0.2s ease;
+}
+
+.tableCard:hover {
+  box-shadow:
+    inset 0 1px 0 0 rgb(255 255 255 / 0.6),
+    0 2px 4px rgb(0 0 0 / 0.05),
+    0 12px 28px rgb(0 0 0 / 0.08);
+}
+
+:global(.dark) .tableCard {
+  box-shadow:
+    inset 0 1px 0 0 rgb(255 255 255 / 0.06),
+    0 2px 4px rgb(0 0 0 / 0.2),
+    0 10px 28px rgb(0 0 0 / 0.32);
+}
+
+:global(.dark) .tableCard:hover {
+  box-shadow:
+    inset 0 1px 0 0 rgb(255 255 255 / 0.08),
+    0 4px 8px rgb(0 0 0 / 0.25),
+    0 14px 36px rgb(0 0 0 / 0.4);
+}
+
+.tableCard :global(.ant-card-head) {
+  border-bottom-color: var(--border);
+  min-height: 48px;
+}
+
+.tableCard :global(.ant-card-head-title) {
+  font-weight: 600;
+  color: var(--text-h);
+}
+
+.statCard :global(.ant-statistic-content-value) {
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  text-shadow: 0 1px 0 rgb(255 255 255 / 0.4);
+}
+
+:global(.dark) .statCard :global(.ant-statistic-content-value) {
+  text-shadow: 0 1px 2px rgb(0 0 0 / 0.45);
+}

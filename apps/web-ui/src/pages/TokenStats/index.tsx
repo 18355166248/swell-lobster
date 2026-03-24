@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react';
-import { Alert, Card, Col, Row, Spin, Statistic, Table, Typography } from 'antd';
+import { Alert, Card, Col, Row, Skeleton, Statistic, Table, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { useTranslation } from 'react-i18next';
 
 import { apiGet } from '../../api/base';
+
+import styles from './TokenStats.module.css';
 
 const { Title, Text } = Typography;
 
@@ -37,6 +39,15 @@ type DailyStat = {
   total_tokens: number;
   request_count: number;
 };
+
+type SummaryPeriodKey = keyof Pick<SummaryResponse, 'today' | 'thisWeek' | 'thisMonth' | 'total'>;
+
+const SUMMARY_PERIODS: { periodKey: SummaryPeriodKey; titleKey: string }[] = [
+  { periodKey: 'today', titleKey: 'tokenStats.today' },
+  { periodKey: 'thisWeek', titleKey: 'tokenStats.thisWeek' },
+  { periodKey: 'thisMonth', titleKey: 'tokenStats.thisMonth' },
+  { periodKey: 'total', titleKey: 'tokenStats.total' },
+];
 
 /** 与后端数值展示一致（千分位）；若要做多语言可再接入 locale。 */
 function formatNumber(value: number): string {
@@ -141,93 +152,68 @@ export function TokenStatsPage() {
     },
   ];
 
-  if (loading) {
-    return (
-      <div className="p-6 flex items-center gap-2">
-        <Spin size="small" />
-        <Text type="secondary">{t('common.loading')}</Text>
-      </div>
-    );
-  }
-
   return (
-    <div className="p-6">
-      <Title level={4} style={{ marginBottom: 4 }}>
+    <div className={`p-6 ${styles.page}`}>
+      <Title level={4} className={styles.heroTitle} style={{ marginBottom: 4 }}>
         {t('tokenStats.title')}
       </Title>
       <Text type="secondary">{t('tokenStats.subtitle')}</Text>
 
       {error && <Alert type="error" message={error} className="mt-3" showIcon />}
 
-      {summary && (
-        <Row gutter={[16, 16]} className="mt-6">
-          <Col xs={24} sm={12} xl={6}>
-            <Card size="small">
-              <Statistic
-                title={t('tokenStats.today')}
-                value={summary.today.total_tokens}
-                suffix={t('tokenStats.tokens')}
-              />
-              <Text type="secondary">
-                {t('tokenStats.requests')} {formatNumber(summary.today.request_count)}
-              </Text>
-            </Card>
-          </Col>
-          <Col xs={24} sm={12} xl={6}>
-            <Card size="small">
-              <Statistic
-                title={t('tokenStats.thisWeek')}
-                value={summary.thisWeek.total_tokens}
-                suffix={t('tokenStats.tokens')}
-              />
-              <Text type="secondary">
-                {t('tokenStats.requests')} {formatNumber(summary.thisWeek.request_count)}
-              </Text>
-            </Card>
-          </Col>
-          <Col xs={24} sm={12} xl={6}>
-            <Card size="small">
-              <Statistic
-                title={t('tokenStats.thisMonth')}
-                value={summary.thisMonth.total_tokens}
-                suffix={t('tokenStats.tokens')}
-              />
-              <Text type="secondary">
-                {t('tokenStats.requests')} {formatNumber(summary.thisMonth.request_count)}
-              </Text>
-            </Card>
-          </Col>
-          <Col xs={24} sm={12} xl={6}>
-            <Card size="small">
-              <Statistic
-                title={t('tokenStats.total')}
-                value={summary.total.total_tokens}
-                suffix={t('tokenStats.tokens')}
-              />
-              <Text type="secondary">
-                {t('tokenStats.requests')} {formatNumber(summary.total.request_count)}
-              </Text>
-            </Card>
-          </Col>
-        </Row>
+      {(loading || summary) && (
+        <div className={`${styles.statStrip} mt-6`}>
+          <Row gutter={[16, 16]}>
+            {SUMMARY_PERIODS.map(({ periodKey, titleKey }) => {
+              const period = summary?.[periodKey];
+              return (
+                <Col xs={24} sm={12} xl={6} key={periodKey}>
+                  <Card size="small" className={styles.statCard}>
+                    <Statistic
+                      loading={loading}
+                      title={t(titleKey)}
+                      value={period?.total_tokens ?? 0}
+                      suffix={t('tokenStats.tokens')}
+                      formatter={(value) => formatNumber(Number(value))}
+                    />
+                    {loading ? (
+                      <Skeleton
+                        active
+                        title={false}
+                        paragraph={{ rows: 1, width: ['60%'] }}
+                        className="mt-1"
+                      />
+                    ) : period ? (
+                      <Text type="secondary">
+                        {t('tokenStats.requests')} {formatNumber(period.request_count)}
+                      </Text>
+                    ) : null}
+                  </Card>
+                </Col>
+              );
+            })}
+          </Row>
+        </div>
       )}
 
-      <Card className="mt-6" title={t('tokenStats.byEndpoint')}>
+      <Card className={`mt-6 ${styles.tableCard}`} title={t('tokenStats.byEndpoint')}>
         <Table
           rowKey="endpoint_name"
           columns={endpointColumns}
           dataSource={endpointStats}
           pagination={false}
+          loading={loading}
           locale={{ emptyText: t('common.noData') }}
         />
       </Card>
 
-      <Card className="mt-6" title={t('tokenStats.dailyTrend')}>
+      <Card className={`mt-6 ${styles.tableCard}`} title={t('tokenStats.dailyTrend')}>
         <Table
           rowKey="date"
           columns={dailyColumns}
           dataSource={dailyStats}
           pagination={{ pageSize: 10, hideOnSinglePage: true }}
+          loading={loading}
           locale={{ emptyText: t('common.noData') }}
         />
       </Card>

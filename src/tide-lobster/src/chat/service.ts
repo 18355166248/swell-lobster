@@ -63,7 +63,6 @@ export class ChatService {
     message: string;
     endpoint_name?: string | null;
   }): Promise<{ session: ChatSession; message: string }> {
-    console.log('chat', args);
     const userMessage = (args.message ?? '').trim();
     if (!userMessage) throw new Error('message is empty');
 
@@ -86,8 +85,6 @@ export class ChatService {
       throw new Error(`环境变量 ${endpoint.api_key_env} 未配置 API Key`);
     }
     if (!apiKey) apiKey = 'local';
-
-    console.log('apiKey', endpoint, apiKey);
 
     const identityService = new IdentityService();
     const systemPrompt = identityService.loadSystemPrompt(session.persona_path ?? undefined);
@@ -189,7 +186,6 @@ export class ChatService {
       onChunk,
       signal,
     });
-    console.log("🚀 ~ ChatService ~ chatStream ~ assistant:", assistant)
 
     // 将拼接后的完整助手回复写入会话
     const appended = this.store.appendAssistantMessageWithMeta({

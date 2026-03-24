@@ -16,6 +16,7 @@
 | LLM 端点管理                                                  | ✅   | ✅   |
 | Identity 文件读写                                             | ✅   | ✅   |
 | 阶段 1：身份注入 system prompt、persona、消息操作、上下文截断 | ✅   | ✅   |
+| 阶段 2：Token 统计 + 会话搜索                                 | ✅   | ✅   |
 | Markdown + LaTeX + Mermaid 渲染                               | —    | ✅   |
 
 ### 已有骨架，未实现
@@ -27,12 +28,10 @@
 | MCP 服务器           | 占位               | UI 框架 |
 | 计划任务 (Scheduler) | 占位               | UI 框架 |
 | IM 通道              | 占位               | UI 框架 |
-| Token 统计           | 占位               | UI 框架 |
 
 ### 关键缺口
 
 - `llmClient.ts` 尚不支持 `tools` / Function Calling（阶段 3）
-- Token usage 字段被忽略，从未记录（阶段 2）
 
 ---
 
@@ -40,7 +39,7 @@
 
 ```
 阶段1：身份系统激活 ✅     → identity 文件注入 system prompt，persona 切换（已完成，见 phases/phase1-identity.md 文首状态）
-阶段2：Token统计 + 搜索   → 记录 token 消耗，会话关键词搜索
+阶段2：Token统计 + 搜索 ✅ → 记录 token 消耗，会话关键词搜索（已完成，见 phases/phase2-token-search.md 文首状态）
 阶段3：记忆 + 工具调用    → 长期记忆，Function Calling 内置工具
 阶段4：MCP + 计划任务     → MCP 工具生态，Cron 定时任务
 阶段5：IM + 技能系统      → Telegram Bot 接入，技能可扩展

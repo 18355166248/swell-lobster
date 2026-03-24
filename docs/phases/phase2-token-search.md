@@ -1,9 +1,12 @@
 # 阶段 2：Token 统计与会话搜索
 
+> **状态**：已完成（2026-03-24）
 > **目标**：记录每次对话的 token 消耗并聚合展示；支持跨会话关键词搜索。
 > **预估工作量**：1 周
 > **新增依赖**：无（前端图表可选 `recharts`）
 > **注意**：可与阶段 1 并行启动，`usage` 字段在阶段 1 修改 llmClient 时顺带处理
+
+下文各步骤为实施时的设计说明，已实现并可通过下方验证清单回归确认。
 
 ---
 
@@ -267,9 +270,9 @@ chat: {
 
 ## 验证清单
 
-- [ ] 发送消息后，`chat_messages.token_count` 有值
-- [ ] `token_stats` 表今日记录每次请求后 `total_tokens` 累加
-- [ ] `GET /api/stats/tokens` 返回正确的汇总数据
-- [ ] TokenStats 页面卡片展示今日/本周/本月数据
-- [ ] 会话搜索框输入关键词后返回匹配的消息列表
-- [ ] 无 usage 响应时 fallback 估算不报错
+- [x] 发送消息后，`chat_messages.token_count` 有值
+- [x] `token_stats` 表今日记录每次请求后 `total_tokens` 累加
+- [x] `GET /api/stats/tokens` 返回正确的汇总数据
+- [x] TokenStats 页面卡片展示今日/本周/本月数据
+- [x] 会话搜索框输入关键词后返回匹配的消息列表
+- [x] 无 usage 响应时 fallback 估算不报错

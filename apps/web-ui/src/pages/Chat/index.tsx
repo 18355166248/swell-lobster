@@ -14,7 +14,13 @@ import {
   sendMessageStream,
   updateSession,
 } from './api';
-import type { ChatMessage, ChatSession, EndpointItem, SessionSummary } from './types';
+import type {
+  ChatMessage,
+  ChatSession,
+  EndpointItem,
+  SessionSearchResult,
+  SessionSummary,
+} from './types';
 import { SessionList } from './components/SessionList';
 import { ChatComposer } from './components/ChatComposer';
 import { LoadingBubble } from './components/LoadingBubble';
@@ -60,10 +66,65 @@ export function ChatPage() {
   const [lastPersona, setLastPersona] = useAtom(lastPersonaAtom);
   const abortRef = useRef<AbortController | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const shouldScrollToBottomRef = useRef(false);
+  const pendingScrollTargetIdRef = useRef<string | null>(null);
+  const highlightTimerRef = useRef<number | null>(null);
+  const messageRefs = useRef(new Map<string, HTMLDivElement | null>());
+  const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
+
+  const clearMessageHighlight = useCallback(() => {
+    if (highlightTimerRef.current !== null) {
+      window.clearTimeout(highlightTimerRef.current);
+      highlightTimerRef.current = null;
+    }
+    setHighlightedMessageId(null);
+  }, []);
+
+  const highlightMessage = useCallback(
+    (messageId: string) => {
+      clearMessageHighlight();
+      setHighlightedMessageId(messageId);
+      highlightTimerRef.current = window.setTimeout(() => {
+        setHighlightedMessageId((current) => (current === messageId ? null : current));
+        highlightTimerRef.current = null;
+      }, 2400);
+    },
+    [clearMessageHighlight]
+  );
+
+  const registerMessageRef = useCallback((messageId: string, node: HTMLDivElement | null) => {
+    if (node) {
+      messageRefs.current.set(messageId, node);
+      return;
+    }
+    messageRefs.current.delete(messageId);
+  }, []);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+    const targetId = pendingScrollTargetIdRef.current;
+    if (targetId) {
+      const targetNode = messageRefs.current.get(targetId);
+      if (targetNode) {
+        // 滚动到目标消息
+        targetNode.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        highlightMessage(targetId);
+        pendingScrollTargetIdRef.current = null;
+      }
+      return;
+    }
+
+    if (shouldScrollToBottomRef.current) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [messages, highlightMessage]);
+
+  useEffect(() => {
+    return () => {
+      if (highlightTimerRef.current !== null) {
+        window.clearTimeout(highlightTimerRef.current);
+      }
+    };
+  }, []);
 
   const activeSession = useMemo(
     () => sessions.find((s) => s.id === activeSessionId),
@@ -111,10 +172,12 @@ export function ChatPage() {
               message_count: created.messages.length,
             },
           ];
+          shouldScrollToBottomRef.current = false;
           setMessages(created.messages);
           setActiveSessionId(created.id);
           setActivePersonaPath(created.persona_path ?? null);
         } else {
+          shouldScrollToBottomRef.current = false;
           await loadSession(sessionList[0].id);
         }
 
@@ -139,6 +202,7 @@ export function ChatPage() {
       setSessions((prev) => upsertSessionSummary(prev, session));
       setActiveSessionId(session.id);
       setActivePersonaPath(session.persona_path ?? null);
+      shouldScrollToBottomRef.current = false;
       setMessages(session.messages);
     } catch (e) {
       setError(e instanceof Error ? e.message : t('chat.createSessionFailed'));
@@ -150,8 +214,23 @@ export function ChatPage() {
   const handleSelectSession = async (sessionId: string) => {
     setError(null);
     try {
+      pendingScrollTargetIdRef.current = null;
+      clearMessageHighlight();
+      shouldScrollToBottomRef.current = false;
       await loadSession(sessionId);
     } catch (e) {
+      setError(e instanceof Error ? e.message : t('chat.loadSessionFailed'));
+    }
+  };
+
+  const handleSelectSearchResult = async (result: SessionSearchResult) => {
+    setError(null);
+    try {
+      pendingScrollTargetIdRef.current = result.id;
+      shouldScrollToBottomRef.current = false;
+      await loadSession(result.session_id);
+    } catch (e) {
+      pendingScrollTargetIdRef.current = null;
       setError(e instanceof Error ? e.message : t('chat.loadSessionFailed'));
     }
   };
@@ -179,6 +258,7 @@ export function ChatPage() {
           ]);
           setActiveSessionId(created.id);
           setActivePersonaPath(created.persona_path ?? null);
+          shouldScrollToBottomRef.current = false;
           setMessages(created.messages);
         }
       }
@@ -219,6 +299,7 @@ export function ChatPage() {
       abortRef.current = controller;
 
       setMessages((prev) => [...prev, { role: 'assistant', content: '' }]);
+      shouldScrollToBottomRef.current = true;
       setLoading(true);
       setError(null);
 
@@ -270,6 +351,7 @@ export function ChatPage() {
     const localUserMessage: ChatMessage = { role: 'user', content: text };
     setInput('');
     setMessages((prev) => [...prev, localUserMessage, { role: 'assistant', content: '' }]);
+    shouldScrollToBottomRef.current = true;
     setLoading(true);
     setError(null);
 
@@ -345,6 +427,7 @@ export function ChatPage() {
             sessions={sessions}
             activeSessionId={activeSessionId}
             onSelect={handleSelectSession}
+            onSelectSearchResult={handleSelectSearchResult}
             onDelete={handleDeleteSession}
           />
         </div>
@@ -410,12 +493,21 @@ export function ChatPage() {
             ) : (
               <div className="max-w-[800px] mx-auto w-full min-w-0 px-6 py-4 flex flex-col gap-6">
                 {bubbleItems.map((item) => {
+                  const messageId = messages[item.key as number]?.id;
+                  const isHighlighted = Boolean(messageId && highlightedMessageId === messageId);
+
                   if (item.loading) {
                     return <LoadingBubble key={item.key} />;
                   }
                   if (item.role === 'assistant') {
                     return (
-                      <div key={item.key} className="w-full min-w-0 group">
+                      <div
+                        key={messageId ?? item.key}
+                        ref={messageId ? (node) => registerMessageRef(messageId, node) : undefined}
+                        className={`w-full min-w-0 group scroll-mt-24 rounded-2xl px-3 py-2 transition-all duration-500 ${
+                          isHighlighted ? 'bg-amber-100/80 ring-1 ring-amber-300' : ''
+                        }`}
+                      >
                         <div className="w-full min-w-0 text-foreground [&_.markdown-content]:max-w-none">
                           {item.content}
                         </div>
@@ -434,8 +526,11 @@ export function ChatPage() {
                   }
                   return (
                     <div
-                      key={item.key}
-                      className="flex w-full min-w-0 items-start justify-end gap-3 group"
+                      key={messageId ?? item.key}
+                      ref={messageId ? (node) => registerMessageRef(messageId, node) : undefined}
+                      className={`flex w-full min-w-0 scroll-mt-24 items-start justify-end gap-3 rounded-2xl px-3 py-2 group transition-all duration-500 ${
+                        isHighlighted ? 'bg-amber-100/80 ring-1 ring-amber-300' : ''
+                      }`}
                     >
                       <div className="flex min-w-0 max-w-[min(85%,42rem)] flex-col items-end">
                         <div className="rounded-2xl bg-muted px-4 py-2.5 text-[15px] leading-6 text-foreground">

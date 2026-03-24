@@ -64,8 +64,10 @@ export class ChatStore {
     const messageRows = messagesStmt.all(sessionId) as any[];
 
     const messages: ChatMessage[] = messageRows.map((row) => ({
+      id: row.id,
       role: row.role,
       content: row.content,
+      created_at: row.created_at,
     }));
 
     return {

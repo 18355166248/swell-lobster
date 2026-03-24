@@ -10,6 +10,7 @@ type SessionListProps = {
   sessions: SessionSummary[];
   activeSessionId?: string;
   onSelect: (sessionId: string) => void;
+  onSelectSearchResult: (result: SessionSearchResult) => void;
   onDelete: (sessionId: string) => Promise<void>;
 };
 
@@ -18,7 +19,13 @@ function summarizeContent(content: string): string {
   return content.replace(/\s+/g, ' ').trim().slice(0, 64);
 }
 
-export function SessionList({ sessions, activeSessionId, onSelect, onDelete }: SessionListProps) {
+export function SessionList({
+  sessions,
+  activeSessionId,
+  onSelect,
+  onSelectSearchResult,
+  onDelete,
+}: SessionListProps) {
   const { t } = useTranslation();
   const [keyword, setKeyword] = useState('');
   const [results, setResults] = useState<SessionSearchResult[]>([]);
@@ -111,13 +118,16 @@ export function SessionList({ sessions, activeSessionId, onSelect, onDelete }: S
                     ? 'border-primary bg-primary/10'
                     : 'border-transparent hover:bg-muted'
                 }`}
-                onClick={() => onSelect(result.session_id)}
+                onClick={() => onSelectSearchResult(result)}
               >
                 <div className="truncate text-sm font-medium text-foreground">
                   {result.session_title || t('chat.newSession')}
                 </div>
                 <div className="mt-1 line-clamp-2 text-xs text-muted-foreground">
                   {summarizeContent(result.content)}
+                </div>
+                <div className="mt-1 text-[11px] text-muted-foreground/80">
+                  {new Date(result.created_at).toLocaleString()}
                 </div>
               </button>
             ))

@@ -10,7 +10,7 @@ import {
   Input,
   Select,
   InputNumber,
-  Tag,
+  Checkbox,
 } from 'antd';
 import { useTranslation } from 'react-i18next';
 import { apiGet, apiPost } from '../../../api/base';
@@ -28,7 +28,7 @@ type FormValues = {
   apiType: 'openai' | 'anthropic';
   selectedModelId: string;
   endpointName: string;
-  capSelected: string[];
+  capabilities: string[];
   endpointPriority: number;
   maxTokens: number;
   contextWindow: number;
@@ -129,22 +129,6 @@ export function AddEndpointDialog({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedProvider, selectedModelId, mode]);
 
-  /** 无模型时清空能力；有模型且在列表中命中时按接口 capabilities 同步 */
-  useEffect(() => {
-    const id = (selectedModelId ?? '').trim();
-    if (!id) {
-      form.setFieldValue('capSelected', []);
-      return;
-    }
-    if (models.length === 0) return;
-    const m = models.find((x) => x.id === id);
-    const raw = m?.capabilities;
-    if (!raw || typeof raw !== 'object') return;
-    const selected = CAPABILITY_OPTIONS.filter((c) => raw[c.k] === true).map((c) => c.k);
-    form.setFieldValue('capSelected', selected.length > 0 ? selected : ['text']);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedModelId, models]);
-
   useEffect(() => {
     if (!open) return;
     setBaseUrlExpanded(false);
@@ -160,7 +144,7 @@ export function AddEndpointDialog({
         apiType: (initial.api_type as 'openai' | 'anthropic') || 'anthropic',
         selectedModelId: initial.model || '',
         endpointName: initial.name || '',
-        capSelected: initial.capabilities || [],
+        capabilities: initial.capabilities || [],
         endpointPriority: initial.priority ?? 1,
         maxTokens: initial.max_tokens ?? 0,
         contextWindow: initial.context_window ?? DEFAULT_CONTEXT_WINDOW,
@@ -176,7 +160,7 @@ export function AddEndpointDialog({
         apiType: 'anthropic',
         selectedModelId: '',
         endpointName: '',
-        capSelected: [],
+        capabilities: [],
         endpointPriority: endpointCount === 0 ? 1 : endpointCount + 1,
         maxTokens: 0,
         contextWindow: DEFAULT_CONTEXT_WINDOW,
@@ -207,6 +191,24 @@ export function AddEndpointDialog({
     form.setFieldValue('providerSlug', providers[0].slug);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [providers]);
+
+  const applyModelCapabilities = useCallback(
+    (modelId: string) => {
+      const id = modelId.trim();
+      if (!id) {
+        form.setFieldValue('capabilities', []);
+        return;
+      }
+      const model = models.find((item) => item.id === id);
+      const raw = model?.capabilities;
+      if (!raw || typeof raw !== 'object') return;
+      const selected = CAPABILITY_OPTIONS.filter((item) => raw[item.k] === true).map(
+        (item) => item.k
+      );
+      form.setFieldValue('capabilities', selected.length > 0 ? selected : ['text']);
+    },
+    [form, models]
+  );
 
   const fetchModels = useCallback(async () => {
     const effectiveKey =
@@ -311,7 +313,7 @@ export function AddEndpointDialog({
         (values.apiKeyEnv ?? '').trim() ||
         `LLM_API_KEY_${selectedProvider?.slug ?? 'custom'}`.toUpperCase();
 
-      const capSelected = values.capSelected ?? [];
+      const capabilities = values.capabilities ?? [];
 
       const payload: EndpointFormData = {
         name,
@@ -324,7 +326,7 @@ export function AddEndpointDialog({
         priority: Math.max(1, values.endpointPriority ?? 1),
         enabled: true,
         provider: selectedProvider?.slug,
-        capabilities: capSelected.length ? capSelected : ['text'],
+        capabilities: capabilities.length ? capabilities : ['text'],
         max_tokens: Math.max(0, values.maxTokens ?? 0),
         context_window: Math.max(1024, values.contextWindow ?? DEFAULT_CONTEXT_WINDOW),
         timeout: Math.max(10, values.timeoutSec ?? DEFAULT_TIMEOUT),
@@ -460,7 +462,7 @@ export function AddEndpointDialog({
                 setModels([]);
                 form.setFieldsValue({
                   selectedModelId: '',
-                  capSelected: [],
+                  capabilities: [],
                   baseUrl: '',
                 });
               }}
@@ -541,6 +543,7 @@ export function AddEndpointDialog({
                 allowClear
                 options={models.map((m) => ({ value: m.id, label: m.name || m.id }))}
                 placeholder={t('addEndpoint.modelPlaceholder')}
+                onChange={(value) => applyModelCapabilities(value ?? '')}
               />
             ) : (
               <Input placeholder={t('addEndpoint.modelInputPlaceholder')} />
@@ -559,9 +562,8 @@ export function AddEndpointDialog({
           </Form.Item>
 
           {/* 模型能力 */}
-          <Form.Item name="capSelected" label={t('addEndpoint.capabilities')}>
-            <Tag.CheckableTagGroup
-              multiple
+          <Form.Item name="capabilities" label={t('addEndpoint.capabilities')}>
+            <Checkbox.Group
               options={CAPABILITY_OPTIONS.map((c) => ({ label: c.name, value: c.k }))}
             />
           </Form.Item>

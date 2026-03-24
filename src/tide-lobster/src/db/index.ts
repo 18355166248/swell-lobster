@@ -62,6 +62,15 @@ const migrations: Array<{ version: number; up: (db: Database.Database) => void }
       db.exec(`ALTER TABLE chat_messages ADD COLUMN token_count INTEGER`);
     },
   },
+  {
+    version: 3,
+    up: (db) => {
+      db.exec(`ALTER TABLE llm_endpoints ADD COLUMN provider TEXT`);
+      db.exec(`ALTER TABLE llm_endpoints ADD COLUMN capabilities TEXT`);
+      db.exec(`ALTER TABLE llm_endpoints ADD COLUMN context_window INTEGER`);
+      db.exec(`ALTER TABLE llm_endpoints ADD COLUMN rpm_limit INTEGER`);
+    },
+  },
 ];
 
 function runMigrations(db: Database.Database): void {

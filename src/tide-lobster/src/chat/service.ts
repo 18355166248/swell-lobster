@@ -1,12 +1,14 @@
 import { existsSync, readFileSync } from 'node:fs';
+import { randomUUID } from 'node:crypto';
 import { resolve } from 'node:path';
 
 import { parseEnv } from '../utils/envUtils.js';
 import type { ChatMessage, ChatSession, EndpointConfig, SessionSummary } from './models.js';
-import { requestChatCompletion, streamChatCompletion } from './llmClient.js';
+import { requestChatCompletion, streamChatCompletion, type LLMUsage } from './llmClient.js';
 import { ChatStore } from './chatStore.js';
 import { EndpointStore } from '../store/endpointStore.js';
 import { IdentityService } from '../identity/identityService.js';
+import { getDb } from '../db/index.js';
 
 function trimMessages(messages: ChatMessage[], maxChars = 60000): ChatMessage[] {
   let total = 0;
@@ -22,6 +24,7 @@ function trimMessages(messages: ChatMessage[], maxChars = 60000): ChatMessage[] 
 export class ChatService {
   private readonly store: ChatStore;
   private readonly endpointStore: EndpointStore;
+  private readonly db = getDb();
 
   constructor(private readonly projectRoot: string) {
     this.store = new ChatStore();
@@ -104,14 +107,21 @@ export class ChatService {
       systemPrompt: systemPrompt || undefined,
     });
 
-    const updated = this.store.appendAssistantMessage({
+    const appended = this.store.appendAssistantMessageWithMeta({
       sessionId: session.id,
-      assistantContent: assistant,
+      assistantContent: assistant.content,
       endpointName: endpoint.name,
     });
 
-    if (!updated) throw new Error('failed to persist chat session');
-    return { session: updated, message: assistant };
+    if (!appended) throw new Error('failed to persist chat session');
+
+    this.recordUsage({
+      messageId: appended.messageId,
+      endpointName: endpoint.name,
+      usage: assistant.usage,
+    });
+
+    return { session: appended.session, message: assistant.content };
   }
 
   deleteSession(sessionId: string): boolean {
@@ -179,16 +189,24 @@ export class ChatService {
       onChunk,
       signal,
     });
+    console.log("🚀 ~ ChatService ~ chatStream ~ assistant:", assistant)
 
     // 将拼接后的完整助手回复写入会话
-    const updated = this.store.appendAssistantMessage({
+    const appended = this.store.appendAssistantMessageWithMeta({
       sessionId: session.id,
-      assistantContent: assistant,
+      assistantContent: assistant.content,
       endpointName: endpoint.name,
     });
 
-    if (!updated) throw new Error('failed to persist chat session');
-    return { session: updated, message: assistant };
+    if (!appended) throw new Error('failed to persist chat session');
+
+    this.recordUsage({
+      messageId: appended.messageId,
+      endpointName: endpoint.name,
+      usage: assistant.usage,
+    });
+
+    return { session: appended.session, message: assistant.content };
   }
 
   listEndpoints(): Array<Record<string, unknown>> {
@@ -237,5 +255,54 @@ export class ChatService {
     } catch {
       return '';
     }
+  }
+
+  /**
+   * 助手回复成功后的统计：更新消息行 token_count，并按 UTC 日历日 upsert token_stats。
+   * Review 注意：聚合接口「今日」等用 SQLite date('now','localtime')，与此处 UTC 日期在非 UTC 时区边界可能差一天，若需一致可改为同一时区取日串。
+   */
+  private recordUsage(args: {
+    messageId: string;
+    endpointName?: string | null;
+    usage?: LLMUsage;
+  }): void {
+    if (!args.usage) return;
+
+    this.store.updateMessageTokenCount(args.messageId, args.usage.total_tokens);
+
+    const today = new Date().toISOString().slice(0, 10);
+    const now = new Date().toISOString();
+
+    this.db
+      .prepare(
+        `
+        INSERT INTO token_stats (
+          id,
+          date,
+          endpoint_name,
+          prompt_tokens,
+          completion_tokens,
+          total_tokens,
+          request_count,
+          updated_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, 1, ?)
+        ON CONFLICT(date, endpoint_name) DO UPDATE SET
+          prompt_tokens = token_stats.prompt_tokens + excluded.prompt_tokens,
+          completion_tokens = token_stats.completion_tokens + excluded.completion_tokens,
+          total_tokens = token_stats.total_tokens + excluded.total_tokens,
+          request_count = token_stats.request_count + 1,
+          updated_at = excluded.updated_at
+      `
+      )
+      .run(
+        randomUUID(),
+        today,
+        args.endpointName ?? null,
+        args.usage.prompt_tokens,
+        args.usage.completion_tokens,
+        args.usage.total_tokens,
+        now
+      );
   }
 }

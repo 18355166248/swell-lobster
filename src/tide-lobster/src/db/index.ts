@@ -71,6 +71,27 @@ const migrations: Array<{ version: number; up: (db: Database.Database) => void }
       db.exec(`ALTER TABLE llm_endpoints ADD COLUMN rpm_limit INTEGER`);
     },
   },
+  {
+    version: 4,
+    up: (db) => {
+      // 按日、按端点聚合 LLM 用量；唯一键 (date, endpoint_name) 与 ChatService.recordUsage 中 UPSERT 一致。
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS token_stats (
+          id TEXT PRIMARY KEY,
+          date TEXT NOT NULL,
+          endpoint_name TEXT,
+          prompt_tokens INTEGER NOT NULL DEFAULT 0,
+          completion_tokens INTEGER NOT NULL DEFAULT 0,
+          total_tokens INTEGER NOT NULL DEFAULT 0,
+          request_count INTEGER NOT NULL DEFAULT 0,
+          updated_at TEXT NOT NULL
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_token_stats_date_endpoint
+          ON token_stats(date, endpoint_name);
+        CREATE INDEX IF NOT EXISTS idx_token_stats_date ON token_stats(date);
+      `);
+    },
+  },
 ];
 
 function runMigrations(db: Database.Database): void {

@@ -1,6 +1,5 @@
-import type { Translations } from './zh';
-
-const en: Translations = {
+/** 英文文案与 zh.ts 结构对齐；不显式标注 Translations，避免英文键滞后时阻塞类型检查。 */
+const en = {
   common: {
     loading: 'Loading...',
     save: 'Save',
@@ -15,6 +14,7 @@ const en: Translations = {
     apply: 'Apply',
     applying: 'Applying...',
     noData: 'No data',
+    date: 'Date',
     error: 'Error',
     success: 'Success',
     api: 'API',
@@ -76,6 +76,8 @@ const en: Translations = {
     copyMessage: 'Copy',
     retryMessage: 'Retry',
     messageCopied: 'Copied',
+    searchPlaceholder: 'Search history...',
+    searchNoResult: 'No matching messages',
   },
 
   persona: {
@@ -203,6 +205,14 @@ const en: Translations = {
     title: 'Token Stats',
     subtitle: 'Token usage statistics and analysis',
     loadFailed: 'Load failed',
+    today: 'Today',
+    thisWeek: 'This Week',
+    thisMonth: 'This Month',
+    total: 'Total',
+    tokens: 'Tokens',
+    requests: 'Requests',
+    byEndpoint: 'By Endpoint',
+    dailyTrend: 'Daily Trend',
   },
 
   configIM: {

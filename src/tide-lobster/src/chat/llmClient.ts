@@ -1,5 +1,68 @@
 import type { ChatMessage, EndpointConfig } from './models.js';
 
+export interface LLMUsage {
+  prompt_tokens: number;
+  completion_tokens: number;
+  total_tokens: number;
+}
+
+export interface ChatCompletionResult {
+  content: string;
+  usage?: LLMUsage;
+}
+
+// Token：优先解析厂商 usage；缺失时用下方 estimateTokens/estimateUsage 粗估（展示量级，非计费精度）。
+// OpenAI 流式依赖 stream_options.include_usage；Anthropic 流式见 streamAnthropic 内按事件解析。
+function estimateTokens(text: string): number {
+  const chineseChars = (text.match(/[\u4e00-\u9fff]/g) || []).length;
+  const otherChars = text.length - chineseChars;
+  return Math.ceil(chineseChars / 3 + otherChars / 4);
+}
+
+function estimateUsage(args: {
+  messages: Array<{ role: 'user' | 'assistant'; content: string }>;
+  content: string;
+  systemPrompt?: string;
+}): LLMUsage {
+  const promptText =
+    args.messages.map((message) => message.content).join('\n') +
+    (args.systemPrompt ? `\n${args.systemPrompt}` : '');
+  const promptTokens = estimateTokens(promptText);
+  const completionTokens = estimateTokens(args.content);
+  return {
+    prompt_tokens: promptTokens,
+    completion_tokens: completionTokens,
+    total_tokens: promptTokens + completionTokens,
+  };
+}
+
+function parseOpenAIUsage(raw: unknown): LLMUsage | undefined {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const usage = raw as Record<string, unknown>;
+  const promptTokens = Number(usage.prompt_tokens ?? 0);
+  const completionTokens = Number(usage.completion_tokens ?? 0);
+  const totalTokens = Number(usage.total_tokens ?? promptTokens + completionTokens);
+  if (![promptTokens, completionTokens, totalTokens].every(Number.isFinite)) return undefined;
+  return {
+    prompt_tokens: promptTokens,
+    completion_tokens: completionTokens,
+    total_tokens: totalTokens,
+  };
+}
+
+function parseAnthropicUsage(raw: unknown): LLMUsage | undefined {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const usage = raw as Record<string, unknown>;
+  const promptTokens = Number(usage.input_tokens ?? 0);
+  const completionTokens = Number(usage.output_tokens ?? 0);
+  if (![promptTokens, completionTokens].every(Number.isFinite)) return undefined;
+  return {
+    prompt_tokens: promptTokens,
+    completion_tokens: completionTokens,
+    total_tokens: promptTokens + completionTokens,
+  };
+}
+
 function normalizeMessages(
   history: ChatMessage[],
   userMessage: string
@@ -49,7 +112,7 @@ export async function streamChatCompletion(args: {
   systemPrompt?: string;
   onChunk: (delta: string) => void | Promise<void>;
   signal?: AbortSignal;
-}): Promise<string> {
+}): Promise<ChatCompletionResult> {
   const { endpoint, apiKey, history, userMessage, systemPrompt, onChunk, signal } = args;
   if (!endpoint.model) throw new Error('endpoint model is empty');
 
@@ -69,7 +132,7 @@ export async function requestChatCompletion(args: {
   history: ChatMessage[];
   userMessage: string;
   systemPrompt?: string;
-}): Promise<string> {
+}): Promise<ChatCompletionResult> {
   const { endpoint, apiKey, history, userMessage, systemPrompt } = args;
   if (!endpoint.model) throw new Error('endpoint model is empty');
 
@@ -88,7 +151,7 @@ async function requestOpenAI(
   apiKey: string,
   messages: Array<{ role: 'user' | 'assistant'; content: string }>,
   systemPrompt?: string
-): Promise<string> {
+): Promise<ChatCompletionResult> {
   const finalMessages = systemPrompt
     ? [{ role: 'system' as const, content: systemPrompt }, ...messages]
     : messages;
@@ -120,7 +183,14 @@ async function requestOpenAI(
   const message = (first.message ?? {}) as Record<string, unknown>;
   const content = message.content;
 
-  if (typeof content === 'string') return content.trim();
+  if (typeof content === 'string') {
+    const trimmed = content.trim();
+    return {
+      content: trimmed,
+      usage:
+        parseOpenAIUsage(data.usage) ?? estimateUsage({ messages, content: trimmed, systemPrompt }),
+    };
+  }
   if (Array.isArray(content)) {
     const texts = content
       .map((item) => {
@@ -131,7 +201,15 @@ async function requestOpenAI(
         return String(row.text ?? '').trim();
       })
       .filter(Boolean);
-    if (texts.length > 0) return texts.join('\n');
+    if (texts.length > 0) {
+      const joined = texts.join('\n');
+      return {
+        content: joined,
+        usage:
+          parseOpenAIUsage(data.usage) ??
+          estimateUsage({ messages, content: joined, systemPrompt }),
+      };
+    }
   }
 
   throw new Error('chat completion response has no readable content');
@@ -142,7 +220,7 @@ async function requestAnthropic(
   apiKey: string,
   messages: Array<{ role: 'user' | 'assistant'; content: string }>,
   systemPrompt?: string
-): Promise<string> {
+): Promise<ChatCompletionResult> {
   const body: Record<string, unknown> = {
     model: endpoint.model,
     messages,
@@ -182,7 +260,13 @@ async function requestAnthropic(
     .filter(Boolean);
 
   if (texts.length === 0) throw new Error('chat completion response has no readable content');
-  return texts.join('\n');
+  const contentText = texts.join('\n');
+  return {
+    content: contentText,
+    usage:
+      parseAnthropicUsage(data.usage) ??
+      estimateUsage({ messages, content: contentText, systemPrompt }),
+  };
 }
 
 async function streamOpenAI(
@@ -192,12 +276,18 @@ async function streamOpenAI(
   onChunk: (delta: string) => void | Promise<void>,
   systemPrompt?: string,
   signal?: AbortSignal
-): Promise<string> {
+): Promise<ChatCompletionResult> {
   const finalMessages = systemPrompt
     ? [{ role: 'system' as const, content: systemPrompt }, ...messages]
     : messages;
-  const body: Record<string, unknown> = { model: endpoint.model, messages: finalMessages, stream: true };
+  const body: Record<string, unknown> = {
+    model: endpoint.model,
+    messages: finalMessages,
+    stream: true,
+  };
   if (endpoint.max_tokens > 0) body.max_tokens = endpoint.max_tokens;
+  // 流末尾 chunk 可携带 usage；不支持时 parseOpenAIUsage 失败，回退 estimateUsage。
+  body.stream_options = { include_usage: true };
 
   const res = await fetchWithTimeout(
     openAIChatUrl(endpoint.base_url),
@@ -224,6 +314,7 @@ async function streamOpenAI(
   const reader = res.body!.getReader();
   let buf = '';
   let streamDone = false;
+  let usage: LLMUsage | undefined;
 
   while (!streamDone) {
     const { done, value } = await reader.read();
@@ -240,6 +331,7 @@ async function streamOpenAI(
       }
       try {
         const chunk = JSON.parse(raw) as Record<string, unknown>;
+        usage = parseOpenAIUsage(chunk.usage) ?? usage;
         const choices = Array.isArray(chunk.choices) ? chunk.choices : [];
         const delta = (choices[0] as Record<string, unknown>)?.delta as
           | Record<string, unknown>
@@ -255,7 +347,10 @@ async function streamOpenAI(
     }
   }
 
-  return full;
+  return {
+    content: full,
+    usage: usage ?? estimateUsage({ messages, content: full, systemPrompt }),
+  };
 }
 
 async function streamAnthropic(
@@ -265,12 +360,12 @@ async function streamAnthropic(
   onChunk: (delta: string) => void | Promise<void>,
   systemPrompt?: string,
   signal?: AbortSignal
-): Promise<string> {
+): Promise<ChatCompletionResult> {
   const body: Record<string, unknown> = {
     model: endpoint.model,
     messages,
-    max_tokens: endpoint.max_tokens > 0 ? endpoint.max_tokens : 1024,
     stream: true,
+    max_tokens: endpoint.max_tokens > 0 ? endpoint.max_tokens : 1024,
     ...(systemPrompt ? { system: systemPrompt } : {}),
   };
 
@@ -295,35 +390,74 @@ async function streamAnthropic(
     throw new Error(`chat completion failed(${res.status}): ${text}`);
   }
 
-  let full = '';
-  const decoder = new TextDecoder();
   const reader = res.body!.getReader();
-  let buf = '';
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let full = '';
+  let usage: LLMUsage | undefined;
+
+  // SSE 以空行分隔事件；单事件内 data: 可能多行，需拼接成一条 JSON（与逐行解析相比更稳）。
+  const handleEvent = async (eventBlock: string) => {
+    const lines = eventBlock.split('\n');
+    const dataLines: string[] = [];
+    for (const line of lines) {
+      if (line.startsWith('data:')) {
+        dataLines.push(line.slice(5).trim());
+      }
+    }
+    if (dataLines.length === 0) return;
+
+    const raw = dataLines.join('\n');
+    if (raw === '[DONE]') return;
+
+    try {
+      const event = JSON.parse(raw) as Record<string, unknown>;
+      const type = String(event.type ?? '');
+      if (type === 'message_start') {
+        const message = event.message as Record<string, unknown> | undefined;
+        usage = parseAnthropicUsage(message?.usage) ?? usage;
+        return;
+      }
+      if (type === 'content_block_delta') {
+        const delta = event.delta as Record<string, unknown> | undefined;
+        const text = typeof delta?.text === 'string' ? delta.text : '';
+        if (text) {
+          await onChunk(text);
+          full += text;
+        }
+        return;
+      }
+      if (type === 'message_delta') {
+        const eventUsage = parseAnthropicUsage(event.usage);
+        if (usage && eventUsage) {
+          usage.completion_tokens = eventUsage.completion_tokens;
+          usage.total_tokens = usage.prompt_tokens + usage.completion_tokens;
+        } else if (eventUsage) {
+          usage = eventUsage;
+        }
+      }
+    } catch {
+      /* skip malformed */
+    }
+  };
 
   while (true) {
     const { done, value } = await reader.read();
     if (done) break;
-    buf += decoder.decode(value, { stream: true });
-    const lines = buf.split('\n');
-    buf = lines.pop() ?? '';
-    for (const line of lines) {
-      if (!line.startsWith('data:')) continue;
-      const raw = line.slice(5).trim();
-      try {
-        const chunk = JSON.parse(raw) as Record<string, unknown>;
-        if (chunk.type === 'content_block_delta') {
-          const delta = chunk.delta as Record<string, unknown> | undefined;
-          const text = typeof delta?.text === 'string' ? delta.text : '';
-          if (text) {
-            await onChunk(text);
-            full += text;
-          }
-        }
-      } catch {
-        /* skip malformed */
-      }
+    buffer += decoder.decode(value, { stream: true });
+    const events = buffer.split('\n\n');
+    buffer = events.pop() ?? '';
+    for (const eventBlock of events) {
+      await handleEvent(eventBlock);
     }
   }
 
-  return full;
+  if (buffer.trim()) {
+    await handleEvent(buffer);
+  }
+
+  return {
+    content: full,
+    usage: usage ?? estimateUsage({ messages, content: full, systemPrompt }),
+  };
 }

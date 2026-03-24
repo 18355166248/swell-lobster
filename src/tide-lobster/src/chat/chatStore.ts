@@ -13,6 +13,13 @@ function fallbackSessionId(): string {
 export class ChatStore {
   private db = getDb();
 
+  /** 将助手消息的 token 总量写回 chat_messages，便于单条消息维度查询（统计主路径在 token_stats）。 */
+  updateMessageTokenCount(messageId: string, tokenCount: number): void {
+    this.db
+      .prepare(`UPDATE chat_messages SET token_count = ? WHERE id = ?`)
+      .run(tokenCount, messageId);
+  }
+
   listSessions(): SessionSummary[] {
     const stmt = this.db.prepare(`
       SELECT s.id, s.title, s.endpoint_name, s.persona_path, s.updated_at, COUNT(m.id) as message_count
@@ -56,7 +63,7 @@ export class ChatStore {
 
     const messageRows = messagesStmt.all(sessionId) as any[];
 
-    const messages: ChatMessage[] = messageRows.map(row => ({
+    const messages: ChatMessage[] = messageRows.map((row) => ({
       role: row.role,
       content: row.content,
     }));
@@ -144,13 +151,13 @@ export class ChatStore {
     userContent: string;
     endpointName?: string | null;
   }): ChatSession | undefined {
-    return this.appendMessage({
+    return this.appendMessageAndReturnId({
       sessionId: args.sessionId,
       role: 'user',
       content: args.userContent,
       endpointName: args.endpointName,
       updateTitleFromUser: true,
-    });
+    })?.session;
   }
   // 追加助手消息
   appendAssistantMessage(args: {
@@ -158,7 +165,21 @@ export class ChatStore {
     assistantContent: string;
     endpointName?: string | null;
   }): ChatSession | undefined {
-    return this.appendMessage({
+    return this.appendMessageAndReturnId({
+      sessionId: args.sessionId,
+      role: 'assistant',
+      content: args.assistantContent,
+      endpointName: args.endpointName,
+    })?.session;
+  }
+
+  /** 与 appendAssistantMessage 相同落库逻辑，额外返回 messageId，供上层写入 token_count / token_stats。 */
+  appendAssistantMessageWithMeta(args: {
+    sessionId: string;
+    assistantContent: string;
+    endpointName?: string | null;
+  }): { session: ChatSession; messageId: string } | undefined {
+    return this.appendMessageAndReturnId({
       sessionId: args.sessionId,
       role: 'assistant',
       content: args.assistantContent,
@@ -202,12 +223,20 @@ export class ChatStore {
 
     // Assistant message
     const assistantId = randomUUID?.() ?? `msg_${Math.random().toString(16).slice(2, 12)}`;
-    insertStmt.run(assistantId, args.sessionId, 'assistant', args.assistantContent, now, nextSeq + 1);
+    insertStmt.run(
+      assistantId,
+      args.sessionId,
+      'assistant',
+      args.assistantContent,
+      now,
+      nextSeq + 1
+    );
 
     // Update session
-    const newTitle = sessionRow.title === '新对话'
-      ? (args.userContent.trim().replace(/\n+/g, ' ').slice(0, 24) || '新对话')
-      : sessionRow.title;
+    const newTitle =
+      sessionRow.title === '新对话'
+        ? args.userContent.trim().replace(/\n+/g, ' ').slice(0, 24) || '新对话'
+        : sessionRow.title;
 
     const updates: string[] = ['updated_at = ?'];
     const values: any[] = [now];
@@ -233,13 +262,14 @@ export class ChatStore {
     return this.getSession(args.sessionId);
   }
 
-  private appendMessage(args: {
+  /** 单路径插入消息；对外公开方法只取 session，本方法供需要 messageId 的调用方复用。 */
+  private appendMessageAndReturnId(args: {
     sessionId: string;
     role: ChatMessage['role'];
     content: string;
     endpointName?: string | null;
     updateTitleFromUser?: boolean;
-  }): ChatSession | undefined {
+  }): { session: ChatSession; messageId: string } | undefined {
     const checkStmt = this.db.prepare('SELECT id, title FROM chat_sessions WHERE id = ?');
     const sessionRow = checkStmt.get(args.sessionId) as any;
 
@@ -282,6 +312,8 @@ export class ChatStore {
     `);
     updateStmt.run(...values);
 
-    return this.getSession(args.sessionId);
+    const session = this.getSession(args.sessionId);
+    if (!session) return undefined;
+    return { session, messageId };
   }
 }

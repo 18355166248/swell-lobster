@@ -1,5 +1,11 @@
 import { apiGet, apiPatch, apiPost, getApiBase } from '../../api/base';
-import type { ChatSession, EndpointItem, PersonaInfo, SessionSummary } from './types';
+import type {
+  ChatSession,
+  EndpointItem,
+  PersonaInfo,
+  SessionSearchResult,
+  SessionSummary,
+} from './types';
 
 export async function fetchChatBootstrap(): Promise<{
   sessions: SessionSummary[];
@@ -42,6 +48,15 @@ export async function deleteSession(sessionId: string): Promise<void> {
     const payload = (await res.json().catch(() => ({}))) as { detail?: string };
     throw new Error(payload.detail ?? `DELETE session failed: ${res.status}`);
   }
+}
+
+/** GET /api/sessions/search：按消息正文子串检索，limit 由服务端再限制在 1–50。 */
+export async function searchSessions(query: string, limit = 20): Promise<SessionSearchResult[]> {
+  const params = new URLSearchParams({
+    q: query,
+    limit: String(limit),
+  });
+  return apiGet<SessionSearchResult[]>(`/api/sessions/search?${params.toString()}`);
 }
 
 export async function sendMessage(payload: {

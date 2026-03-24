@@ -36,3 +36,13 @@ export type PersonaInfo = {
   name: string;
   description: string;
 };
+
+/** 与 /api/sessions/search 单行结果一致：命中的是消息行，session_* 用于跳转与展示标题。 */
+export type SessionSearchResult = {
+  id: string;
+  content: string;
+  role: ChatRole;
+  created_at: string;
+  session_id: string;
+  session_title: string;
+};

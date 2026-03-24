@@ -3,9 +3,12 @@ import { streamSSE } from 'hono/streaming';
 
 import { settings } from '../../config.js';
 import { ChatService } from '../../chat/service.js';
+import { getDb } from '../../db/index.js';
 
 export const chatRouter = new Hono();
 const service = new ChatService(settings.projectRoot);
+// 与 ChatService / ChatStore 共用连接；本文件内仅用于轻量只读查询（如会话消息搜索）。
+const db = getDb();
 
 function isAbortError(error: unknown): boolean {
   return error instanceof Error && error.name === 'AbortError';
@@ -93,6 +96,36 @@ chatRouter.get('/api/sessions', (c) => {
     sessions: service.listSessions(),
     endpoints: service.listEndpoints(),
   });
+});
+
+// 会话侧栏「搜索历史」：LIKE 的模式与关键词均为绑定参数（非字符串拼接），limit 在服务端钳制 1–50。
+chatRouter.get('/api/sessions/search', (c) => {
+  const q = (c.req.query('q') ?? '').trim();
+  const parsedLimit = Number.parseInt(c.req.query('limit') ?? '20', 10);
+  const limit = Number.isFinite(parsedLimit) ? Math.min(Math.max(parsedLimit, 1), 50) : 20;
+
+  if (!q) return c.json([]);
+
+  const rows = db
+    .prepare(
+      `
+      SELECT
+        m.id,
+        m.content,
+        m.role,
+        m.created_at,
+        s.id as session_id,
+        s.title as session_title
+      FROM chat_messages m
+      JOIN chat_sessions s ON s.id = m.session_id
+      WHERE m.content LIKE '%' || ? || '%'
+      ORDER BY m.created_at DESC
+      LIMIT ?
+    `
+    )
+    .all(q, limit);
+
+  return c.json(rows);
 });
 
 chatRouter.post('/api/sessions', async (c) => {

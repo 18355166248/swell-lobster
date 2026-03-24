@@ -14,6 +14,7 @@ const zh = {
     apply: '应用',
     applying: '应用中...',
     noData: '暂无数据',
+    date: '日期',
     error: '错误',
     success: '成功',
     api: 'API',
@@ -78,6 +79,8 @@ const zh = {
     copyMessage: '复制',
     retryMessage: '重试',
     messageCopied: '已复制',
+    searchPlaceholder: '搜索历史消息...',
+    searchNoResult: '未找到相关消息',
   },
 
   // 人设
@@ -214,6 +217,14 @@ const zh = {
     title: 'Token 统计',
     subtitle: 'Token 使用量统计与分析',
     loadFailed: '加载失败',
+    today: '今日',
+    thisWeek: '本周',
+    thisMonth: '本月',
+    total: '累计',
+    tokens: 'Tokens',
+    requests: '请求数',
+    byEndpoint: '按端点',
+    dailyTrend: '每日趋势',
   },
 
   // 配置-IM通道

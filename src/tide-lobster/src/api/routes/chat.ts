@@ -7,6 +7,10 @@ import { ChatService } from '../../chat/service.js';
 export const chatRouter = new Hono();
 const service = new ChatService(settings.projectRoot);
 
+function isAbortError(error: unknown): boolean {
+  return error instanceof Error && error.name === 'AbortError';
+}
+
 chatRouter.post('/api/chat', async (c) => {
   try {
     const body = await c.req.json<{
@@ -46,6 +50,8 @@ chatRouter.post('/api/chat/stream', async (c) => {
   }>();
 
   return streamSSE(c, async (stream) => {
+    const signal = c.req.raw.signal;
+
     try {
       const result = await service.chatStream(
         {
@@ -55,8 +61,15 @@ chatRouter.post('/api/chat/stream', async (c) => {
         },
         async (delta) => {
           await stream.writeSSE({ data: JSON.stringify({ delta }) });
-        }
+        },
+        signal
       );
+
+      if (signal.aborted) {
+        console.log('🚀 ~ signal.aborted:', signal.aborted);
+        return;
+      }
+
       await stream.writeSSE({
         data: JSON.stringify({
           done: true,
@@ -65,6 +78,10 @@ chatRouter.post('/api/chat/stream', async (c) => {
         }),
       });
     } catch (e) {
+      if (isAbortError(e) || signal.aborted) {
+        return;
+      }
+
       const msg = String((e as Error)?.message || e || 'chat failed');
       await stream.writeSSE({ data: JSON.stringify({ error: msg }) });
     }
@@ -107,6 +124,7 @@ chatRouter.patch('/api/sessions/:id', async (c) => {
       title?: string;
       persona_path?: string | null;
     }>();
+
     const session = service.updateSession(c.req.param('id'), {
       endpoint_name: body.endpoint_name,
       title: body.title,

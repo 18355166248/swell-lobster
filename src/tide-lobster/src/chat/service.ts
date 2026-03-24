@@ -89,6 +89,13 @@ export class ChatService {
     const identityService = new IdentityService();
     const systemPrompt = identityService.loadSystemPrompt(session.persona_path ?? undefined);
 
+    const sessionAfterUser = this.store.appendUserMessage({
+      sessionId: session.id,
+      userContent: userMessage,
+      endpointName: endpoint.name,
+    });
+    if (!sessionAfterUser) throw new Error('failed to persist user message');
+
     const assistant = await requestChatCompletion({
       endpoint,
       apiKey,
@@ -97,9 +104,8 @@ export class ChatService {
       systemPrompt: systemPrompt || undefined,
     });
 
-    const updated = this.store.appendTurn({
+    const updated = this.store.appendAssistantMessage({
       sessionId: session.id,
-      userContent: userMessage,
       assistantContent: assistant,
       endpointName: endpoint.name,
     });
@@ -118,7 +124,8 @@ export class ChatService {
       message: string;
       endpoint_name?: string | null;
     },
-    onChunk: (delta: string) => void
+    onChunk: (delta: string) => void,
+    signal?: AbortSignal
   ): Promise<{ session: ChatSession; message: string }> {
     const userMessage = (args.message ?? '').trim();
     if (!userMessage) throw new Error('message is empty');
@@ -146,6 +153,13 @@ export class ChatService {
     const identityService = new IdentityService();
     const systemPrompt = identityService.loadSystemPrompt(session.persona_path ?? undefined);
 
+    const sessionAfterUser = this.store.appendUserMessage({
+      sessionId: session.id,
+      userContent: userMessage,
+      endpointName: endpoint.name,
+    });
+    if (!sessionAfterUser) throw new Error('failed to persist user message');
+
     const assistant = await streamChatCompletion({
       endpoint,
       apiKey,
@@ -153,11 +167,11 @@ export class ChatService {
       userMessage,
       systemPrompt: systemPrompt || undefined,
       onChunk,
+      signal,
     });
 
-    const updated = this.store.appendTurn({
+    const updated = this.store.appendAssistantMessage({
       sessionId: session.id,
-      userContent: userMessage,
       assistantContent: assistant,
       endpointName: endpoint.name,
     });

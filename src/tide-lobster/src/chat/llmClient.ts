@@ -25,15 +25,19 @@ function anthropicMessagesUrl(baseUrl: string): string {
 async function fetchWithTimeout(
   url: string,
   init: RequestInit,
-  timeoutSec: number
+  timeoutSec: number,
+  signal?: AbortSignal
 ): Promise<Response> {
   const controller = new AbortController();
   const timeoutMs = Math.max(10, timeoutSec) * 1000;
   const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const abort = () => controller.abort(signal?.reason);
+  signal?.addEventListener('abort', abort, { once: true });
   try {
     return await fetch(url, { ...init, signal: controller.signal });
   } finally {
     clearTimeout(timer);
+    signal?.removeEventListener('abort', abort);
   }
 }
 
@@ -44,8 +48,9 @@ export async function streamChatCompletion(args: {
   userMessage: string;
   systemPrompt?: string;
   onChunk: (delta: string) => void | Promise<void>;
+  signal?: AbortSignal;
 }): Promise<string> {
-  const { endpoint, apiKey, history, userMessage, systemPrompt, onChunk } = args;
+  const { endpoint, apiKey, history, userMessage, systemPrompt, onChunk, signal } = args;
   if (!endpoint.model) throw new Error('endpoint model is empty');
 
   const apiType = (endpoint.api_type || 'openai').toLowerCase();
@@ -53,9 +58,9 @@ export async function streamChatCompletion(args: {
   if (!endpoint.base_url) throw new Error('endpoint base_url is empty');
   const messages = normalizeMessages(history, userMessage);
   if (apiType === 'anthropic') {
-    return streamAnthropic(endpoint, apiKey, messages, onChunk, systemPrompt);
+    return streamAnthropic(endpoint, apiKey, messages, onChunk, systemPrompt, signal);
   }
-  return streamOpenAI(endpoint, apiKey, messages, onChunk, systemPrompt);
+  return streamOpenAI(endpoint, apiKey, messages, onChunk, systemPrompt, signal);
 }
 
 export async function requestChatCompletion(args: {
@@ -185,7 +190,8 @@ async function streamOpenAI(
   apiKey: string,
   messages: Array<{ role: 'user' | 'assistant'; content: string }>,
   onChunk: (delta: string) => void | Promise<void>,
-  systemPrompt?: string
+  systemPrompt?: string,
+  signal?: AbortSignal
 ): Promise<string> {
   const finalMessages = systemPrompt
     ? [{ role: 'system' as const, content: systemPrompt }, ...messages]
@@ -204,7 +210,8 @@ async function streamOpenAI(
       },
       body: JSON.stringify(body),
     },
-    endpoint.timeout
+    endpoint.timeout,
+    signal
   );
 
   if (!res.ok) {
@@ -256,7 +263,8 @@ async function streamAnthropic(
   apiKey: string,
   messages: Array<{ role: 'user' | 'assistant'; content: string }>,
   onChunk: (delta: string) => void | Promise<void>,
-  systemPrompt?: string
+  systemPrompt?: string,
+  signal?: AbortSignal
 ): Promise<string> {
   const body: Record<string, unknown> = {
     model: endpoint.model,
@@ -278,7 +286,8 @@ async function streamAnthropic(
       },
       body: JSON.stringify(body),
     },
-    endpoint.timeout
+    endpoint.timeout,
+    signal
   );
 
   if (!res.ok) {

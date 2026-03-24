@@ -41,11 +41,11 @@ export class ChatStore {
       FROM chat_sessions
       WHERE id = ?
     `);
-    
+
     const sessionRow = sessionStmt.get(sessionId) as any;
-    
+
     if (!sessionRow) return undefined;
-    
+
     // Get messages
     const messagesStmt = this.db.prepare(`
       SELECT id, role, content, created_at
@@ -53,14 +53,14 @@ export class ChatStore {
       WHERE session_id = ?
       ORDER BY sequence ASC, created_at ASC
     `);
-    
+
     const messageRows = messagesStmt.all(sessionId) as any[];
-    
+
     const messages: ChatMessage[] = messageRows.map(row => ({
       role: row.role,
       content: row.content,
     }));
-    
+
     return {
       id: sessionRow.id,
       title: sessionRow.title,
@@ -114,28 +114,56 @@ export class ChatStore {
       updates.push('persona_path = ?');
       values.push(patch.persona_path);
     }
-    
+
     values.push(sessionId);
-    
+
     const stmt = this.db.prepare(`
       UPDATE chat_sessions
       SET ${updates.join(', ')}
       WHERE id = ?
     `);
     const result = stmt.run(...values);
-    
+
     if (result.changes === 0) {
       return undefined;
     }
-    
+
     return this.getSession(sessionId);
   }
 
   deleteSession(sessionId: string): boolean {
     const stmt = this.db.prepare('DELETE FROM chat_sessions WHERE id = ?');
     const result = stmt.run(sessionId);
-    
+
     return result.changes > 0;
+  }
+
+  // 追加用户消息
+  appendUserMessage(args: {
+    sessionId: string;
+    userContent: string;
+    endpointName?: string | null;
+  }): ChatSession | undefined {
+    return this.appendMessage({
+      sessionId: args.sessionId,
+      role: 'user',
+      content: args.userContent,
+      endpointName: args.endpointName,
+      updateTitleFromUser: true,
+    });
+  }
+  // 追加助手消息
+  appendAssistantMessage(args: {
+    sessionId: string;
+    assistantContent: string;
+    endpointName?: string | null;
+  }): ChatSession | undefined {
+    return this.appendMessage({
+      sessionId: args.sessionId,
+      role: 'assistant',
+      content: args.assistantContent,
+      endpointName: args.endpointName,
+    });
   }
 
   appendTurn(args: {
@@ -147,11 +175,11 @@ export class ChatStore {
     // Check if session exists
     const checkStmt = this.db.prepare('SELECT id, title FROM chat_sessions WHERE id = ?');
     const sessionRow = checkStmt.get(args.sessionId) as any;
-    
+
     if (!sessionRow) return undefined;
-    
+
     const now = nowIso();
-    
+
     // Get next sequence number
     const seqStmt = this.db.prepare(`
       SELECT COALESCE(MAX(sequence), 0) + 1 as next_seq
@@ -159,31 +187,31 @@ export class ChatStore {
       WHERE session_id = ?
     `);
     const seqRow = seqStmt.get(args.sessionId) as any;
-    
+
     const nextSeq = seqRow?.next_seq ?? 1;
-    
+
     // Insert messages
     const insertStmt = this.db.prepare(`
       INSERT INTO chat_messages (id, session_id, role, content, created_at, sequence)
       VALUES (?, ?, ?, ?, ?, ?)
     `);
-    
+
     // User message
     const userId = randomUUID?.() ?? `msg_${Math.random().toString(16).slice(2, 12)}`;
     insertStmt.run(userId, args.sessionId, 'user', args.userContent, now, nextSeq);
-    
+
     // Assistant message
     const assistantId = randomUUID?.() ?? `msg_${Math.random().toString(16).slice(2, 12)}`;
     insertStmt.run(assistantId, args.sessionId, 'assistant', args.assistantContent, now, nextSeq + 1);
-    
+
     // Update session
-    const newTitle = sessionRow.title === '新对话' 
+    const newTitle = sessionRow.title === '新对话'
       ? (args.userContent.trim().replace(/\n+/g, ' ').slice(0, 24) || '新对话')
       : sessionRow.title;
-    
+
     const updates: string[] = ['updated_at = ?'];
     const values: any[] = [now];
-    
+
     if (sessionRow.title === '新对话') {
       updates.push('title = ?');
       values.push(newTitle);
@@ -192,16 +220,68 @@ export class ChatStore {
       updates.push('endpoint_name = ?');
       values.push(args.endpointName);
     }
-    
+
     values.push(args.sessionId);
-    
+
     const updateStmt = this.db.prepare(`
       UPDATE chat_sessions
       SET ${updates.join(', ')}
       WHERE id = ?
     `);
     updateStmt.run(...values);
-    
+
+    return this.getSession(args.sessionId);
+  }
+
+  private appendMessage(args: {
+    sessionId: string;
+    role: ChatMessage['role'];
+    content: string;
+    endpointName?: string | null;
+    updateTitleFromUser?: boolean;
+  }): ChatSession | undefined {
+    const checkStmt = this.db.prepare('SELECT id, title FROM chat_sessions WHERE id = ?');
+    const sessionRow = checkStmt.get(args.sessionId) as any;
+
+    if (!sessionRow) return undefined;
+
+    const now = nowIso();
+    const seqStmt = this.db.prepare(`
+      SELECT COALESCE(MAX(sequence), 0) + 1 as next_seq
+      FROM chat_messages
+      WHERE session_id = ?
+    `);
+    const seqRow = seqStmt.get(args.sessionId) as any;
+    const nextSeq = seqRow?.next_seq ?? 1;
+
+    const insertStmt = this.db.prepare(`
+      INSERT INTO chat_messages (id, session_id, role, content, created_at, sequence)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `);
+    const messageId = randomUUID?.() ?? `msg_${Math.random().toString(16).slice(2, 12)}`;
+    insertStmt.run(messageId, args.sessionId, args.role, args.content, now, nextSeq);
+
+    const updates: string[] = ['updated_at = ?'];
+    const values: any[] = [now];
+
+    if (args.updateTitleFromUser && sessionRow.title === '新对话') {
+      updates.push('title = ?');
+      values.push(args.content.trim().replace(/\n+/g, ' ').slice(0, 24) || '新对话');
+    }
+    if (args.endpointName) {
+      updates.push('endpoint_name = ?');
+      values.push(args.endpointName);
+    }
+
+    values.push(args.sessionId);
+
+    const updateStmt = this.db.prepare(`
+      UPDATE chat_sessions
+      SET ${updates.join(', ')}
+      WHERE id = ?
+    `);
+    updateStmt.run(...values);
+
     return this.getSession(args.sessionId);
   }
 }

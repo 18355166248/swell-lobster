@@ -118,6 +118,10 @@ export class ChatService {
     return this.store.deleteSession(sessionId);
   }
 
+  /**
+   * 流式对话：边生成边通过 onChunk 推送增量文本，结束后将完整助手回复落盘。
+   * signal 可用于取消上游流式请求。
+   */
   async chatStream(
     args: {
       conversation_id?: string | null;
@@ -127,9 +131,11 @@ export class ChatService {
     onChunk: (delta: string) => void,
     signal?: AbortSignal
   ): Promise<{ session: ChatSession; message: string }> {
+    // 校验用户输入非空
     const userMessage = (args.message ?? '').trim();
     if (!userMessage) throw new Error('message is empty');
 
+    // 按 conversation_id 取已有会话；无则新建，并解析本次要用的 LLM 端点
     let session = args.conversation_id ? this.store.getSession(args.conversation_id) : undefined;
     let endpoint: EndpointConfig | undefined;
 
@@ -144,15 +150,18 @@ export class ChatService {
       throw new Error('未找到可用端点，请先在 LLM 配置里添加并启用端点');
     }
 
+    // 从环境变量 / .env 解析 API Key；无 key_env 时用占位，便于本地等特殊配置
     let apiKey = this.resolveApiKey(endpoint.api_key_env);
     if (endpoint.api_key_env && !apiKey) {
       throw new Error(`环境变量 ${endpoint.api_key_env} 未配置 API Key`);
     }
     if (!apiKey) apiKey = 'local';
 
+    // 按会话绑定的 persona 加载系统提示词
     const identityService = new IdentityService();
     const systemPrompt = identityService.loadSystemPrompt(session.persona_path ?? undefined);
 
+    // 先持久化用户消息，保证失败时不会白调模型
     const sessionAfterUser = this.store.appendUserMessage({
       sessionId: session.id,
       userContent: userMessage,
@@ -160,16 +169,18 @@ export class ChatService {
     });
     if (!sessionAfterUser) throw new Error('failed to persist user message');
 
+    // 流式调用 LLM；history 截断以控制上下文长度，完整回复在 Promise resolve 时得到
     const assistant = await streamChatCompletion({
       endpoint,
       apiKey,
-      history: trimMessages(session.messages),
+      history: trimMessages(session.messages), // 截断以控制上下文长度
       userMessage,
       systemPrompt: systemPrompt || undefined,
       onChunk,
       signal,
     });
 
+    // 将拼接后的完整助手回复写入会话
     const updated = this.store.appendAssistantMessage({
       sessionId: session.id,
       assistantContent: assistant,

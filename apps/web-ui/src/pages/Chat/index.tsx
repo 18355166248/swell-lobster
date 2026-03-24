@@ -387,82 +387,87 @@ export function ChatPage() {
           </div>
         </div>
 
-        <div className="flex-1 flex flex-col overflow-hidden">
-          {bootLoading ? (
-            <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground">
-              {t('common.loading')}
-            </div>
-          ) : messages.length === 0 ? (
-            <div className="flex-1 flex items-center justify-center">
-              <div className="flex flex-col items-center gap-2">
-                <RobotOutlined style={{ fontSize: 32, color: 'var(--accent)' }} />
-                <h2 className="text-lg font-semibold text-foreground">{t('chat.title')}</h2>
-                <p className="text-sm text-muted-foreground">{t('chat.emptyHint')}</p>
+        <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+          {/* 全宽滚动：滚动条贴在主栏最右侧；内层 max-w-[800px] 仅限制内容宽度 */}
+          <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
+            {bootLoading ? (
+              <div className="max-w-[800px] mx-auto w-full min-h-full min-w-0 px-6 flex items-center justify-center py-8">
+                <span className="text-sm text-muted-foreground">{t('common.loading')}</span>
               </div>
-            </div>
-          ) : (
-            <div className="flex-1 overflow-y-auto px-6 py-4 flex flex-col gap-4">
-              {bubbleItems.map((item) => {
-                if (item.loading) {
-                  return <LoadingBubble key={item.key} />;
-                }
-                return (
-                  <div
-                    key={item.key}
-                    className={`flex items-start gap-3 group ${item.role === 'user' ? 'justify-end' : 'justify-start'}`}
-                  >
-                    {item.role === 'assistant' && (
-                      <Avatar size="small" icon={<RobotOutlined />} className="shrink-0" />
-                    )}
-                    <div
-                      className={`flex flex-col ${item.role === 'user' ? 'items-end' : 'items-start'} max-w-[70%]`}
-                    >
-                      <div
-                        className={`
-                          ${
-                            item.role === 'user'
-                              ? 'bg-primary text-primary-foreground rounded-br-none'
-                              : 'bg-muted rounded-bl-none'
-                          }
-                          px-3 py-2 rounded-lg text-sm
-                        `}
-                      >
-                        {item.content}
-                      </div>
-                      <MessageActions
-                        content={item.rawContent}
-                        role={item.role as 'user' | 'assistant'}
-                        onRetry={
-                          item.role === 'assistant' && !loading && item.key === messages.length - 1
-                            ? () => handleRetry(item.key as number)
-                            : undefined
-                        }
-                      />
-                    </div>
-                    {item.role === 'user' && (
-                      <Avatar size="small" icon={<UserOutlined />} className="shrink-0" />
-                    )}
+            ) : messages.length === 0 ? (
+              <div className="max-w-[800px] mx-auto w-full min-h-full min-w-0 px-6 flex flex-col">
+                <div className="flex-1 flex flex-col items-center justify-center gap-2 py-8">
+                  <RobotOutlined style={{ fontSize: 32, color: 'var(--accent)' }} />
+                  <h2 className="text-lg font-semibold text-foreground">{t('chat.title')}</h2>
+                  <p className="text-sm text-muted-foreground">{t('chat.emptyHint')}</p>
+                </div>
+                {error && (
+                  <div className="pb-4 shrink-0">
+                    <Alert type="error" message={error} showIcon />
                   </div>
-                );
-              })}
-              <div ref={messagesEndRef} />
-            </div>
-          )}
-          {error && (
-            <div className="px-6 py-2 shrink-0">
-              <Alert type="error" message={error} showIcon />
-            </div>
-          )}
-        </div>
+                )}
+              </div>
+            ) : (
+              <div className="max-w-[800px] mx-auto w-full min-w-0 px-6 py-4 flex flex-col gap-6">
+                {bubbleItems.map((item) => {
+                  if (item.loading) {
+                    return <LoadingBubble key={item.key} />;
+                  }
+                  if (item.role === 'assistant') {
+                    return (
+                      <div key={item.key} className="w-full min-w-0 group">
+                        <div className="w-full min-w-0 text-foreground [&_.markdown-content]:max-w-none">
+                          {item.content}
+                        </div>
+                        <MessageActions
+                          content={item.rawContent}
+                          role="assistant"
+                          align="end"
+                          onRetry={
+                            !loading && item.key === messages.length - 1
+                              ? () => handleRetry(item.key as number)
+                              : undefined
+                          }
+                        />
+                      </div>
+                    );
+                  }
+                  return (
+                    <div
+                      key={item.key}
+                      className="flex w-full min-w-0 items-start justify-end gap-3 group"
+                    >
+                      <div className="flex min-w-0 max-w-[min(85%,42rem)] flex-col items-end">
+                        <div className="rounded-2xl bg-muted px-4 py-2.5 text-[15px] leading-6 text-foreground">
+                          {item.content}
+                        </div>
+                        <MessageActions content={item.rawContent} role="user" align="end" />
+                      </div>
+                      <Avatar size="small" icon={<UserOutlined />} className="shrink-0" />
+                    </div>
+                  );
+                })}
+                {error && (
+                  <div className="shrink-0">
+                    <Alert type="error" message={error} showIcon />
+                  </div>
+                )}
+                <div ref={messagesEndRef} />
+              </div>
+            )}
+          </div>
 
-        <ChatComposer
-          input={input}
-          loading={loading}
-          onInputChange={setInput}
-          onSend={send}
-          onStop={handleStop}
-          activeSessionId={activeSessionId}
-        />
+          <div className="max-w-[800px] w-full mx-auto min-w-0 shrink-0">
+            <ChatComposer
+              input={input}
+              loading={loading}
+              onInputChange={setInput}
+              onSend={send}
+              onStop={handleStop}
+              activeSessionId={activeSessionId}
+            />
+          </div>
+        </div>
       </div>
     </div>
   );

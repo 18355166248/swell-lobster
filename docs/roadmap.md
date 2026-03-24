@@ -10,12 +10,13 @@
 
 ### 已完成（可用）
 
-| 功能                            | 后端 | 前端 |
-| ------------------------------- | ---- | ---- |
-| 聊天会话（SSE 流式）            | ✅   | ✅   |
-| LLM 端点管理                    | ✅   | ✅   |
-| Identity 文件读写               | ✅   | ✅   |
-| Markdown + LaTeX + Mermaid 渲染 | —    | ✅   |
+| 功能                                                          | 后端 | 前端 |
+| ------------------------------------------------------------- | ---- | ---- |
+| 聊天会话（SSE 流式）                                          | ✅   | ✅   |
+| LLM 端点管理                                                  | ✅   | ✅   |
+| Identity 文件读写                                             | ✅   | ✅   |
+| 阶段 1：身份注入 system prompt、persona、消息操作、上下文截断 | ✅   | ✅   |
+| Markdown + LaTeX + Mermaid 渲染                               | —    | ✅   |
 
 ### 已有骨架，未实现
 
@@ -30,16 +31,15 @@
 
 ### 关键缺口
 
-- `ChatService` 从未读取 identity 文件，system prompt 为空
-- `llmClient.ts` 不支持 `system` 字段和 `tools` 参数
-- Token usage 字段被忽略，从未记录
+- `llmClient.ts` 尚不支持 `tools` / Function Calling（阶段 3）
+- Token usage 字段被忽略，从未记录（阶段 2）
 
 ---
 
 ## 阶段总览
 
 ```
-阶段1：身份系统激活        → identity 文件注入 system prompt，persona 切换
+阶段1：身份系统激活 ✅     → identity 文件注入 system prompt，persona 切换（已完成，见 phases/phase1-identity.md 文首状态）
 阶段2：Token统计 + 搜索   → 记录 token 消耗，会话关键词搜索
 阶段3：记忆 + 工具调用    → 长期记忆，Function Calling 内置工具
 阶段4：MCP + 计划任务     → MCP 工具生态，Cron 定时任务

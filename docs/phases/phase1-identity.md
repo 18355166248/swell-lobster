@@ -3,6 +3,8 @@
 > **目标**：让 identity 文件真正作用于聊天，每次对话有系统提示词；补全聊天基本体验。
 > **预估工作量**：1-2 周
 > **新增依赖**：无
+>
+> **状态**：✅ **已完成**（2026-03-24）。实现以仓库源码为准；本文档保留为规划说明与验收参考。**请勿按本文档重复从零实现**。
 
 ---
 
@@ -260,9 +262,9 @@ chat: {
 
 ## 验证清单
 
-- [ ] 新建会话时，system prompt 包含 identity/runtime/soul.summary.md 内容
-- [ ] 切换 persona 后，下一条消息的 system prompt 使用新 persona 文件
-- [ ] 存量数据库（无 `persona_path` 列）能正常升级，不报错
-- [ ] persona 列表 API 返回 identity/personas/ 下的 md 文件列表
-- [ ] 消息气泡 hover 显示复制/重试按钮
-- [ ] 发送超长历史消息时不报 token 超限错误（截断生效）
+- [x] 新建会话时，system prompt 包含 identity/runtime/soul.summary.md 内容
+- [x] 切换 persona 后，下一条消息的 system prompt 使用新 persona 文件
+- [x] 存量数据库（无 `persona_path` 列）能正常升级，不报错
+- [x] persona 列表 API 返回 identity/personas/ 下的 md 文件列表
+- [x] 消息气泡 hover 显示复制/重试按钮
+- [x] 发送超长历史消息时不报 token 超限错误（截断生效）

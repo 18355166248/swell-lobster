@@ -342,6 +342,8 @@ export class ChatService {
             : globalToolRegistry.toOpenAIFormat(),
       });
 
+      console.log('result', JSON.stringify(result, null, 2));
+
       // 模型不再要工具：视为本轮对话的最终回复
       if (!result.tool_calls?.length) {
         if (args.onEvent && result.content) {

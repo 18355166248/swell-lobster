@@ -101,8 +101,12 @@ ${conversation}
         messages: [{ role: 'user', content: prompt }],
       });
 
-      const raw = result.content.trim();
+      let raw = result.content.trim();
       if (!raw) return;
+
+      // 模型有时会用 ```json ... ``` 包裹，需先去掉代码块标记
+      const fenceMatch = raw.match(/```(?:json)?\s*([\s\S]*?)```/);
+      if (fenceMatch) raw = fenceMatch[1].trim();
 
       const parsed = JSON.parse(raw) as Array<{
         content?: string;

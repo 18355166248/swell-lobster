@@ -108,6 +108,29 @@ const migrations: Array<{ version: number; up: (db: Database.Database) => void }
       `);
     },
   },
+  {
+    version: 5,
+    up: (db) => {
+      // 补建 memories 表：版本 4 的迁移可能在 memories 表加入前就已执行
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS memories (
+          id TEXT PRIMARY KEY,
+          content TEXT NOT NULL,
+          memory_type TEXT NOT NULL CHECK(memory_type IN ('fact', 'preference', 'event', 'rule')),
+          source_session_id TEXT,
+          tags TEXT DEFAULT '[]',
+          importance INTEGER DEFAULT 5 CHECK(importance BETWEEN 1 AND 10),
+          access_count INTEGER DEFAULT 0,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          expires_at TEXT
+        );
+        CREATE INDEX IF NOT EXISTS idx_memories_type ON memories(memory_type);
+        CREATE INDEX IF NOT EXISTS idx_memories_importance ON memories(importance DESC);
+        CREATE INDEX IF NOT EXISTS idx_memories_created ON memories(created_at DESC);
+      `);
+    },
+  },
 ];
 
 function runMigrations(db: Database.Database): void {

@@ -48,7 +48,9 @@
       "Bash(wc:*)",
       "Bash(grep -rh \"^async def\\\\|^def\" /Users/xmly/Swell/other-code/openakita/src/openakita/api/routes/*.py)",
       "Bash(curl -s \"http://127.0.0.1:18900/api/identity/files/CREDITS.md\")",
-      "Bash(curl -s \"http://127.0.0.1:18900/api/identity/files\")"
+      "Bash(curl -s \"http://127.0.0.1:18900/api/identity/files\")",
+      "Bash(grep:*)",
+      "Bash(sqlite3:*)"
     ]
   }
 }

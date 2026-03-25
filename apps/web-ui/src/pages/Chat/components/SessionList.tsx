@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { DeleteOutlined, SearchOutlined } from '@ant-design/icons';
-import { Empty, Input, Modal, Spin } from 'antd';
+import { App, Empty, Input, Spin } from 'antd';
 import { useTranslation } from 'react-i18next';
 
 import { searchSessions } from '../api';
@@ -27,6 +27,7 @@ export function SessionList({
   onDelete,
 }: SessionListProps) {
   const { t } = useTranslation();
+  const { modal } = App.useApp();
   const [keyword, setKeyword] = useState('');
   const [results, setResults] = useState<SessionSearchResult[]>([]);
   // 上次请求结束时的 trimmed 词；与当前输入比较得到加载态，避免在 effect 里同步 setState。
@@ -76,7 +77,7 @@ export function SessionList({
   }, [trimmed]);
 
   const handleDelete = (sessionId: string) => {
-    Modal.confirm({
+    modal.confirm({
       title: t('chat.deleteSessionConfirm'),
       okText: t('common.confirm'),
       cancelText: t('common.cancel'),

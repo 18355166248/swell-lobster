@@ -14,7 +14,7 @@ export function ConfigSoulPage() {
       <Alert
         className="mt-6"
         type="info"
-        message="SOUL、AGENT 等身份与行为配置入口。可与「身份配置」页配合使用，编辑 SOUL.md、AGENT.md 等文件。"
+        title="SOUL、AGENT 等身份与行为配置入口。可与「身份配置」页配合使用，编辑 SOUL.md、AGENT.md 等文件。"
       />
     </div>
   );

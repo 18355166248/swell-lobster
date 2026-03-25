@@ -159,7 +159,7 @@ export function TokenStatsPage() {
       </Title>
       <Text type="secondary">{t('tokenStats.subtitle')}</Text>
 
-      {error && <Alert type="error" message={error} className="mt-3" showIcon />}
+      {error && <Alert type="error" title={error} className="mt-3" showIcon />}
 
       {(loading || summary) && (
         <div className={`${styles.statStrip} mt-6`}>

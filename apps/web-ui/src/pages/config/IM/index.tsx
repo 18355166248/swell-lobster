@@ -61,7 +61,7 @@ export function ConfigIMPage() {
       </Title>
       <Text type="secondary">{t('configIM.subtitle')}</Text>
 
-      {error && <Alert type="error" message={error} className="mt-3" showIcon />}
+      {error && <Alert type="error" title={error} className="mt-3" showIcon />}
 
       <div className="mt-6 border border-border rounded overflow-hidden">
         <div className="px-4 py-3 bg-muted text-sm text-muted-foreground">

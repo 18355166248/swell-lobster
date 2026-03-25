@@ -587,7 +587,7 @@ export function ChatPage() {
                 </div>
                 {error && (
                   <div className="pb-4 shrink-0">
-                    <Alert type="error" message={error} showIcon />
+                    <Alert type="error" title={error} showIcon />
                   </div>
                 )}
               </div>
@@ -654,7 +654,7 @@ export function ChatPage() {
                 })}
                 {error && (
                   <div className="shrink-0">
-                    <Alert type="error" message={error} showIcon />
+                    <Alert type="error" title={error} showIcon />
                   </div>
                 )}
                 <div ref={messagesEndRef} />

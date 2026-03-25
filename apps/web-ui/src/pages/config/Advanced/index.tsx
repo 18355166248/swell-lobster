@@ -59,7 +59,7 @@ export function ConfigAdvancedPage() {
       </Title>
       <Text type="secondary">{t('configAdvanced.subtitle')}</Text>
 
-      {error && <Alert type="error" message={error} className="mt-3" showIcon />}
+      {error && <Alert type="error" title={error} className="mt-3" showIcon />}
 
       <div className="mt-6">
         <Title level={5}>隐藏模块</Title>

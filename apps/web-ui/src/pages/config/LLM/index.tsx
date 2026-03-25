@@ -189,7 +189,7 @@ export function ConfigLLMPage() {
       </Title>
       <Text type="secondary">{t('llm.subtitle')}</Text>
 
-      {error && <Alert type="error" message={error} className="mt-3" showIcon />}
+      {error && <Alert type="error" title={error} className="mt-3" showIcon />}
 
       <div className="mt-6 flex items-center justify-between">
         <Title level={5} style={{ margin: 0 }}>

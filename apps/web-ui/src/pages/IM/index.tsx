@@ -53,7 +53,7 @@ export function IMPage() {
       </Title>
       <Text type="secondary">{t('im.subtitle')}</Text>
 
-      {error && <Alert type="error" message={error} className="mt-3" showIcon />}
+      {error && <Alert type="error" title={error} className="mt-3" showIcon />}
 
       <div className="mt-6 border border-border rounded overflow-hidden">
         {channels.length === 0 ? (

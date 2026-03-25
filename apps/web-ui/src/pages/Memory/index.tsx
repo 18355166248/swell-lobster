@@ -196,7 +196,7 @@ export function MemoryPage() {
       </Title>
       <Text type="secondary">{t('memory.subtitle')}</Text>
 
-      {error && <Alert type="error" message={error} className="mt-3" showIcon />}
+      {error && <Alert type="error" title={error} className="mt-3" showIcon />}
 
       <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
         <Space wrap>

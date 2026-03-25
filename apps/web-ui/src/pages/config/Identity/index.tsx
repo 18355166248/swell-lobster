@@ -123,7 +123,7 @@ export function ConfigIdentityPage() {
       </Title>
       <Text type="secondary">{t('configIdentity.subtitle')}</Text>
 
-      {error && <Alert type="error" message={error} className="mt-3" showIcon />}
+      {error && <Alert type="error" title={error} className="mt-3" showIcon />}
 
       <div className="mt-6 flex gap-6">
         <div className="w-52 flex-shrink-0 border border-border rounded overflow-hidden">

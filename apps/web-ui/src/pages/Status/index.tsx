@@ -34,7 +34,7 @@ export function StatusPage() {
       </Title>
       <Text type="secondary">{t('status.subtitle')}</Text>
 
-      {error && <Alert type="error" message={error} className="mt-3" showIcon />}
+      {error && <Alert type="error" title={error} className="mt-3" showIcon />}
 
       {health && (
         <div className="mt-6 border border-border rounded p-4">

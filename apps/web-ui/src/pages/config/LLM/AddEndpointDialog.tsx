@@ -577,7 +577,7 @@ export function AddEndpointDialog({
           <Alert
             type={connTestResult.ok ? 'success' : 'error'}
             className="mt-4"
-            message={
+            title={
               connTestResult.ok
                 ? t('addEndpoint.testSuccess', {
                     ms: connTestResult.latencyMs,

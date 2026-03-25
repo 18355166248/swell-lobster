@@ -131,6 +131,12 @@ const migrations: Array<{ version: number; up: (db: Database.Database) => void }
       `);
     },
   },
+  {
+    version: 6,
+    up: (db) => {
+      db.exec(`ALTER TABLE chat_messages ADD COLUMN tool_invocations TEXT`);
+    },
+  },
 ];
 
 function runMigrations(db: Database.Database): void {

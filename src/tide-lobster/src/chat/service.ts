@@ -441,7 +441,7 @@ export class ChatService {
     return trace;
   }
 
-  /** 把本轮工具执行轨迹挂到最后一条助手消息上，便于前端展示与审计。 */
+  /** 把本轮工具执行轨迹挂到最后一条助手消息上，并写入 SQLite，便于前端展示与刷新后保留。 */
   private attachToolInvocations(session: ChatSession, toolInvocations: ToolExecutionTrace[]): void {
     if (toolInvocations.length === 0) return;
     const lastAssistant = [...session.messages]
@@ -449,6 +449,9 @@ export class ChatService {
       .find((message) => message.role === 'assistant');
     if (lastAssistant) {
       lastAssistant.tool_invocations = toolInvocations;
+      if (lastAssistant.id) {
+        this.store.updateMessageToolInvocations(lastAssistant.id, toolInvocations);
+      }
     }
   }
 

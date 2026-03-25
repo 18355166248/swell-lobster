@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS chat_sessions (
 );
 
 -- Chat messages table
+-- tool_invocations：助手消息上多轮工具执行的 JSON 轨迹（由迁移 v6 添加，新建库可一并建列）
 CREATE TABLE IF NOT EXISTS chat_messages (
   id TEXT PRIMARY KEY,
   session_id TEXT NOT NULL,
@@ -15,6 +16,7 @@ CREATE TABLE IF NOT EXISTS chat_messages (
   content TEXT NOT NULL,
   created_at TEXT NOT NULL,
   sequence INTEGER NOT NULL,
+  tool_invocations TEXT,
   FOREIGN KEY (session_id) REFERENCES chat_sessions(id) ON DELETE CASCADE
 );
 

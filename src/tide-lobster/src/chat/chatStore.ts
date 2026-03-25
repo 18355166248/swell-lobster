@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { getDb } from '../db/index.js';
+import type { ToolExecutionTrace } from '../tools/types.js';
 import type { ChatSession, ChatMessage, SessionSummary } from './models.js';
 
 function nowIso(): string {
@@ -18,6 +19,14 @@ export class ChatStore {
     this.db
       .prepare(`UPDATE chat_messages SET token_count = ? WHERE id = ?`)
       .run(tokenCount, messageId);
+  }
+
+  /** 将助手消息上的工具执行轨迹序列化为 JSON 落库，供历史会话加载时还原展示。 */
+  updateMessageToolInvocations(messageId: string, traces: ToolExecutionTrace[]): void {
+    const json = JSON.stringify(traces);
+    this.db
+      .prepare(`UPDATE chat_messages SET tool_invocations = ? WHERE id = ?`)
+      .run(json, messageId);
   }
 
   listSessions(): SessionSummary[] {
@@ -55,7 +64,7 @@ export class ChatStore {
 
     // Get messages
     const messagesStmt = this.db.prepare(`
-      SELECT id, role, content, created_at
+      SELECT id, role, content, created_at, tool_invocations
       FROM chat_messages
       WHERE session_id = ?
       ORDER BY sequence ASC, created_at ASC
@@ -63,12 +72,26 @@ export class ChatStore {
 
     const messageRows = messagesStmt.all(sessionId) as any[];
 
-    const messages: ChatMessage[] = messageRows.map((row) => ({
-      id: row.id,
-      role: row.role,
-      content: row.content,
-      created_at: row.created_at,
-    }));
+    const messages: ChatMessage[] = messageRows.map((row) => {
+      let tool_invocations: ToolExecutionTrace[] | undefined;
+      if (row.tool_invocations && typeof row.tool_invocations === 'string') {
+        try {
+          const parsed = JSON.parse(row.tool_invocations) as unknown;
+          if (Array.isArray(parsed)) {
+            tool_invocations = parsed as ToolExecutionTrace[];
+          }
+        } catch {
+          // 忽略损坏的 JSON，按无工具轨迹处理
+        }
+      }
+      return {
+        id: row.id,
+        role: row.role,
+        content: row.content,
+        created_at: row.created_at,
+        ...(tool_invocations?.length ? { tool_invocations } : {}),
+      };
+    });
 
     return {
       id: sessionRow.id,

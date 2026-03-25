@@ -18,20 +18,14 @@ export class IdentityService {
   loadSystemPrompt(personaPath?: string): string {
     const parts: string[] = [];
 
-    const soulContent = this.readFileSafe(
-      join(this.identityDir, 'runtime', 'soul.summary.md')
-    );
+    const soulContent = this.readFileSafe(join(this.identityDir, 'runtime', 'soul.summary.md'));
     if (soulContent) parts.push(soulContent);
 
-    const agentContent = this.readFileSafe(
-      join(this.identityDir, 'runtime', 'agent.core.md')
-    );
+    const agentContent = this.readFileSafe(join(this.identityDir, 'runtime', 'agent.core.md'));
     if (agentContent) parts.push(agentContent);
 
     if (personaPath) {
-      const personaContent = this.readFileSafe(
-        join(this.identityDir, 'personas', personaPath)
-      );
+      const personaContent = this.readFileSafe(join(this.identityDir, 'personas', personaPath));
       if (personaContent) parts.push(personaContent);
     }
 
@@ -44,7 +38,7 @@ export class IdentityService {
 
     let files: string[];
     try {
-      files = readdirSync(personasDir).filter((f) => f.endsWith('.md'));
+      files = readdirSync(personasDir).filter((f) => f.endsWith('.md') && f !== 'user_custom.md');
     } catch {
       return [];
     }

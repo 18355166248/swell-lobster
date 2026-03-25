@@ -408,7 +408,7 @@ export function ChatPage() {
       const controller = new AbortController();
       abortRef.current = controller;
 
-      setMessages((prev) => [...prev, { role: 'assistant', content: '' }]);
+      setMessages((prev) => [...prev, { role: 'assistant', content: '', tool_invocations: [] }]);
       shouldScrollToBottomRef.current = true;
       setLoading(true);
       setError(null);
@@ -594,10 +594,14 @@ export function ChatPage() {
             ) : (
               <div className="max-w-[800px] mx-auto w-full min-w-0 px-6 py-4 flex flex-col gap-6">
                 {bubbleItems.map((item) => {
-                  const messageId = messages[item.key as number]?.id;
+                  const messageIndex = item.key as number;
+                  const messageRow = messages[messageIndex];
+                  const messageId = messageRow?.id;
                   const isHighlighted = Boolean(messageId && highlightedMessageId === messageId);
+                  const toolInvocations = messageRow?.tool_invocations ?? [];
 
-                  if (item.loading) {
+                  // 仅有「思考中」且尚无工具事件时，仍用轻量 LoadingBubble；一旦有工具轨迹，用完整助手容器实时展示工具（默认折叠），下方再接正文/思考点
+                  if (item.loading && toolInvocations.length === 0) {
                     return <LoadingBubble key={item.key} />;
                   }
                   if (item.role === 'assistant') {
@@ -609,13 +613,14 @@ export function ChatPage() {
                           isHighlighted ? 'bg-amber-100/80 ring-1 ring-amber-300' : ''
                         }`}
                       >
-                        <div className="w-full min-w-0 text-foreground [&_.markdown-content]:max-w-none">
-                          {item.content}
-                        </div>
-                        <ToolInvocationPanel
-                          toolInvocations={messages[item.key as number]?.tool_invocations ?? []}
-                          t={t}
-                        />
+                        <ToolInvocationPanel toolInvocations={toolInvocations} t={t} />
+                        {item.rawContent ? (
+                          <div className="w-full min-w-0 text-foreground [&_.markdown-content]:max-w-none">
+                            {item.content}
+                          </div>
+                        ) : item.loading ? (
+                          <LoadingBubble />
+                        ) : null}
                         <MessageActions
                           content={item.rawContent}
                           role="assistant"

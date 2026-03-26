@@ -30,9 +30,11 @@ export class EndpointStore {
         provider,
         capabilities,
         context_window,
-        rpm_limit
+        rpm_limit,
+        cost_per_1m_input,
+        cost_per_1m_output
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     const transaction = this.db.transaction(() => {
@@ -52,7 +54,9 @@ export class EndpointStore {
           ep.provider ?? null,
           JSON.stringify(this.normalizeCapabilities(ep.capabilities)),
           ep.context_window ?? null,
-          ep.rpm_limit ?? null
+          ep.rpm_limit ?? null,
+          ep.cost_per_1m_input ?? null,
+          ep.cost_per_1m_output ?? null
         );
       }
     });

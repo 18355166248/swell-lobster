@@ -11,6 +11,7 @@ type AggregateRow = {
   completion_tokens: number | null;
   total_tokens: number | null;
   request_count: number | null;
+  cost_usd: number | null;
 };
 
 function normalizeAggregate(row: AggregateRow | undefined) {
@@ -19,6 +20,7 @@ function normalizeAggregate(row: AggregateRow | undefined) {
     completion_tokens: Number(row?.completion_tokens ?? 0),
     total_tokens: Number(row?.total_tokens ?? 0),
     request_count: Number(row?.request_count ?? 0),
+    cost_usd: Number(row?.cost_usd ?? 0),
   };
 }
 
@@ -26,6 +28,18 @@ export const tokenStatsRouter = new Hono();
 const db = getDb();
 
 tokenStatsRouter.get('/api/stats/tokens', (c) => {
+  const pricingRow = db
+    .prepare(
+      `
+      SELECT EXISTS(
+        SELECT 1 FROM llm_endpoints
+        WHERE cost_per_1m_input IS NOT NULL AND cost_per_1m_input > 0
+      ) as pricing_configured
+    `
+    )
+    .get() as { pricing_configured: number };
+  const pricing_configured = Boolean(pricingRow?.pricing_configured);
+
   // 今日：按本地时区的自然日聚合。
   const today = normalizeAggregate(
     db
@@ -35,7 +49,8 @@ tokenStatsRouter.get('/api/stats/tokens', (c) => {
           SUM(prompt_tokens) as prompt_tokens,
           SUM(completion_tokens) as completion_tokens,
           SUM(total_tokens) as total_tokens,
-          SUM(request_count) as request_count
+          SUM(request_count) as request_count,
+          SUM(cost_usd) as cost_usd
         FROM token_stats
         WHERE date = date('now', 'localtime')
       `
@@ -52,7 +67,8 @@ tokenStatsRouter.get('/api/stats/tokens', (c) => {
           SUM(prompt_tokens) as prompt_tokens,
           SUM(completion_tokens) as completion_tokens,
           SUM(total_tokens) as total_tokens,
-          SUM(request_count) as request_count
+          SUM(request_count) as request_count,
+          SUM(cost_usd) as cost_usd
         FROM token_stats
         WHERE date >= date(
           'now',
@@ -73,7 +89,8 @@ tokenStatsRouter.get('/api/stats/tokens', (c) => {
           SUM(prompt_tokens) as prompt_tokens,
           SUM(completion_tokens) as completion_tokens,
           SUM(total_tokens) as total_tokens,
-          SUM(request_count) as request_count
+          SUM(request_count) as request_count,
+          SUM(cost_usd) as cost_usd
         FROM token_stats
         WHERE date >= date('now', 'start of month', 'localtime')
       `
@@ -90,14 +107,21 @@ tokenStatsRouter.get('/api/stats/tokens', (c) => {
           SUM(prompt_tokens) as prompt_tokens,
           SUM(completion_tokens) as completion_tokens,
           SUM(total_tokens) as total_tokens,
-          SUM(request_count) as request_count
+          SUM(request_count) as request_count,
+          SUM(cost_usd) as cost_usd
         FROM token_stats
       `
       )
       .get() as AggregateRow
   );
 
-  return c.json({ today, thisWeek, thisMonth, total });
+  return c.json({
+    pricing_configured,
+    today,
+    thisWeek,
+    thisMonth,
+    total,
+  });
 });
 
 tokenStatsRouter.get('/api/stats/tokens/daily', (c) => {
@@ -146,6 +170,9 @@ tokenStatsRouter.get('/api/stats/tokens/by-endpoint', (c) => {
         SUM(prompt_tokens) as prompt_tokens,
         SUM(completion_tokens) as completion_tokens,
         SUM(total_tokens) as total_tokens,
+        SUM(cache_read_tokens) as cache_read_tokens,
+        SUM(cache_write_tokens) as cache_write_tokens,
+        SUM(cost_usd) as cost_usd,
         SUM(request_count) as request_count,
         MAX(updated_at) as updated_at
       FROM token_stats
@@ -158,6 +185,9 @@ tokenStatsRouter.get('/api/stats/tokens/by-endpoint', (c) => {
     prompt_tokens: number | null;
     completion_tokens: number | null;
     total_tokens: number | null;
+    cache_read_tokens: number | null;
+    cache_write_tokens: number | null;
+    cost_usd: number | null;
     request_count: number | null;
     updated_at: string | null;
   }>;
@@ -168,6 +198,9 @@ tokenStatsRouter.get('/api/stats/tokens/by-endpoint', (c) => {
       prompt_tokens: Number(row.prompt_tokens ?? 0),
       completion_tokens: Number(row.completion_tokens ?? 0),
       total_tokens: Number(row.total_tokens ?? 0),
+      cache_read_tokens: Number(row.cache_read_tokens ?? 0),
+      cache_write_tokens: Number(row.cache_write_tokens ?? 0),
+      cost_usd: Number(row.cost_usd ?? 0),
       request_count: Number(row.request_count ?? 0),
       updated_at: row.updated_at,
     }))

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Alert, Card, Col, Row, Skeleton, Statistic, Table, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { useTranslation } from 'react-i18next';
@@ -14,9 +14,11 @@ type PeriodStat = {
   completion_tokens: number;
   total_tokens: number;
   request_count: number;
+  cost_usd: number;
 };
 
 type SummaryResponse = {
+  pricing_configured: boolean;
   today: PeriodStat;
   thisWeek: PeriodStat;
   thisMonth: PeriodStat;
@@ -28,6 +30,9 @@ type EndpointStat = {
   prompt_tokens: number;
   completion_tokens: number;
   total_tokens: number;
+  cache_read_tokens: number;
+  cache_write_tokens: number;
+  cost_usd: number;
   request_count: number;
   updated_at?: string | null;
 };
@@ -52,6 +57,15 @@ const SUMMARY_PERIODS: { periodKey: SummaryPeriodKey; titleKey: string }[] = [
 /** 与后端数值展示一致（千分位）；若要做多语言可再接入 locale。 */
 function formatNumber(value: number): string {
   return new Intl.NumberFormat('zh-CN').format(value);
+}
+
+function formatUsd(value: number): string {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 6,
+  }).format(value);
 }
 
 export function TokenStatsPage() {
@@ -93,42 +107,70 @@ export function TokenStatsPage() {
     };
   }, [t]);
 
-  const endpointColumns: ColumnsType<EndpointStat> = [
-    {
-      title: t('tokenStats.byEndpoint'),
-      dataIndex: 'endpoint_name',
-      key: 'endpoint_name',
-      render: (value: string) => value || 'unknown',
-    },
-    {
-      title: t('tokenStats.tokens'),
-      dataIndex: 'total_tokens',
-      key: 'total_tokens',
-      align: 'right',
-      render: (value: number) => formatNumber(value),
-    },
-    {
-      title: 'Prompt',
-      dataIndex: 'prompt_tokens',
-      key: 'prompt_tokens',
-      align: 'right',
-      render: (value: number) => formatNumber(value),
-    },
-    {
-      title: 'Completion',
-      dataIndex: 'completion_tokens',
-      key: 'completion_tokens',
-      align: 'right',
-      render: (value: number) => formatNumber(value),
-    },
-    {
-      title: t('tokenStats.requests'),
-      dataIndex: 'request_count',
-      key: 'request_count',
-      align: 'right',
-      render: (value: number) => formatNumber(value),
-    },
-  ];
+  const showPricing = summary?.pricing_configured === true;
+
+  const endpointColumns: ColumnsType<EndpointStat> = useMemo(() => {
+    const cols: ColumnsType<EndpointStat> = [
+      {
+        title: t('tokenStats.byEndpoint'),
+        dataIndex: 'endpoint_name',
+        key: 'endpoint_name',
+        render: (value: string) => value || 'unknown',
+      },
+      {
+        title: t('tokenStats.requests'),
+        dataIndex: 'request_count',
+        key: 'request_count',
+        align: 'right',
+        render: (value: number) => formatNumber(value),
+      },
+      {
+        title: t('tokenStats.promptCol'),
+        dataIndex: 'prompt_tokens',
+        key: 'prompt_tokens',
+        align: 'right',
+        render: (value: number) => formatNumber(value),
+      },
+      {
+        title: t('tokenStats.completionCol'),
+        dataIndex: 'completion_tokens',
+        key: 'completion_tokens',
+        align: 'right',
+        render: (value: number) => formatNumber(value),
+      },
+      {
+        title: t('tokenStats.cacheRead'),
+        dataIndex: 'cache_read_tokens',
+        key: 'cache_read_tokens',
+        align: 'right',
+        render: (value: number) => formatNumber(value),
+      },
+      {
+        title: t('tokenStats.cacheWrite'),
+        dataIndex: 'cache_write_tokens',
+        key: 'cache_write_tokens',
+        align: 'right',
+        render: (value: number) => formatNumber(value),
+      },
+      {
+        title: t('tokenStats.tokens'),
+        dataIndex: 'total_tokens',
+        key: 'total_tokens',
+        align: 'right',
+        render: (value: number) => formatNumber(value),
+      },
+    ];
+    if (showPricing) {
+      cols.push({
+        title: t('tokenStats.costUsd'),
+        dataIndex: 'cost_usd',
+        key: 'cost_usd',
+        align: 'right',
+        render: (value: number) => formatUsd(value),
+      });
+    }
+    return cols;
+  }, [showPricing, t]);
 
   const dailyColumns: ColumnsType<DailyStat> = [
     {
@@ -184,9 +226,18 @@ export function TokenStatsPage() {
                         className="mt-1"
                       />
                     ) : period ? (
-                      <Text type="secondary">
-                        {t('tokenStats.requests')} {formatNumber(period.request_count)}
-                      </Text>
+                      <div className="mt-1 space-y-0.5">
+                        <Text type="secondary">
+                          {t('tokenStats.requests')} {formatNumber(period.request_count)}
+                        </Text>
+                        {showPricing ? (
+                          <div>
+                            <Text type="secondary">
+                              {t('tokenStats.costUsd')} {formatUsd(period.cost_usd ?? 0)}
+                            </Text>
+                          </div>
+                        ) : null}
+                      </div>
                     ) : null}
                   </Card>
                 </Col>
@@ -204,6 +255,7 @@ export function TokenStatsPage() {
           pagination={false}
           loading={loading}
           locale={{ emptyText: t('common.noData') }}
+          scroll={{ x: showPricing ? 1100 : 960 }}
         />
       </Card>
 

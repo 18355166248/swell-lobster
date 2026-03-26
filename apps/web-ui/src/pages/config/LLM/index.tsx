@@ -97,6 +97,8 @@ export function ConfigLLMPage() {
         context_window: data.context_window,
         timeout: data.timeout,
         rpm_limit: data.rpm_limit,
+        cost_per_1m_input: data.cost_per_1m_input,
+        cost_per_1m_output: data.cost_per_1m_output,
       };
       setEndpoints((prev) =>
         [...prev, newItem].sort((a, b) => (a.priority ?? 999) - (b.priority ?? 999))
@@ -131,6 +133,8 @@ export function ConfigLLMPage() {
           context_window: data.context_window,
           timeout: data.timeout,
           rpm_limit: data.rpm_limit,
+          cost_per_1m_input: data.cost_per_1m_input,
+          cost_per_1m_output: data.cost_per_1m_output,
         };
         const next = prev.map((item) => (String(item.name ?? '') === nameToMatch ? updated : item));
         return next.sort((a, b) => (a.priority ?? 999) - (b.priority ?? 999));

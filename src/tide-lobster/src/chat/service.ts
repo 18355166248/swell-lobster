@@ -171,6 +171,7 @@ export class ChatService {
     this.recordUsage({
       messageId: appended.messageId,
       endpointName: endpoint.name,
+      endpoint,
       usage: assistant.usage,
     });
 
@@ -255,6 +256,7 @@ export class ChatService {
     this.recordUsage({
       messageId: appended.messageId,
       endpointName: endpoint.name,
+      endpoint,
       usage: assistant.usage,
     });
 
@@ -290,6 +292,8 @@ export class ChatService {
 
   /** 将 endpointStore 的原始行转为内部统一的 EndpointConfig（去尾斜杠 base_url 等）。 */
   private toEndpointConfig(raw: Record<string, unknown>): EndpointConfig {
+    const costIn = raw.cost_per_1m_input;
+    const costOut = raw.cost_per_1m_output;
     return {
       name: String(raw.name ?? ''),
       model: String(raw.model ?? ''),
@@ -298,6 +302,12 @@ export class ChatService {
       api_key_env: String(raw.api_key_env ?? ''),
       timeout: Number(raw.timeout ?? 120),
       max_tokens: Number(raw.max_tokens ?? 0),
+      cost_per_1m_input:
+        typeof costIn === 'number' && Number.isFinite(costIn) && costIn > 0 ? costIn : undefined,
+      cost_per_1m_output:
+        typeof costOut === 'number' && Number.isFinite(costOut) && costOut >= 0
+          ? costOut
+          : undefined,
     };
   }
 
@@ -491,6 +501,7 @@ export class ChatService {
   private recordUsage(args: {
     messageId: string;
     endpointName?: string | null;
+    endpoint?: EndpointConfig;
     usage?: LLMUsage;
   }): void {
     if (!args.usage) return;
@@ -499,6 +510,7 @@ export class ChatService {
 
     const today = new Date().toISOString().slice(0, 10);
     const now = new Date().toISOString();
+    const costUsd = this.computeCostUsd(args.endpoint, args.usage);
 
     this.db
       .prepare(
@@ -516,13 +528,14 @@ export class ChatService {
           request_count,
           updated_at
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 1, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
         ON CONFLICT(date, endpoint_name) DO UPDATE SET
           prompt_tokens = token_stats.prompt_tokens + excluded.prompt_tokens,
           completion_tokens = token_stats.completion_tokens + excluded.completion_tokens,
           total_tokens = token_stats.total_tokens + excluded.total_tokens,
           cache_read_tokens = token_stats.cache_read_tokens + excluded.cache_read_tokens,
           cache_write_tokens = token_stats.cache_write_tokens + excluded.cache_write_tokens,
+          cost_usd = token_stats.cost_usd + excluded.cost_usd,
           request_count = token_stats.request_count + 1,
           updated_at = excluded.updated_at
       `
@@ -536,7 +549,20 @@ export class ChatService {
         args.usage.total_tokens,
         args.usage.cache_read_tokens ?? 0,
         args.usage.cache_write_tokens ?? 0,
+        costUsd,
         now
       );
+  }
+
+  /** 按端点可选单价估算本次请求美元成本（未配置单价时为 0）。 */
+  private computeCostUsd(endpoint: EndpointConfig | undefined, usage: LLMUsage): number {
+    const rateIn = endpoint?.cost_per_1m_input;
+    if (typeof rateIn !== 'number' || !Number.isFinite(rateIn) || rateIn <= 0) return 0;
+    const rateOut = endpoint?.cost_per_1m_output ?? 0;
+    const out =
+      typeof rateOut === 'number' && Number.isFinite(rateOut) && rateOut >= 0 ? rateOut : 0;
+    return (
+      (usage.prompt_tokens / 1_000_000) * rateIn + (usage.completion_tokens / 1_000_000) * out
+    );
   }
 }

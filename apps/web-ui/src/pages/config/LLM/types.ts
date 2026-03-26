@@ -49,6 +49,10 @@ export type EndpointItem = {
   timeout?: number;
   /** 每分钟请求数限制，0 表示不限制 */
   rpm_limit?: number;
+  /** 美元/百万 input tokens，可选 */
+  cost_per_1m_input?: number;
+  /** 美元/百万 output tokens，可选 */
+  cost_per_1m_output?: number;
 };
 
 /** 添加/编辑端点时表单产出的完整端点数据 */
@@ -69,4 +73,8 @@ export type EndpointFormData = {
   context_window: number;
   timeout: number;
   rpm_limit: number;
+  /** 美元/百万 input tokens */
+  cost_per_1m_input?: number;
+  /** 美元/百万 output tokens */
+  cost_per_1m_output?: number;
 };

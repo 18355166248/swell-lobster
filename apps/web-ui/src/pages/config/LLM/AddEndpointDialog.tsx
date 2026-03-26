@@ -34,6 +34,8 @@ type FormValues = {
   contextWindow: number;
   timeoutSec: number;
   rpmLimit: number;
+  costPer1mInput?: number | null;
+  costPer1mOutput?: number | null;
 };
 
 function isLocalProvider(p: ProviderInfo | null | undefined): boolean {
@@ -150,6 +152,8 @@ export function AddEndpointDialog({
         contextWindow: initial.context_window ?? DEFAULT_CONTEXT_WINDOW,
         timeoutSec: initial.timeout ?? DEFAULT_TIMEOUT,
         rpmLimit: initial.rpm_limit ?? 0,
+        costPer1mInput: initial.cost_per_1m_input ?? undefined,
+        costPer1mOutput: initial.cost_per_1m_output ?? undefined,
       });
     } else {
       form.setFieldsValue({
@@ -166,6 +170,8 @@ export function AddEndpointDialog({
         contextWindow: DEFAULT_CONTEXT_WINDOW,
         timeoutSec: DEFAULT_TIMEOUT,
         rpmLimit: 0,
+        costPer1mInput: undefined,
+        costPer1mOutput: undefined,
       });
     }
 
@@ -331,6 +337,18 @@ export function AddEndpointDialog({
         context_window: Math.max(1024, values.contextWindow ?? DEFAULT_CONTEXT_WINDOW),
         timeout: Math.max(10, values.timeoutSec ?? DEFAULT_TIMEOUT),
         rpm_limit: Math.max(0, values.rpmLimit ?? 0),
+        cost_per_1m_input:
+          typeof values.costPer1mInput === 'number' &&
+          Number.isFinite(values.costPer1mInput) &&
+          values.costPer1mInput > 0
+            ? values.costPer1mInput
+            : undefined,
+        cost_per_1m_output:
+          typeof values.costPer1mOutput === 'number' &&
+          Number.isFinite(values.costPer1mOutput) &&
+          values.costPer1mOutput >= 0
+            ? values.costPer1mOutput
+            : undefined,
       };
 
       onConfirm(payload);
@@ -406,6 +424,15 @@ export function AddEndpointDialog({
           >
             <InputNumber min={0} className="w-full" />
           </Form.Item>
+          <p className="text-xs text-muted-foreground mb-2">{t('addEndpoint.costPer1mHint')}</p>
+          <div className="grid grid-cols-2 gap-4">
+            <Form.Item name="costPer1mInput" label={t('addEndpoint.costPer1mInput')}>
+              <InputNumber min={0} step={0.001} className="w-full" placeholder="—" />
+            </Form.Item>
+            <Form.Item name="costPer1mOutput" label={t('addEndpoint.costPer1mOutput')}>
+              <InputNumber min={0} step={0.001} className="w-full" placeholder="—" />
+            </Form.Item>
+          </div>
         </div>
       ),
     },

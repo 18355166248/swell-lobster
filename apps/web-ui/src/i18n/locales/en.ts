@@ -153,6 +153,9 @@ const en = {
     timeout: 'Timeout (sec)',
     rpmLimit: 'RPM Limit',
     rpmLimitHint: '0 = unlimited',
+    costPer1mInput: 'Input price ($/1M tokens)',
+    costPer1mOutput: 'Output price ($/1M tokens)',
+    costPer1mHint: 'Optional; enables USD cost estimates on Token Stats',
     testConnection: 'Test Connection',
     testing: 'Testing…',
     testSuccess: 'Connected · {{ms}}ms · Models: {{count}}',
@@ -231,6 +234,11 @@ const en = {
     requests: 'Requests',
     byEndpoint: 'By Endpoint',
     dailyTrend: 'Daily Trend',
+    costUsd: 'Cost (USD)',
+    cacheRead: 'Cache read',
+    cacheWrite: 'Cache write',
+    promptCol: 'Prompt',
+    completionCol: 'Completion',
   },
 
   configIM: {

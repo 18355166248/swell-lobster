@@ -157,6 +157,9 @@ const zh = {
     timeout: '超时（秒）',
     rpmLimit: 'RPM 限制',
     rpmLimitHint: '0 表示不限制',
+    costPer1mInput: 'Input 单价（$/百万 tokens）',
+    costPer1mOutput: 'Output 单价（$/百万 tokens）',
+    costPer1mHint: '可选；填写后可在 Token 统计页按用量估算美元成本',
     testConnection: '测试连接',
     testing: '测试中…',
     testSuccess: '连接成功 · {{ms}}ms · 模型数：{{count}}',
@@ -243,6 +246,11 @@ const zh = {
     requests: '请求数',
     byEndpoint: '按端点',
     dailyTrend: '每日趋势',
+    costUsd: '成本 (USD)',
+    cacheRead: 'Cache 读取',
+    cacheWrite: 'Cache 写入',
+    promptCol: 'Prompt',
+    completionCol: 'Completion',
   },
 
   // 配置-IM通道

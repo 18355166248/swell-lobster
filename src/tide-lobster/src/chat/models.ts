@@ -37,4 +37,8 @@ export type EndpointConfig = {
   api_key_env: string;
   timeout: number;
   max_tokens: number;
+  /** 美元/百万 input tokens，可选；用于估算本次请求成本 */
+  cost_per_1m_input?: number;
+  /** 美元/百万 output tokens，可选 */
+  cost_per_1m_output?: number;
 };

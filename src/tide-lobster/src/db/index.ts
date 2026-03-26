@@ -157,6 +157,44 @@ const migrations: Array<{ version: number; up: (db: Database.Database) => void }
       db.exec(`ALTER TABLE token_stats ADD COLUMN cost_usd REAL NOT NULL DEFAULT 0`);
     },
   },
+  {
+    version: 8,
+    up: (db) => {
+      // 端点单价（美元/百万 tokens），用于 token_stats.cost_usd 估算
+      db.exec(`ALTER TABLE llm_endpoints ADD COLUMN cost_per_1m_input REAL`);
+      db.exec(`ALTER TABLE llm_endpoints ADD COLUMN cost_per_1m_output REAL`);
+
+      // 会话消息全文检索（FTS5 unicode61，便于中文/CJK 检索）
+      db.exec(`
+        CREATE VIRTUAL TABLE IF NOT EXISTS messages_fts USING fts5(
+          content,
+          content='chat_messages',
+          content_rowid='rowid',
+          tokenize='unicode61'
+        );
+      `);
+      db.exec(`
+        CREATE TRIGGER IF NOT EXISTS messages_fts_insert AFTER INSERT ON chat_messages BEGIN
+          INSERT INTO messages_fts(rowid, content) VALUES (new.rowid, new.content);
+        END;
+      `);
+      db.exec(`
+        CREATE TRIGGER IF NOT EXISTS messages_fts_delete AFTER DELETE ON chat_messages BEGIN
+          INSERT INTO messages_fts(messages_fts, rowid, content) VALUES ('delete', old.rowid, old.content);
+        END;
+      `);
+      db.exec(`
+        CREATE TRIGGER IF NOT EXISTS messages_fts_update AFTER UPDATE ON chat_messages BEGIN
+          INSERT INTO messages_fts(messages_fts, rowid, content) VALUES ('delete', old.rowid, old.content);
+          INSERT INTO messages_fts(rowid, content) VALUES (new.rowid, new.content);
+        END;
+      `);
+      // 已有历史消息一次性灌入 FTS
+      db.exec(`
+        INSERT INTO messages_fts(rowid, content) SELECT rowid, content FROM chat_messages;
+      `);
+    },
+  },
 ];
 
 function runMigrations(db: Database.Database): void {

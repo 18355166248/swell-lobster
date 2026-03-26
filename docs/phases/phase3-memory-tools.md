@@ -41,6 +41,10 @@ CREATE TABLE IF NOT EXISTS memories (
   tags TEXT DEFAULT '[]',        -- JSON 数组，如 ["工作", "习惯"]
   importance INTEGER DEFAULT 5 CHECK(importance BETWEEN 1 AND 10),
   access_count INTEGER DEFAULT 0,
+  -- 参考 LobsterAI coworkMemoryExtractor.ts / coworkMemoryJudge.ts 的设计
+  is_explicit BOOLEAN DEFAULT FALSE, -- TRUE=用户主动触发（含"记住/记下"），FALSE=AI 自动提取
+  confidence REAL DEFAULT 0.8,       -- 提取置信度 0.0-1.0（规则评分或 LLM 判断的信心分）
+  fingerprint TEXT,                  -- content 归一化后的 16 位 SHA-1，用于精确去重
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
   expires_at TEXT                -- NULL 表示永不过期
@@ -48,6 +52,7 @@ CREATE TABLE IF NOT EXISTS memories (
 CREATE INDEX IF NOT EXISTS idx_memories_type ON memories(memory_type);
 CREATE INDEX IF NOT EXISTS idx_memories_importance ON memories(importance DESC);
 CREATE INDEX IF NOT EXISTS idx_memories_created ON memories(created_at DESC);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_memories_fingerprint ON memories(fingerprint);
 ```
 
 **类型定义**：`src/tide-lobster/src/memory/types.ts`
@@ -63,6 +68,9 @@ export interface Memory {
   tags: string[];
   importance: number; // 1-10
   access_count: number;
+  is_explicit: boolean; // 用户主动触发 vs AI 自动提取
+  confidence: number; // 0.0-1.0
+  fingerprint?: string; // 去重用
   created_at: string;
   updated_at: string;
   expires_at?: string;
@@ -74,6 +82,8 @@ export interface CreateMemoryInput {
   source_session_id?: string;
   tags?: string[];
   importance?: number;
+  is_explicit?: boolean;
+  confidence?: number;
   expires_at?: string;
 }
 ```
@@ -147,9 +157,46 @@ LIMIT ?
 
 **实现要点**：
 
-- 使用同一端点的 LLM（低优先级，不影响正常对话）
-- 提取失败只记录日志，不抛错
-- 去重：新记忆的 content 与现有记忆相似度高（字符重叠 > 80%）时跳过
+**第一步：规则 pre-filter**（参考 LobsterAI `coworkMemoryExtractor.ts`，减少约 60% 无效 LLM 调用）：
+
+```typescript
+// 1. 显式触发检测：直接提取，跳过 LLM，is_explicit=true，confidence=1.0
+const EXPLICIT_RE = /(?:请)?(?:记住|记下|帮我记|保存到记忆)[：:，,]?\s*(.+)/;
+
+// 2. 以下情况直接跳过本轮，不调 LLM：
+const DISCARD_RULES = [
+  (text: string) => text.length < 50, // 对话太短
+  (text: string) => /^(ok|好的|谢谢|没问题|收到|明白)[。！!]?$/i.test(text.trim()), // 纯礼貌回应
+  (text: string) => /今天|昨天|最近|这次|这个|报错|bug|error/i.test(text), // 临时性内容
+  (text: string) => text.trimEnd().endsWith('?') || text.trimEnd().endsWith('？'), // 纯问句
+];
+if (DISCARD_RULES.some((fn) => fn(lastUserMessage))) return; // 跳过提取
+```
+
+**第二步：LLM 提取**（通过 pre-filter 后才调用）：
+
+使用同一端点的 LLM（低优先级，不影响正常对话），提取失败只记录日志，不抛错。
+
+**第三步：基于 fingerprint 去重**（比字符重叠更准确）：
+
+```typescript
+import { createHash } from 'node:crypto';
+
+function fingerprint(text: string): string {
+  const normalized = text.trim().toLowerCase().replace(/\s+/g, ' ');
+  return createHash('sha1').update(normalized).digest('hex').slice(0, 16);
+}
+
+// 写入时：fingerprint 冲突则更新置信度而非插入新条目
+db.prepare(`
+  INSERT INTO memories (id, content, ..., fingerprint, confidence)
+  VALUES (?, ?, ..., ?, ?)
+  ON CONFLICT(fingerprint) DO UPDATE SET
+    confidence = MAX(confidence, excluded.confidence),
+    access_count = access_count + 1,
+    updated_at = excluded.updated_at
+`).run(...);
+```
 
 ---
 
@@ -165,7 +212,12 @@ const userMessage = messages.at(-1)?.content ?? '';
 const relevantMemories = memoryStore.findRelevant(userMessage, 5);
 
 if (relevantMemories.length > 0) {
-  const memoryBlock = relevantMemories.map((m) => `- ${m.content}`).join('\n');
+  // 记忆块总字符上限 2000，防止大量记忆撑满 context（参考 LobsterAI 的截断保护设计）
+  const MAX_MEMORY_BLOCK_CHARS = 2000;
+  const memoryBlock = relevantMemories
+    .map((m) => `- ${m.content}`)
+    .join('\n')
+    .slice(0, MAX_MEMORY_BLOCK_CHARS);
   systemPrompt += `\n\n## 关于用户的记忆\n${memoryBlock}`;
 }
 ```
@@ -288,6 +340,25 @@ export const writeMemoryTool: ToolDef = {
 };
 ```
 
+**文件**：`src/tide-lobster/src/tools/builtins/delete_memory.ts`（新增）
+
+```typescript
+// AI 可主动调用此工具删除过时或错误的记忆（参考 LobsterAI 的显式删除机制）
+export const deleteMemoryTool: ToolDef = {
+  name: 'delete_memory',
+  description: '删除一条不再有效的记忆（用于纠正过时信息）',
+  parameters: {
+    query: { type: 'string', description: '要删除的记忆关键词', required: true },
+  },
+  async execute({ query }) {
+    const found = memoryStore.search(String(query), 1);
+    if (!found.length) return '未找到匹配的记忆';
+    memoryStore.delete(found[0].id);
+    return `已删除记忆：${found[0].content}`;
+  },
+};
+```
+
 **启动时注册**：
 
 ```typescript
@@ -295,6 +366,7 @@ export const writeMemoryTool: ToolDef = {
 globalToolRegistry.register(getDatetimeTool);
 globalToolRegistry.register(readMemoryTool);
 globalToolRegistry.register(writeMemoryTool);
+globalToolRegistry.register(deleteMemoryTool);
 ```
 
 ---
@@ -344,10 +416,17 @@ while (round < MAX_TOOL_ROUNDS) {
     return result.content;
   }
 
-  // 执行工具
+  // 执行工具（参考 LobsterAI coworkRunner.ts 的 TOOL_RESULT_MAX_CHARS 截断保护）
+  const TOOL_RESULT_MAX_CHARS = 20_000;
   for (const tc of result.tool_calls) {
     const tool = globalToolRegistry.get(tc.name);
-    const toolResult = tool ? await tool.execute(tc.arguments) : `工具 ${tc.name} 不存在`;
+    const rawResult = tool ? await tool.execute(tc.arguments) : `工具 ${tc.name} 不存在`;
+    // 超长结果截断，防止撑满 context window
+    const toolResult =
+      rawResult.length > TOOL_RESULT_MAX_CHARS
+        ? rawResult.slice(0, TOOL_RESULT_MAX_CHARS) +
+          `\n...[输出过长已截断，共 ${rawResult.length} 字符]`
+        : rawResult;
     currentMessages.push(
       { role: 'assistant', content: null, tool_calls: [tc] },
       { role: 'tool', tool_call_id: tc.id, content: toolResult }
@@ -364,20 +443,25 @@ while (round < MAX_TOOL_ROUNDS) {
 
 **文件**：`src/tide-lobster/src/chat/service.ts`（流式响应中）
 
-在工具执行时向 SSE 流推送特殊事件：
+在工具执行时向 SSE 流推送特殊事件（补充调用参数和截断标记）：
 
 ```
-data: {"type":"tool_call","name":"get_datetime","status":"running"}
+// 执行开始：携带调用参数（便于前端展示"正在用什么参数调用"）
+data: {"type":"tool_call","name":"read_memory","status":"running","args":{"query":"用户偏好"}}
 
-data: {"type":"tool_result","name":"get_datetime","content":"2026-03-23 14:30:00"}
+// 执行结束：携带结果摘要 + 是否截断标记
+data: {"type":"tool_result","name":"read_memory","content":"[偏好] 喜欢简洁...","truncated":false}
+
+// 截断示例
+data: {"type":"tool_result","name":"search_web","content":"...前20000字符...","truncated":true,"original_length":45000}
 ```
 
 前端接收处理：
 
 ```typescript
 // ChatMessage 气泡下方展示折叠的工具调用信息
-// event.type === 'tool_call' → 显示 "正在执行：get_datetime..."
-// event.type === 'tool_result' → 替换为折叠卡片，可展开查看结果
+// event.type === 'tool_call' → 显示 "正在执行：read_memory（query: 用户偏好）"
+// event.type === 'tool_result' → 替换为折叠卡片，可展开查看结果；truncated=true 时显示截断提示
 ```
 
 ---
@@ -442,7 +526,13 @@ chat: {
 - [ ] 告知 AI "我喜欢简洁的回答"，结束会话后查 `memories` 表有新记录
 - [ ] 下次新建会话，system prompt 中出现该记忆
 - [ ] 聊天中问 "现在几点了"，AI 调用 `get_datetime` 工具并返回正确时间
-- [ ] SSE 流式中出现 `tool_call` / `tool_result` 事件，前端显示工具执行状态
+- [ ] SSE 流式中出现 `tool_call` / `tool_result` 事件，前端显示工具执行状态（含参数）
 - [ ] 工具调用超过 5 轮时停止并返回已有内容
 - [ ] 记忆管理页正常显示、编辑、删除记忆
 - [ ] 手动添加记忆后在聊天中可被检索到
+- [ ] 说"记住我喜欢 TypeScript"，记忆 `is_explicit=true`，`confidence=1.0`，无需等待 LLM 提取
+- [ ] 对话只有"好的/OK"时，规则 pre-filter 拦截，后端日志无 LLM 提取调用
+- [ ] 同一内容第二次提取时，fingerprint 冲突，`access_count` +1，不新增条目
+- [ ] 工具返回超过 20000 字符时，SSE `content` 字段被截断，`truncated=true`，含原始长度
+- [ ] 告知 AI "删除我的偏好记忆"，AI 调用 `delete_memory` 工具完成删除
+- [ ] 注入记忆块超过 2000 字符时自动截断，不影响正常响应

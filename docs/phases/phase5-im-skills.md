@@ -1,8 +1,8 @@
 # 阶段 5：IM 通道与技能系统
 
-> **目标**：通过 Telegram Bot 让 AI 助手走出浏览器；技能系统让功能可扩展。
-> **预估工作量**：2-3 周
-> **新增依赖**：`grammy`（Telegram Bot）、`gray-matter`（frontmatter 解析）
+> **目标**：通过 Telegram Bot 让 AI 助手走出浏览器；技能系统让功能可扩展；Artifact 渲染让代码输出即时可视化。
+> **预估工作量**：3 周
+> **新增依赖**：`grammy`（Telegram Bot）、`gray-matter`（frontmatter 解析）、`mermaid`（前端图表渲染）
 > **前置条件**：阶段 1-3 已完成（记忆、工具调用均可在 IM 对话中使用）
 
 ---
@@ -97,6 +97,7 @@ export class TelegramChannel implements IMChannel {
 
     this.bot = new Bot(token);
     this.bot.on('message:text', this.handleMessage.bind(this));
+    this.bot.on('message:photo', this.handlePhotoMessage.bind(this)); // 多模态：图片消息
     this.bot.start(); // Long polling，非阻塞
   }
 
@@ -133,6 +134,40 @@ export class TelegramChannel implements IMChannel {
 
   async sendMessage(chatId: string, content: string): Promise<void> {
     await this.bot?.api.sendMessage(Number(chatId), content, { parse_mode: 'Markdown' });
+  }
+
+  private async handlePhotoMessage(ctx: Context): Promise<void> {
+    const userId = ctx.from?.id;
+    if (!userId) return;
+    if (this.config.allowed_user_ids.length > 0 && !this.config.allowed_user_ids.includes(userId)) {
+      await ctx.reply('抱歉，您没有使用权限。');
+      return;
+    }
+
+    // 下载最高分辨率图片 → base64
+    const photo = ctx.message?.photo?.at(-1);
+    if (!photo) return;
+    const file = await ctx.api.getFile(photo.file_id);
+    const fileUrl = `https://api.telegram.org/file/bot${process.env[this.config.bot_token_env]}/${file.file_path}`;
+    const buffer = await fetch(fileUrl).then((r) => r.arrayBuffer());
+    const base64 = Buffer.from(buffer).toString('base64');
+    const caption = ctx.message?.caption ?? '请描述这张图片';
+
+    const sessionKey = `telegram_user_${userId}`;
+    const session = await chatService.getOrCreateSession(sessionKey, {
+      title: `Telegram - ${ctx.from?.first_name}`,
+    });
+    await ctx.api.sendChatAction(ctx.chat.id, 'typing');
+    try {
+      const response = await chatService.chat({
+        session_id: session.id,
+        content: caption,
+        attachments: [{ type: 'image', base64, mimeType: 'image/jpeg' }],
+      });
+      await ctx.reply(response, { parse_mode: 'Markdown' });
+    } catch {
+      await ctx.reply('抱歉，处理图片时出现错误。');
+    }
   }
 
   async stop(): Promise<void> {
@@ -280,6 +315,41 @@ tags: [工作, 总结]
 
 ---
 
+## 步骤 6b：内置技能模板库
+
+在 `identity/skills/` 预置以下技能文件（随项目发布，开箱即用）：
+
+| 文件名              | display_name | trigger  | 说明                                 |
+| ------------------- | ------------ | -------- | ------------------------------------ |
+| `daily_summary.md`  | 每日总结     | manual   | 根据今日记忆生成工作总结报告         |
+| `web_search.md`     | 网页搜索     | llm_call | 搜索并整理结果（需配合 search 工具） |
+| `code_review.md`    | 代码审查     | manual   | 分析代码质量并给出改进建议           |
+| `translate.md`      | 多语言翻译   | llm_call | 自动检测语言并翻译                   |
+| `task_decompose.md` | 任务拆解     | llm_call | 将目标拆解为可执行子步骤             |
+
+**示例文件**（`identity/skills/daily_summary.md`）：
+
+```markdown
+---
+name: daily_summary
+display_name: 每日总结
+description: 根据今日记忆和对话生成工作总结
+version: 1.0.0
+trigger: manual
+enabled: true
+tags: [工作, 总结]
+---
+
+你是一个工作总结助手。请根据以下信息生成今日工作总结（格式：Markdown）。
+
+信息：
+{{context}}
+
+输出包含：## 今日完成 / ## 遇到的问题 / ## 明日计划
+```
+
+---
+
 ## 步骤 7：技能加载器
 
 **新建文件**：`src/tide-lobster/src/skills/loader.ts`
@@ -384,6 +454,59 @@ PATCH  /api/skills/:name/disable     禁用
 
 ---
 
+## 步骤 9b：Artifact 渲染系统（纯前端）
+
+这是对聊天体验最直接的提升：当 LLM 输出包含特定代码块时，自动渲染为可视化预览。
+
+**检测规则**：
+
+| 代码块语言标识  | 渲染方式                              |
+| --------------- | ------------------------------------- |
+| `html`          | `<iframe sandbox>` 内联渲染           |
+| `svg`           | 直接插入 SVG 元素                     |
+| `mermaid`       | mermaid.js 渲染流程图/时序图          |
+| `react` / `jsx` | babel-standalone 转译后渲染（懒加载） |
+
+**新增组件目录**：`apps/web-ui/src/components/ArtifactRenderer/`
+
+```
+ArtifactRenderer/
+  index.tsx         检测语言类型并分发到对应渲染器
+  HtmlArtifact.tsx  sandboxed iframe（src = blob URL）
+  SvgArtifact.tsx   dangerouslySetInnerHTML 渲染 SVG
+  MermaidArtifact.tsx  mermaid.initialize + mermaid.render()
+  ReactArtifact.tsx    babel.transform + eval（沙箱）
+  ArtifactToolbar.tsx  展开全屏 / 复制源码 / 切换"源码↔预览"
+```
+
+**MessageBubble 集成**（`apps/web-ui/src/components/MessageBubble/index.tsx`）：
+
+```typescript
+// 消息渲染时，检测代码块是否为 artifact 类型
+const ARTIFACT_LANGS = new Set(['html', 'svg', 'mermaid', 'react', 'jsx']);
+
+function renderContent(content: string) {
+  // 将 Markdown 解析结果中，语言为 artifact 类型的代码块替换为 <ArtifactRenderer>
+  return parseMarkdown(content, {
+    codeBlock: (lang, code) => {
+      if (ARTIFACT_LANGS.has(lang)) {
+        return <ArtifactRenderer lang={lang} code={code} />;
+      }
+      return <CodeBlock lang={lang} code={code} />;
+    },
+  });
+}
+```
+
+**新增依赖**（前端）：
+
+```bash
+npm install mermaid --workspace=apps/web-ui
+# @babel/standalone 按需动态 import，不加入主包
+```
+
+---
+
 ## 步骤 10：前端 IM 通道页
 
 **文件**：`apps/web-ui/src/pages/IM/index.tsx`
@@ -457,7 +580,8 @@ skills: {
 
 ### IM 通道
 
-- [ ] 添加 Telegram 通道并启动，Bot 开始响应消息
+- [ ] 添加 Telegram 通道并启动，Bot 开始响应文字消息
+- [ ] 向 Bot 发送图片（带 caption），AI 返回对图片内容的描述
 - [ ] 白名单外的用户收到拒绝提示
 - [ ] Telegram 消息触发记忆提取（与 Web 聊天一样）
 - [ ] 停止通道后 Bot 不再响应
@@ -466,6 +590,14 @@ skills: {
 ### 技能系统
 
 - [ ] `identity/skills/` 目录下的 .md 文件被正确加载
-- [ ] 技能列表 API 返回技能信息
-- [ ] 手动执行技能，收到 LLM 生成的输出
+- [ ] 内置 5 个技能（daily_summary/web_search/code_review/translate/task_decompose）均可在列表中看到
+- [ ] 手动执行 `daily_summary` 技能，收到 Markdown 格式的工作总结
 - [ ] `trigger: llm_call` 的技能被注册为工具，AI 在需要时自动调用
+
+### Artifact 渲染
+
+- [ ] 让 AI 生成一段 HTML 页面，代码块渲染为 iframe 预览，而非纯文本
+- [ ] 让 AI 用 Mermaid 画一个流程图，代码块渲染为图形
+- [ ] 工具栏"切换源码↔预览"功能正常
+- [ ] 工具栏"复制"按钮复制原始代码
+- [ ] 不在 ARTIFACT_LANGS 中的代码块（如 `python`）仍以普通代码高亮显示

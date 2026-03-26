@@ -50,7 +50,11 @@
       "Bash(curl -s \"http://127.0.0.1:18900/api/identity/files/CREDITS.md\")",
       "Bash(curl -s \"http://127.0.0.1:18900/api/identity/files\")",
       "Bash(grep:*)",
-      "Bash(sqlite3:*)"
+      "Bash(sqlite3:*)",
+      "Bash(ls -d \"F:/FrontEnd/OtherCode/openclaw/extensions\"/*/)",
+      "Bash(find F:FrontEndOtherCodeLobsterAI -type f -name *.ts -o -name *.js -o -name *.sql)",
+      "Bash(find F:/FrontEnd/OtherCode/LobsterAI/src -name *MemoryExtractor* -o -name *memory* -o -name *persona* -o -name *identity*)",
+      "Bash(find F:/FrontEnd/OtherCode/openclaw/src -name *context* -o -name *memory* -o -name *persona*)"
     ]
   }
 }

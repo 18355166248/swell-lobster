@@ -21,6 +21,9 @@ export interface LLMUsage {
   prompt_tokens: number;
   completion_tokens: number;
   total_tokens: number;
+  // Anthropic Prompt Caching 字段（命中缓存时 API 返回，可大幅降低成本）
+  cache_read_tokens?: number; // 对应 cache_read_input_tokens
+  cache_write_tokens?: number; // 对应 cache_creation_input_tokens
 }
 
 export interface ChatCompletionResult {
@@ -33,20 +36,21 @@ export interface ChatCompletionResult {
 
 **Anthropic 协议**：
 
-- 非流式：响应体字段为 `{ input_tokens, output_tokens }`，做映射
+- 非流式：响应体字段为 `{ input_tokens, output_tokens, cache_read_input_tokens?, cache_creation_input_tokens? }`，做映射
 - 流式：`message_start` 事件中包含 `usage`，在解析 SSE 时提取并在流结束时返回
 
 **流式处理要点**：
 
 ```typescript
-// Anthropic 流式
+// Anthropic 流式（参考 OpenClaw context-tokens.runtime.ts 的处理方式）
 let usage: LLMUsage | undefined;
-// 解析 SSE 时
 if (event.type === 'message_start') {
   usage = {
     prompt_tokens: event.message.usage.input_tokens,
     completion_tokens: 0,
     total_tokens: event.message.usage.input_tokens,
+    cache_read_tokens: event.message.usage.cache_read_input_tokens ?? 0,
+    cache_write_tokens: event.message.usage.cache_creation_input_tokens ?? 0,
   };
 }
 if (event.type === 'message_delta') {
@@ -82,6 +86,9 @@ CREATE TABLE IF NOT EXISTS token_stats (
   prompt_tokens INTEGER NOT NULL DEFAULT 0,
   completion_tokens INTEGER NOT NULL DEFAULT 0,
   total_tokens INTEGER NOT NULL DEFAULT 0,
+  cache_read_tokens INTEGER NOT NULL DEFAULT 0,   -- Anthropic Prompt Cache 读取 tokens
+  cache_write_tokens INTEGER NOT NULL DEFAULT 0,  -- Anthropic Prompt Cache 写入 tokens
+  cost_usd REAL NOT NULL DEFAULT 0,               -- 按模型单价计算的美元成本（未配置单价时为 0）
   request_count INTEGER NOT NULL DEFAULT 0,
   updated_at TEXT NOT NULL
 );
@@ -105,16 +112,28 @@ db.prepare(`UPDATE chat_messages SET token_count = ? WHERE id = ?`).run(
   messageId
 );
 
-// 2. Upsert token_stats（当天 + 端点维度）
+// 2. 计算本次请求成本（参考 OpenClaw agent-command.ts 的 cost 结构）
+// endpoint 配置中可选填 cost_per_1m_input / cost_per_1m_output（美元/百万 tokens）
+const costUsd = endpoint.cost_per_1m_input
+  ? (usage.prompt_tokens / 1_000_000) * endpoint.cost_per_1m_input +
+    (usage.completion_tokens / 1_000_000) * (endpoint.cost_per_1m_output ?? 0)
+  : 0;
+
+// 3. Upsert token_stats（当天 + 端点维度）
 const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
 db.prepare(
   `
-  INSERT INTO token_stats (id, date, endpoint_name, prompt_tokens, completion_tokens, total_tokens, request_count, updated_at)
-  VALUES (?, ?, ?, ?, ?, ?, 1, ?)
+  INSERT INTO token_stats
+    (id, date, endpoint_name, prompt_tokens, completion_tokens, total_tokens,
+     cache_read_tokens, cache_write_tokens, cost_usd, request_count, updated_at)
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
   ON CONFLICT(date, endpoint_name) DO UPDATE SET
     prompt_tokens = prompt_tokens + excluded.prompt_tokens,
     completion_tokens = completion_tokens + excluded.completion_tokens,
     total_tokens = total_tokens + excluded.total_tokens,
+    cache_read_tokens = cache_read_tokens + excluded.cache_read_tokens,
+    cache_write_tokens = cache_write_tokens + excluded.cache_write_tokens,
+    cost_usd = cost_usd + excluded.cost_usd,
     request_count = request_count + 1,
     updated_at = excluded.updated_at
 `
@@ -125,6 +144,9 @@ db.prepare(
   usage.prompt_tokens,
   usage.completion_tokens,
   usage.total_tokens,
+  usage.cache_read_tokens ?? 0,
+  usage.cache_write_tokens ?? 0,
+  costUsd,
   new Date().toISOString()
 );
 ```
@@ -176,7 +198,33 @@ FROM token_stats WHERE date >= date('now', 'start of month', 'localtime');
 GET /api/sessions/search?q=关键词&limit=20
 ```
 
-实现（SQLite LIKE）：
+**首选方案：SQLite FTS5**（比 LIKE 快 10x+，原生支持 Unicode/CJK 分词）：
+
+migration 中建表（与 `chat_messages` 同步）：
+
+```sql
+-- migration version 3 同步创建 FTS5 虚表
+CREATE VIRTUAL TABLE IF NOT EXISTS messages_fts USING fts5(
+  content,
+  content='chat_messages',
+  content_rowid='rowid',
+  tokenize='unicode61'   -- 支持中文/日文等 Unicode 字符分词
+);
+
+-- 触发器保持 FTS 索引与主表同步
+CREATE TRIGGER IF NOT EXISTS messages_fts_insert AFTER INSERT ON chat_messages BEGIN
+  INSERT INTO messages_fts(rowid, content) VALUES (new.rowid, new.content);
+END;
+CREATE TRIGGER IF NOT EXISTS messages_fts_delete AFTER DELETE ON chat_messages BEGIN
+  INSERT INTO messages_fts(messages_fts, rowid, content) VALUES ('delete', old.rowid, old.content);
+END;
+CREATE TRIGGER IF NOT EXISTS messages_fts_update AFTER UPDATE ON chat_messages BEGIN
+  INSERT INTO messages_fts(messages_fts, rowid, content) VALUES ('delete', old.rowid, old.content);
+  INSERT INTO messages_fts(rowid, content) VALUES (new.rowid, new.content);
+END;
+```
+
+搜索实现：
 
 ```typescript
 app.get('/api/sessions/search', (c) => {
@@ -184,15 +232,17 @@ app.get('/api/sessions/search', (c) => {
   const limit = Math.min(parseInt(c.req.query('limit') ?? '20'), 50);
   if (!q.trim()) return c.json([]);
 
+  // FTS5 MATCH 查询（rank 字段为相关性评分，自动排序）
   const results = db
     .prepare(
       `
     SELECT m.id, m.content, m.role, m.created_at,
            s.id as session_id, s.title as session_title
-    FROM chat_messages m
+    FROM messages_fts
+    JOIN chat_messages m ON m.rowid = messages_fts.rowid
     JOIN chat_sessions s ON s.id = m.session_id
-    WHERE m.content LIKE '%' || ? || '%'
-    ORDER BY m.created_at DESC
+    WHERE messages_fts MATCH ?
+    ORDER BY rank
     LIMIT ?
   `
     )
@@ -202,13 +252,7 @@ app.get('/api/sessions/search', (c) => {
 });
 ```
 
-**后续优化**（量大时）：升级为 SQLite FTS5：
-
-```sql
-CREATE VIRTUAL TABLE IF NOT EXISTS messages_fts USING fts5(
-  content, content='chat_messages', content_rowid='rowid'
-);
-```
+**降级方案**（FTS5 不可用时，如旧版 SQLite）：回退到 `LIKE '%' || ? || '%'` 查询。
 
 ---
 
@@ -221,14 +265,17 @@ CREATE VIRTUAL TABLE IF NOT EXISTS messages_fts USING fts5(
 **布局（上→下）**：
 
 1. 统计卡片行：今日 / 本周 / 本月 / 累计（调用 `GET /api/stats/tokens`）
+   - 若 endpoint 配置了单价（`cost_per_1m_input`），额外展示今日成本 / 本月成本（USD）
+   - 所有 endpoint 均无单价配置时，成本行自动隐藏
 2. 按端点明细表（Ant Design Table，调用 `GET /api/stats/tokens/by-endpoint`）
+   - 列：端点名、请求数、Prompt tokens、Completion tokens、Cache 命中 tokens、成本（USD）
 3. 近 30 天趋势（可选：`recharts` LineChart 或简单表格）
 
 **卡片数据格式**：
 
-| 今日 tokens | 本周 tokens | 本月 tokens | 累计 tokens |
-| ----------- | ----------- | ----------- | ----------- |
-| 12,450      | 65,230      | 234,100     | 1,234,567   |
+| 今日 tokens | 今日成本 | 本月 tokens | 本月成本 |
+| ----------- | -------- | ----------- | -------- |
+| 12,450      | $0.023   | 234,100     | $0.48    |
 
 ---
 
@@ -276,3 +323,7 @@ chat: {
 - [x] TokenStats 页面卡片展示今日/本周/本月数据
 - [x] 会话搜索框输入关键词后返回匹配的消息列表
 - [x] 无 usage 响应时 fallback 估算不报错
+- [x] 使用 Anthropic 模型时，`token_stats.cache_read_tokens` 在 Prompt Cache 命中后有值
+- [x] endpoint 配置了 `cost_per_1m_input` 时，`token_stats.cost_usd` 正确累加
+- [x] 会话搜索使用 FTS5，中文关键词搜索正常返回结果（验证：搜索"记忆"能找到包含该词的消息）
+- [x] FTS5 触发器生效：新增消息后立即可被搜索到

@@ -5,6 +5,8 @@ export interface LLMUsage {
   prompt_tokens: number;
   completion_tokens: number;
   total_tokens: number;
+  cache_read_tokens?: number; // Anthropic 流式缓存读取 tokens
+  cache_write_tokens?: number; // Anthropic 流式缓存写入 tokens
 }
 
 export type LLMRequestMessage =
@@ -69,11 +71,16 @@ function parseAnthropicUsage(raw: unknown): LLMUsage | undefined {
   const promptTokens = Number(usage.input_tokens ?? 0);
   const completionTokens = Number(usage.output_tokens ?? 0);
   if (![promptTokens, completionTokens].every(Number.isFinite)) return undefined;
-  return {
+  const result: LLMUsage = {
     prompt_tokens: promptTokens,
     completion_tokens: completionTokens,
     total_tokens: promptTokens + completionTokens,
   };
+  const cacheRead = usage.cache_read_input_tokens;
+  const cacheWrite = usage.cache_creation_input_tokens;
+  if (typeof cacheRead === 'number' && cacheRead > 0) result.cache_read_tokens = cacheRead;
+  if (typeof cacheWrite === 'number' && cacheWrite > 0) result.cache_write_tokens = cacheWrite;
+  return result;
 }
 
 function openAIChatUrl(baseUrl: string): string {
@@ -548,6 +555,8 @@ async function streamAnthropic(
         if (usage && eventUsage) {
           usage.completion_tokens = eventUsage.completion_tokens;
           usage.total_tokens = usage.prompt_tokens + usage.completion_tokens;
+          if (eventUsage.cache_read_tokens !== undefined) usage.cache_read_tokens = eventUsage.cache_read_tokens;
+          if (eventUsage.cache_write_tokens !== undefined) usage.cache_write_tokens = eventUsage.cache_write_tokens;
         } else if (eventUsage) {
           usage = eventUsage;
         }

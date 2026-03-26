@@ -510,14 +510,19 @@ export class ChatService {
           prompt_tokens,
           completion_tokens,
           total_tokens,
+          cache_read_tokens,
+          cache_write_tokens,
+          cost_usd,
           request_count,
           updated_at
         )
-        VALUES (?, ?, ?, ?, ?, ?, 1, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 1, ?)
         ON CONFLICT(date, endpoint_name) DO UPDATE SET
           prompt_tokens = token_stats.prompt_tokens + excluded.prompt_tokens,
           completion_tokens = token_stats.completion_tokens + excluded.completion_tokens,
           total_tokens = token_stats.total_tokens + excluded.total_tokens,
+          cache_read_tokens = token_stats.cache_read_tokens + excluded.cache_read_tokens,
+          cache_write_tokens = token_stats.cache_write_tokens + excluded.cache_write_tokens,
           request_count = token_stats.request_count + 1,
           updated_at = excluded.updated_at
       `
@@ -529,6 +534,8 @@ export class ChatService {
         args.usage.prompt_tokens,
         args.usage.completion_tokens,
         args.usage.total_tokens,
+        args.usage.cache_read_tokens ?? 0,
+        args.usage.cache_write_tokens ?? 0,
         now
       );
   }

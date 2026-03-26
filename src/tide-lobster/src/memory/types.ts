@@ -9,6 +9,9 @@ export interface Memory {
   tags: string[];
   importance: number;
   access_count: number;
+  is_explicit: boolean;
+  confidence: number;
+  fingerprint?: string;
   created_at: string;
   updated_at: string;
   expires_at?: string;
@@ -20,6 +23,8 @@ export interface CreateMemoryInput {
   source_session_id?: string;
   tags?: string[];
   importance?: number;
+  is_explicit?: boolean;
+  confidence?: number;
   expires_at?: string;
 }
 

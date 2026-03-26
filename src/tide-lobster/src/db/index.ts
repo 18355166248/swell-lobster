@@ -137,6 +137,26 @@ const migrations: Array<{ version: number; up: (db: Database.Database) => void }
       db.exec(`ALTER TABLE chat_messages ADD COLUMN tool_invocations TEXT`);
     },
   },
+  {
+    version: 7,
+    up: (db) => {
+      // memories 表：增加提取来源标记、置信度、指纹去重字段
+      db.exec(`ALTER TABLE memories ADD COLUMN is_explicit INTEGER NOT NULL DEFAULT 0`);
+      db.exec(`ALTER TABLE memories ADD COLUMN confidence REAL NOT NULL DEFAULT 0.8`);
+      db.exec(`ALTER TABLE memories ADD COLUMN fingerprint TEXT`);
+      db.exec(
+        `CREATE UNIQUE INDEX IF NOT EXISTS idx_memories_fingerprint ON memories(fingerprint)`
+      );
+      // token_stats 表：增加 Prompt Caching 字段和成本字段
+      db.exec(
+        `ALTER TABLE token_stats ADD COLUMN cache_read_tokens INTEGER NOT NULL DEFAULT 0`
+      );
+      db.exec(
+        `ALTER TABLE token_stats ADD COLUMN cache_write_tokens INTEGER NOT NULL DEFAULT 0`
+      );
+      db.exec(`ALTER TABLE token_stats ADD COLUMN cost_usd REAL NOT NULL DEFAULT 0`);
+    },
+  },
 ];
 
 function runMigrations(db: Database.Database): void {

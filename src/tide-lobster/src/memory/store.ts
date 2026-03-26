@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { getDb } from '../db/index.js';
 import type { CreateMemoryInput, Memory, MemoryType, UpdateMemoryInput } from './types.js';
 
@@ -16,6 +16,12 @@ function normalizeTags(tags?: string[]): string[] {
   return [...new Set((tags ?? []).map((tag) => String(tag).trim()).filter(Boolean))];
 }
 
+/** 归一化文本后取 SHA-1 前 16 位，用于精确去重（比字符重叠比较更快更准确）。 */
+function computeFingerprint(content: string): string {
+  const normalized = content.trim().toLowerCase().replace(/\s+/g, ' ');
+  return createHash('sha1').update(normalized).digest('hex').slice(0, 16);
+}
+
 function mapMemoryRow(row: Record<string, unknown>): Memory {
   return {
     id: String(row.id ?? ''),
@@ -25,6 +31,9 @@ function mapMemoryRow(row: Record<string, unknown>): Memory {
     tags: JSON.parse(String(row.tags ?? '[]')) as string[],
     importance: Number(row.importance ?? 5),
     access_count: Number(row.access_count ?? 0),
+    is_explicit: Boolean(row.is_explicit),
+    confidence: Number(row.confidence ?? 0.8),
+    fingerprint: row.fingerprint ? String(row.fingerprint) : undefined,
     created_at: String(row.created_at ?? ''),
     updated_at: String(row.updated_at ?? ''),
     expires_at: row.expires_at ? String(row.expires_at) : undefined,
@@ -77,30 +86,46 @@ export class MemoryStore {
     const now = nowIso();
     const id = `mem_${randomUUID().replace(/-/g, '').slice(0, 12)}`;
     const tags = normalizeTags(input.tags);
+    const content = input.content.trim();
+    const fingerprint = computeFingerprint(content);
+    const confidence = Math.min(1, Math.max(0, Number(input.confidence ?? 0.8)));
+    const isExplicit = input.is_explicit ? 1 : 0;
 
+    // ON CONFLICT(fingerprint)：指纹冲突时更新置信度（取较高值）和访问计数，不插入重复条目。
     this.db
       .prepare(
         `
         INSERT INTO memories (
           id, content, memory_type, source_session_id, tags, importance,
-          access_count, created_at, updated_at, expires_at
+          access_count, is_explicit, confidence, fingerprint, created_at, updated_at, expires_at
         )
-        VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(fingerprint) DO UPDATE SET
+          confidence = MAX(confidence, excluded.confidence),
+          access_count = access_count + 1,
+          updated_at = excluded.updated_at
       `
       )
       .run(
         id,
-        input.content.trim(),
+        content,
         input.memory_type,
         input.source_session_id ?? null,
         JSON.stringify(tags),
         clampImportance(input.importance),
+        isExplicit,
+        confidence,
+        fingerprint,
         now,
         now,
         input.expires_at ?? null
       );
 
-    return this.get(id)!;
+    // 指纹冲突时返回已存在的记录（id 不是新插入的那个）
+    const existing = this.db
+      .prepare(`SELECT * FROM memories WHERE fingerprint = ?`)
+      .get(fingerprint) as Record<string, unknown> | undefined;
+    return existing ? mapMemoryRow(existing) : this.get(id)!;
   }
 
   update(id: string, patch: UpdateMemoryInput): Memory {

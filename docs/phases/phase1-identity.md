@@ -81,10 +81,15 @@ export class IdentityService {
   // 组装 system prompt
   // 读取顺序：soul.summary.md → agent.core.md → persona 文件
   // 若文件不存在则跳过该段
+  // 总长度硬上限 8000 字符，超出时截断并附加说明（防止超长身份文件撑满 context）
   loadSystemPrompt(personaPath?: string): string;
 
   // 列出 identity/personas/ 下所有 .md 文件
   listPersonas(): PersonaInfo[];
+
+  // 热重载：清除文件内容缓存，重新读取磁盘（无需重启服务）
+  // 适用场景：用户直接编辑 identity/ 下的文件后，通过 API 触发更新
+  reload(): void;
 }
 ```
 
@@ -107,6 +112,7 @@ export class IdentityService {
 - 使用 `fs.readFileSync`（同步读取），文件小不影响性能
 - 文件不存在时静默跳过，不抛错
 - `listPersonas()` 解析 md 文件的第一个 `# 标题` 作为 name，第一段非标题文本作为 description
+- `loadSystemPrompt()` 拼接完成后检查总字符数，超过 8000 时截断末尾并追加 `\n...[身份文件过长已截断]`
 
 ---
 
@@ -165,10 +171,11 @@ const systemPrompt = identityService.loadSystemPrompt(session.persona_path ?? un
 **新建文件**：`src/tide-lobster/src/api/routes/persona.ts`（或追加到 `identity.ts`）
 
 ```
-GET /api/identity/personas
+GET  /api/identity/personas   列出所有 persona 文件
+POST /api/identity/reload     热重载 identity/ 目录（编辑 persona 文件后无需重启）
 ```
 
-返回格式：
+**GET /api/identity/personas** 返回格式：
 
 ```json
 [
@@ -176,6 +183,8 @@ GET /api/identity/personas
   { "path": "jarvis.md", "name": "Jarvis", "description": "专业严谨的执行助手" }
 ]
 ```
+
+**POST /api/identity/reload** 实现：调用 `identityService.reload()`，清除文件读取缓存，返回 `{ message: '已重载', personaCount: N }`。
 
 ---
 
@@ -222,15 +231,34 @@ GET /api/identity/personas
 
 **文件**：`src/tide-lobster/src/chat/service.ts`
 
-新增工具函数：
+两层独立保护，参考 LobsterAI `coworkRunner.ts` 的 `FINAL_RESULT_MAX_CHARS = 120_000` 设计思路：
 
 ```typescript
-function trimMessages(
-  messages: ChatMessage[],
-  maxChars: number = 60000 // 约 15000 tokens
-): ChatMessage[] {
-  // 从最新消息向前保留，总字符数不超过 maxChars
-  // 始终保留第一条 user 消息（若超限则只保留最近 N 条）
+const MAX_SINGLE_MSG_CHARS = 8_000; // 单条消息内容上限
+const MAX_TOTAL_CHARS = 60_000; // 历史消息总量上限（约 15000 tokens）
+
+function trimMessages(messages: ChatMessage[]): ChatMessage[] {
+  // 第一层：截断单条超长消息（防止一条粘贴大量代码撑满 context）
+  const trimmed = messages.map((m) => {
+    if (typeof m.content === 'string' && m.content.length > MAX_SINGLE_MSG_CHARS) {
+      return { ...m, content: m.content.slice(0, MAX_SINGLE_MSG_CHARS) + '\n...[内容过长已截断]' };
+    }
+    return m;
+  });
+
+  // 第二层：历史总量超限时，从最旧消息开始丢弃
+  // 保留规则：始终保留最近 2 条（至少一个 user+assistant 对）
+  while (totalChars(trimmed) > MAX_TOTAL_CHARS && trimmed.length > 2) {
+    trimmed.shift();
+  }
+  return trimmed;
+}
+
+function totalChars(messages: ChatMessage[]): number {
+  return messages.reduce(
+    (sum, m) => sum + (typeof m.content === 'string' ? m.content.length : 0),
+    0
+  );
 }
 ```
 
@@ -268,3 +296,6 @@ chat: {
 - [x] persona 列表 API 返回 identity/personas/ 下的 md 文件列表
 - [x] 消息气泡 hover 显示复制/重试按钮
 - [x] 发送超长历史消息时不报 token 超限错误（截断生效）
+- [x] 单条超长消息（> 8000 字符）被截断后附加 `...[内容过长已截断]` 标记
+- [x] `POST /api/identity/reload` 调用后编辑过的 persona 文件立即生效，无需重启服务
+- [x] identity 文件总内容超过 8000 字符时，system prompt 被截断，不抛错

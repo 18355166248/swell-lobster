@@ -1,9 +1,12 @@
 # 阶段 3：记忆系统与工具调用
 
+> **状态**：已完成（2026-03-28）
 > **目标**：长期记忆让 AI 更了解用户；Function Calling 让 AI 能执行任务。
-> **预估工作量**：2-3 周
+> **预估工作量**：2-3 周（已交付）
 > **新增依赖**：无（undici 已有，用于 search_web 工具）
 > **前置条件**：阶段 1 已完成（systemPrompt 注入点存在）
+
+下文各步骤为实施时的设计说明，已实现并可通过下方验证清单回归确认。
 
 ---
 
@@ -468,7 +471,7 @@ data: {"type":"tool_result","name":"search_web","content":"...前20000字符..."
 
 ## 步骤 10：记忆管理 API
 
-**文件**：`src/tide-lobster/src/api/routes/memory.ts`（替换占位）
+**文件**：`src/tide-lobster/src/api/routes/memory.ts`（已实现）
 
 ```
 GET    /api/memories                  列出记忆（?type=&limit=&offset=）
@@ -486,13 +489,13 @@ POST   /api/memories/extract/:sessionId  手动从指定会话提取记忆
 
 **文件**：`apps/web-ui/src/pages/Memory/index.tsx`
 
-填充当前空壳：
+已实现：
 
-- 顶部：类型过滤 Tab（全部/事实/偏好/事件/规则）+ 关键词搜索框
+- 顶部：类型过滤（全部/事实/偏好/事件/规则）+ 关键词搜索框
 - 记忆列表：Ant Design Table（内容、类型 Tag、重要性 1-10、创建时间）
 - 行操作：编辑（Modal）、删除（确认）
-- 底部：手动添加记忆按钮（Modal 表单）
-- 右上角：危险操作 - 清空全部记忆
+- 手动添加记忆按钮（Modal 表单）
+- 危险操作：清空全部记忆（确认）
 
 ---
 
@@ -523,16 +526,16 @@ chat: {
 
 ## 验证清单
 
-- [ ] 告知 AI "我喜欢简洁的回答"，结束会话后查 `memories` 表有新记录
-- [ ] 下次新建会话，system prompt 中出现该记忆
-- [ ] 聊天中问 "现在几点了"，AI 调用 `get_datetime` 工具并返回正确时间
-- [ ] SSE 流式中出现 `tool_call` / `tool_result` 事件，前端显示工具执行状态（含参数）
-- [ ] 工具调用超过 5 轮时停止并返回已有内容
-- [ ] 记忆管理页正常显示、编辑、删除记忆
-- [ ] 手动添加记忆后在聊天中可被检索到
-- [ ] 说"记住我喜欢 TypeScript"，记忆 `is_explicit=true`，`confidence=1.0`，无需等待 LLM 提取
-- [ ] 对话只有"好的/OK"时，规则 pre-filter 拦截，后端日志无 LLM 提取调用
-- [ ] 同一内容第二次提取时，fingerprint 冲突，`access_count` +1，不新增条目
-- [ ] 工具返回超过 20000 字符时，SSE `content` 字段被截断，`truncated=true`，含原始长度
-- [ ] 告知 AI "删除我的偏好记忆"，AI 调用 `delete_memory` 工具完成删除
-- [ ] 注入记忆块超过 2000 字符时自动截断，不影响正常响应
+- [x] 告知 AI "我喜欢简洁的回答"，结束会话后查 `memories` 表有新记录
+- [x] 下次新建会话，system prompt 中出现该记忆
+- [x] 聊天中问 "现在几点了"，AI 调用 `get_datetime` 工具并返回正确时间
+- [x] SSE 流式中出现 `tool_call` / `tool_result` 事件，前端显示工具执行状态（含参数）
+- [x] 工具调用超过 5 轮时停止并返回已有内容
+- [x] 记忆管理页正常显示、编辑、删除记忆
+- [x] 手动添加记忆后在聊天中可被检索到
+- [x] 说"记住我喜欢 TypeScript"，记忆 `is_explicit=true`，`confidence=1.0`，无需等待 LLM 提取
+- [x] 对话只有"好的/OK"时，规则 pre-filter 拦截，后端日志无 LLM 提取调用
+- [x] 同一内容第二次提取时，fingerprint 冲突，`access_count` +1，不新增条目
+- [x] 工具返回超过 20000 字符时，SSE `content` 字段被截断，`truncated=true`，含原始长度
+- [x] 告知 AI "删除我的偏好记忆"，AI 调用 `delete_memory` 工具完成删除
+- [x] 注入记忆块超过 2000 字符时自动截断，不影响正常响应

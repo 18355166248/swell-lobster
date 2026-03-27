@@ -179,15 +179,6 @@ export function MemoryPage() {
     });
   };
 
-  if (loading) {
-    return (
-      <div className="p-6 flex items-center gap-2">
-        <Spin size="small" />
-        <Text type="secondary">{t('common.loading')}</Text>
-      </div>
-    );
-  }
-
   return (
     <div className="p-6">
       {contextHolder}
@@ -196,120 +187,129 @@ export function MemoryPage() {
       </Title>
       <Text type="secondary">{t('memory.subtitle')}</Text>
 
-      {error && <Alert type="error" title={error} className="mt-3" showIcon />}
+      {loading ? (
+        <div className="mt-6 flex items-center gap-2">
+          <Spin size="small" />
+          <Text type="secondary">{t('common.loading')}</Text>
+        </div>
+      ) : (
+        <>
+          {error && <Alert type="error" title={error} className="mt-3" showIcon />}
 
-      <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
-        <Space wrap>
-          <Button
-            type={filterType === 'all' ? 'primary' : 'default'}
-            onClick={() => void applyFilters('all', keyword)}
-          >
-            {t('common.all')}
-          </Button>
-          {memoryTypeOptions.map((option) => (
-            <Button
-              key={option.value}
-              type={filterType === option.value ? 'primary' : 'default'}
-              onClick={() => void applyFilters(option.value, keyword)}
-            >
-              {option.label}
-            </Button>
-          ))}
-        </Space>
-        <Space wrap>
-          <Search
-            allowClear
-            placeholder={t('memory.searchPlaceholder')}
-            value={keyword}
-            onChange={(event) => setKeyword(event.target.value)}
-            onSearch={(value) => void applyFilters(filterType, value)}
-            style={{ width: 280 }}
-          />
-          <Button type="primary" onClick={openCreateModal}>
-            {t('memory.addMemory')}
-          </Button>
-          <Popconfirm
-            title={t('memory.clearAll')}
-            description={t('memory.clearConfirm')}
-            onConfirm={() => void handleClearAll()}
-          >
-            <Button danger>{t('memory.clearAll')}</Button>
-          </Popconfirm>
-        </Space>
-      </div>
+          <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
+            <Space wrap>
+              <Button
+                type={filterType === 'all' ? 'primary' : 'default'}
+                onClick={() => void applyFilters('all', keyword)}
+              >
+                {t('common.all')}
+              </Button>
+              {memoryTypeOptions.map((option) => (
+                <Button
+                  key={option.value}
+                  type={filterType === option.value ? 'primary' : 'default'}
+                  onClick={() => void applyFilters(option.value, keyword)}
+                >
+                  {option.label}
+                </Button>
+              ))}
+            </Space>
+            <Space wrap>
+              <Search
+                allowClear
+                placeholder={t('memory.searchPlaceholder')}
+                value={keyword}
+                onChange={(event) => setKeyword(event.target.value)}
+                onSearch={(value) => void applyFilters(filterType, value)}
+                style={{ width: 280 }}
+              />
+              <Button type="primary" onClick={openCreateModal}>
+                {t('memory.addMemory')}
+              </Button>
+              <Popconfirm
+                title={t('memory.clearAll')}
+                description={t('memory.clearConfirm')}
+                onConfirm={() => void handleClearAll()}
+              >
+                <Button danger>{t('memory.clearAll')}</Button>
+              </Popconfirm>
+            </Space>
+          </div>
 
-      <div className="mt-6 rounded border border-border bg-background">
-        <Table<MemoryItem>
-          rowKey="id"
-          dataSource={memories}
-          pagination={false}
-          locale={{ emptyText: t('memory.noMemories') }}
-          columns={[
-            {
-              title: t('memory.content'),
-              dataIndex: 'content',
-              key: 'content',
-              render: (_, record) => (
-                <div>
-                  <div>{record.content}</div>
-                  {record.tags.length > 0 ? (
-                    <div className="mt-2 flex flex-wrap gap-1">
-                      {record.tags.map((tag) => (
-                        <Tag key={tag}>{tag}</Tag>
-                      ))}
+          <div className="mt-6 rounded border border-border bg-background">
+            <Table<MemoryItem>
+              rowKey="id"
+              dataSource={memories}
+              pagination={false}
+              locale={{ emptyText: t('memory.noMemories') }}
+              columns={[
+                {
+                  title: t('memory.content'),
+                  dataIndex: 'content',
+                  key: 'content',
+                  render: (_, record) => (
+                    <div>
+                      <div>{record.content}</div>
+                      {record.tags.length > 0 ? (
+                        <div className="mt-2 flex flex-wrap gap-1">
+                          {record.tags.map((tag) => (
+                            <Tag key={tag}>{tag}</Tag>
+                          ))}
+                        </div>
+                      ) : null}
                     </div>
-                  ) : null}
-                </div>
-              ),
-            },
-            {
-              title: t('memory.type'),
-              dataIndex: 'memory_type',
-              key: 'memory_type',
-              width: 120,
-              render: (value: MemoryType) => {
-                const label =
-                  memoryTypeOptions.find((item) => item.value === value)?.label ?? value;
-                return <Tag color="blue">{label}</Tag>;
-              },
-            },
-            {
-              title: t('memory.importance'),
-              dataIndex: 'importance',
-              key: 'importance',
-              width: 110,
-            },
-            {
-              title: t('common.date'),
-              dataIndex: 'created_at',
-              key: 'created_at',
-              width: 200,
-              render: (value: string) => new Date(value).toLocaleString(),
-            },
-            {
-              title: t('common.actions'),
-              key: 'actions',
-              width: 160,
-              render: (_, record) => (
-                <Space>
-                  <Button size="small" onClick={() => openEditModal(record)}>
-                    {t('common.edit')}
-                  </Button>
-                  <Popconfirm
-                    title={t('common.delete')}
-                    description={t('memory.deleteConfirm')}
-                    onConfirm={() => void handleDelete(record.id)}
-                  >
-                    <Button danger size="small">
-                      {t('common.delete')}
-                    </Button>
-                  </Popconfirm>
-                </Space>
-              ),
-            },
-          ]}
-        />
-      </div>
+                  ),
+                },
+                {
+                  title: t('memory.type'),
+                  dataIndex: 'memory_type',
+                  key: 'memory_type',
+                  width: 120,
+                  render: (value: MemoryType) => {
+                    const label =
+                      memoryTypeOptions.find((item) => item.value === value)?.label ?? value;
+                    return <Tag color="blue">{label}</Tag>;
+                  },
+                },
+                {
+                  title: t('memory.importance'),
+                  dataIndex: 'importance',
+                  key: 'importance',
+                  width: 110,
+                },
+                {
+                  title: t('common.date'),
+                  dataIndex: 'created_at',
+                  key: 'created_at',
+                  width: 200,
+                  render: (value: string) => new Date(value).toLocaleString(),
+                },
+                {
+                  title: t('common.actions'),
+                  key: 'actions',
+                  width: 160,
+                  render: (_, record) => (
+                    <Space>
+                      <Button size="small" onClick={() => openEditModal(record)}>
+                        {t('common.edit')}
+                      </Button>
+                      <Popconfirm
+                        title={t('common.delete')}
+                        description={t('memory.deleteConfirm')}
+                        onConfirm={() => void handleDelete(record.id)}
+                      >
+                        <Button danger size="small">
+                          {t('common.delete')}
+                        </Button>
+                      </Popconfirm>
+                    </Space>
+                  ),
+                },
+              ]}
+            />
+          </div>
+        </>
+      )}
 
       <Modal
         title={editing ? t('memory.editMemory') : t('memory.addMemory')}

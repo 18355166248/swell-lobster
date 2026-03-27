@@ -1,3 +1,4 @@
+import { deleteMemoryTool } from './builtins/delete_memory.js';
 import { getDatetimeTool } from './builtins/get_datetime.js';
 import { readMemoryTool } from './builtins/read_memory.js';
 import { searchWebTool } from './builtins/search_web.js';
@@ -15,6 +16,7 @@ export function initializeBuiltinTools(): void {
   globalToolRegistry.register(getDatetimeTool);
   globalToolRegistry.register(readMemoryTool);
   globalToolRegistry.register(writeMemoryTool);
+  globalToolRegistry.register(deleteMemoryTool);
   globalToolRegistry.register(searchWebTool);
   globalToolRegistry.register(sendStickerBqbTool);
 }

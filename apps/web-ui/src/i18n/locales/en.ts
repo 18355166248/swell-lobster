@@ -82,6 +82,7 @@ const en = {
     searchNoResult: 'No matching messages',
     toolCalling: 'Running tool...',
     toolResult: 'Tool result',
+    toolTruncated: 'Output truncated, original length: {{length}} chars',
   },
 
   persona: {

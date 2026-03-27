@@ -64,3 +64,17 @@ Applied automatically on pre-commit via lint-staged.
 
 - `apps/web-ui/CLAUDE.md` — frontend conventions, components, state, i18n
 - `src/tide-lobster/CLAUDE.md` — backend routes, LLM integration, data persistence
+
+## gstack
+
+- 所有网页浏览任务使用 `/browse` skill（来自 gstack）。
+- 禁止使用 `mcp__claude-in-chrome__*` 工具。
+- 如果 gstack skills 无法使用，运行 `cd ~/.claude/skills/gstack && ./setup` 重新构建二进制并注册 skills。
+
+首次安装：
+
+```bash
+git clone --single-branch --depth 1 https://github.com/garrytan/gstack.git ~/.claude/skills/gstack && cd ~/.claude/skills/gstack && ./setup
+```
+
+可用 skills：`/office-hours`、`/plan-ceo-review`、`/plan-eng-review`、`/plan-design-review`、`/design-consultation`、`/review`、`/ship`、`/land-and-deploy`、`/canary`、`/benchmark`、`/browse`、`/qa`、`/qa-only`、`/design-review`、`/setup-browser-cookies`、`/setup-deploy`、`/retro`、`/investigate`、`/document-release`、`/codex`、`/cso`、`/autoplan`、`/careful`、`/freeze`、`/guard`、`/unfreeze`、`/gstack-upgrade`。

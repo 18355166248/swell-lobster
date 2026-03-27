@@ -54,7 +54,9 @@
       "Bash(ls -d \"F:/FrontEnd/OtherCode/openclaw/extensions\"/*/)",
       "Bash(find F:FrontEndOtherCodeLobsterAI -type f -name *.ts -o -name *.js -o -name *.sql)",
       "Bash(find F:/FrontEnd/OtherCode/LobsterAI/src -name *MemoryExtractor* -o -name *memory* -o -name *persona* -o -name *identity*)",
-      "Bash(find F:/FrontEnd/OtherCode/openclaw/src -name *context* -o -name *memory* -o -name *persona*)"
+      "Bash(find F:/FrontEnd/OtherCode/openclaw/src -name *context* -o -name *memory* -o -name *persona*)",
+      "Bash(git clone:*)",
+      "Bash(./setup)"
     ]
   }
 }

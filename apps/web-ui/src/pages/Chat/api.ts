@@ -129,6 +129,9 @@ export async function sendMessageStream(
             name: chunk.name,
             status: chunk.status === 'failed' ? 'failed' : 'completed',
             content: String(chunk.content ?? ''),
+            truncated: chunk.truncated === true,
+            original_length:
+              typeof chunk.original_length === 'number' ? chunk.original_length : undefined,
           });
         }
         if (chunk.done) {

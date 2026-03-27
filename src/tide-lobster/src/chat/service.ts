@@ -26,7 +26,14 @@ const MAX_TOOL_ROUNDS = 5;
 export type ChatStreamEvent =
   | { type: 'delta'; delta: string }
   | { type: 'tool_call'; name: string; status: 'running'; arguments: Record<string, unknown> }
-  | { type: 'tool_result'; name: string; status: 'completed' | 'failed'; content: string };
+  | {
+      type: 'tool_result';
+      name: string;
+      status: 'completed' | 'failed';
+      content: string;
+      truncated?: boolean;
+      original_length?: number;
+    };
 
 /**
  * 从最新消息往前截断，控制发给模型的上下文总字符数（默认约 60k），避免超长请求。
@@ -318,7 +325,11 @@ export class ChatService {
     const relevantMemories = memoryStore.findRelevant(userMessage, 5);
 
     if (relevantMemories.length === 0) return basePrompt || undefined;
-    const memoryBlock = relevantMemories.map((item) => `- ${item.content}`).join('\n');
+    const MAX_MEMORY_BLOCK_CHARS = 2000;
+    const memoryBlock = relevantMemories
+      .map((item) => `- ${item.content}`)
+      .join('\n')
+      .slice(0, MAX_MEMORY_BLOCK_CHARS);
     return `${basePrompt || ''}\n\n## 关于用户的记忆\n${memoryBlock}`.trim();
   }
 
@@ -436,20 +447,33 @@ export class ChatService {
       return trace;
     }
 
+    const TOOL_RESULT_MAX_CHARS = 20_000;
     try {
-      trace.result = await tool.execute(toolCall.arguments);
+      const rawResult = await tool.execute(toolCall.arguments);
+      const truncated = rawResult.length > TOOL_RESULT_MAX_CHARS;
+      trace.result = truncated
+        ? rawResult.slice(0, TOOL_RESULT_MAX_CHARS) +
+          `\n...[输出过长已截断，共 ${rawResult.length} 字符]`
+        : rawResult;
       trace.status = 'completed';
+      await onEvent?.({
+        type: 'tool_result',
+        name: toolCall.name,
+        status: 'completed',
+        content: trace.result,
+        truncated,
+        original_length: truncated ? rawResult.length : undefined,
+      });
     } catch (error) {
       trace.status = 'failed';
       trace.result = error instanceof Error ? error.message : String(error);
+      await onEvent?.({
+        type: 'tool_result',
+        name: toolCall.name,
+        status: 'failed',
+        content: trace.result,
+      });
     }
-
-    await onEvent?.({
-      type: 'tool_result',
-      name: toolCall.name,
-      status: trace.status,
-      content: trace.result ?? '',
-    });
     return trace;
   }
 

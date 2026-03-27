@@ -105,12 +105,16 @@ function applyStreamEvent(messages: ChatMessage[], event: ChatStreamEvent): Chat
         arguments: {},
         status: event.status,
         result: event.content,
+        truncated: event.truncated,
+        original_length: event.original_length,
       });
     } else {
       toolInvocations[targetIndex] = {
         ...toolInvocations[targetIndex],
         status: event.status,
         result: event.content,
+        truncated: event.truncated,
+        original_length: event.original_length,
       };
     }
 
@@ -154,6 +158,11 @@ function ToolInvocationPanel({
                 {item.result}
               </pre>
             ) : null}
+            {item.truncated && (
+              <span className="text-xs text-muted-foreground">
+                {t('chat.toolTruncated', { length: item.original_length })}
+              </span>
+            )}
           </div>
         </details>
       ))}

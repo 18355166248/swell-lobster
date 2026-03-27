@@ -85,6 +85,7 @@ const zh = {
     searchNoResult: '未找到相关消息',
     toolCalling: '正在执行工具...',
     toolResult: '工具执行结果',
+    toolTruncated: '输出已截断，原始长度 {{length}} 字符',
   },
 
   // 人设

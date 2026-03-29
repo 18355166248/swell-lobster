@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, useCallback, memo } from 'react';
-import { Alert, Avatar, Button, Select } from 'antd';
+import { Alert, Avatar, Button, Select, Skeleton } from 'antd';
 import { PlusOutlined, RobotOutlined, UserOutlined } from '@ant-design/icons';
 import { useAtom } from 'jotai';
 import { atomWithStorage } from 'jotai/utils';
@@ -180,12 +180,14 @@ export function ChatPage() {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [bootLoading, setBootLoading] = useState(true);
+  const [sessionLoading, setSessionLoading] = useState(false);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastPersona, setLastPersona] = useAtom(lastPersonaAtom);
   const abortRef = useRef<AbortController | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const shouldScrollToBottomRef = useRef(false);
+  const scrollBehaviorRef = useRef<ScrollBehavior>('smooth');
   const pendingScrollTargetIdRef = useRef<string | null>(null);
   const highlightTimerRef = useRef<number | null>(null);
   const messageRefs = useRef(new Map<string, HTMLDivElement | null>());
@@ -224,8 +226,9 @@ export function ChatPage() {
     if (targetId) {
       const targetNode = messageRefs.current.get(targetId);
       if (targetNode) {
-        // 滚动到目标消息
-        targetNode.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        requestAnimationFrame(() => {
+          targetNode.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        });
         highlightMessage(targetId);
         pendingScrollTargetIdRef.current = null;
       }
@@ -233,7 +236,11 @@ export function ChatPage() {
     }
 
     if (shouldScrollToBottomRef.current) {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      const behavior = scrollBehaviorRef.current;
+      requestAnimationFrame(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior });
+        scrollBehaviorRef.current = 'smooth';
+      });
     }
   }, [messages, highlightMessage]);
 
@@ -332,13 +339,18 @@ export function ChatPage() {
 
   const handleSelectSession = async (sessionId: string) => {
     setError(null);
+    setSessionLoading(true);
     try {
       pendingScrollTargetIdRef.current = null;
       clearMessageHighlight();
-      shouldScrollToBottomRef.current = false;
+      shouldScrollToBottomRef.current = true;
+      scrollBehaviorRef.current = 'instant';
       await loadSession(sessionId);
     } catch (e) {
+      shouldScrollToBottomRef.current = false;
       setError(e instanceof Error ? e.message : t('chat.loadSessionFailed'));
+    } finally {
+      setSessionLoading(false);
     }
   };
 
@@ -586,6 +598,23 @@ export function ChatPage() {
             {bootLoading ? (
               <div className="max-w-[800px] mx-auto w-full min-h-full min-w-0 px-6 flex items-center justify-center py-8">
                 <span className="text-sm text-muted-foreground">{t('common.loading')}</span>
+              </div>
+            ) : sessionLoading ? (
+              <div className="max-w-[800px] mx-auto w-full min-w-0 px-6 py-6 flex flex-col gap-8">
+                <Skeleton active avatar={{ shape: 'circle' }} paragraph={{ rows: 3 }} />
+                <Skeleton
+                  active
+                  avatar={{ shape: 'circle' }}
+                  paragraph={{ rows: 2 }}
+                  className="flex-row-reverse"
+                />
+                <Skeleton active avatar={{ shape: 'circle' }} paragraph={{ rows: 4 }} />
+                <Skeleton
+                  active
+                  avatar={{ shape: 'circle' }}
+                  paragraph={{ rows: 2 }}
+                  className="flex-row-reverse"
+                />
               </div>
             ) : messages.length === 0 ? (
               <div className="max-w-[800px] mx-auto w-full min-h-full min-w-0 px-6 flex flex-col">

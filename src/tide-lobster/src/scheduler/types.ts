@@ -2,11 +2,9 @@
  * 定时任务与执行记录类型（表 `scheduler_tasks` / `scheduled_task_runs`）。
  */
 
-/** 触发方式：Cron 表达式或 HTTP Webhook */
-export type ScheduledTaskTriggerType = 'cron' | 'webhook';
+export type ScheduledTaskTriggerType = 'cron';
 export type TaskRunStatus = 'success' | 'error' | 'timeout';
-/** 实际触发来源（含手动「立即运行」） */
-export type TaskTriggeredBy = 'cron' | 'webhook' | 'manual';
+export type TaskTriggeredBy = 'cron' | 'manual';
 
 /** 一条可调度任务（prompt 由 LLM 执行） */
 export interface ScheduledTask {
@@ -17,7 +15,6 @@ export interface ScheduledTask {
   task_prompt: string;
   endpoint_name?: string;
   trigger_type: ScheduledTaskTriggerType;
-  webhook_secret?: string;
   enabled: boolean;
   next_run_at?: string;
   created_at: string;
@@ -35,7 +32,6 @@ export interface TaskRun {
   created_at: string;
 }
 
-/** 创建任务时的输入（webhook 密钥由 store 生成） */
 export interface ScheduledTaskCreateInput {
   name: string;
   description?: string;
@@ -43,7 +39,6 @@ export interface ScheduledTaskCreateInput {
   task_prompt: string;
   endpoint_name?: string;
   trigger_type: ScheduledTaskTriggerType;
-  webhook_secret?: string;
   enabled?: boolean;
   next_run_at?: string;
 }

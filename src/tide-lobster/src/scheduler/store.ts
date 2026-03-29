@@ -2,7 +2,7 @@
  * 定时任务与运行历史的 SQLite 访问层（`scheduler_tasks` / `scheduled_task_runs`）。
  */
 
-import { randomBytes, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import { getDb } from '../db/index.js';
 import type {
   ScheduledTask,
@@ -25,8 +25,7 @@ function mapTaskRow(row: Record<string, unknown>): ScheduledTask {
     cron_expr: row.cron_expr ? String(row.cron_expr) : undefined,
     task_prompt: String(row.task_prompt ?? row.prompt ?? ''),
     endpoint_name: row.endpoint_name ? String(row.endpoint_name) : undefined,
-    trigger_type: (row.trigger_type as ScheduledTask['trigger_type']) ?? 'cron',
-    webhook_secret: row.webhook_secret ? String(row.webhook_secret) : undefined,
+    trigger_type: 'cron',
     enabled: Boolean(row.enabled),
     next_run_at: row.next_run_at ? String(row.next_run_at) : undefined,
     created_at: String(row.created_at),
@@ -75,9 +74,9 @@ export class SchedulerStore {
       .prepare(
         `INSERT INTO scheduler_tasks (
           id, name, description, cron_expr, task_prompt, endpoint_name, trigger_type,
-          webhook_secret, enabled, next_run_at, created_at, updated_at,
+          enabled, next_run_at, created_at, updated_at,
           task_type, trigger_config, prompt
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'task', '{}', ?)`
+        ) VALUES (?, ?, ?, ?, ?, ?, 'cron', ?, ?, ?, ?, 'task', '{}', ?)`
       )
       .run(
         id,
@@ -86,8 +85,6 @@ export class SchedulerStore {
         input.cron_expr ?? null,
         input.task_prompt.trim(),
         input.endpoint_name?.trim() || null,
-        input.trigger_type,
-        input.webhook_secret ?? null,
         input.enabled === false ? 0 : 1,
         input.next_run_at ?? null,
         now,
@@ -103,15 +100,7 @@ export class SchedulerStore {
     patch: Partial<
       Pick<
         ScheduledTask,
-        | 'name'
-        | 'description'
-        | 'cron_expr'
-        | 'task_prompt'
-        | 'endpoint_name'
-        | 'trigger_type'
-        | 'webhook_secret'
-        | 'enabled'
-        | 'next_run_at'
+        'name' | 'description' | 'cron_expr' | 'task_prompt' | 'endpoint_name' | 'enabled' | 'next_run_at'
       >
     >
   ): ScheduledTask {
@@ -140,14 +129,6 @@ export class SchedulerStore {
     if (patch.endpoint_name !== undefined) {
       updates.push('endpoint_name = ?');
       params.push(patch.endpoint_name?.trim() || null);
-    }
-    if (patch.trigger_type !== undefined) {
-      updates.push('trigger_type = ?');
-      params.push(patch.trigger_type);
-    }
-    if (patch.webhook_secret !== undefined) {
-      updates.push('webhook_secret = ?');
-      params.push(patch.webhook_secret || null);
     }
     if (patch.enabled !== undefined) {
       updates.push('enabled = ?');
@@ -221,10 +202,6 @@ export class SchedulerStore {
     return rows.map(mapRunRow);
   }
 
-  /** 生成 Webhook 鉴权用的随机 hex 串 */
-  generateWebhookSecret(): string {
-    return randomBytes(24).toString('hex');
-  }
 }
 
 export const schedulerStore = new SchedulerStore();

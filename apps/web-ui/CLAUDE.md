@@ -67,6 +67,10 @@ await apiPost('/api/endpoint', payload);
 - PascalCase component names
 - Co-locate page-specific types and API calls in the page directory
 
+## Ant Design Input 组合（addonAfter / addonBefore）
+
+- Ant Design 6 起 **`Input` / `InputNumber` 的 `addonAfter` / `addonBefore` 已弃用**，须改用 **`Space.Compact`**；详见仓库根目录 `.cursor/rules/antd-input-addonafter.mdc`，示例见 `pages/Scheduler/index.tsx` 的 `TimeOfDayFields`。
+
 ## Ant Design Form + Modal
 
 - `Modal` 使用 `destroyOnHidden` 时，关闭会卸载内部 `<Form>`。不要在**弹窗外的父组件**里写 `Form.useWatch('x', form)`，否则会触发 `useForm is not connected to any Form` 警告。

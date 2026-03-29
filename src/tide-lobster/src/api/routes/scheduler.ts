@@ -9,7 +9,7 @@ import { ChatService } from '../../chat/service.js';
 import { cronManager } from '../../scheduler/cronManager.js';
 import { taskExecutor } from '../../scheduler/executor.js';
 import { schedulerStore } from '../../scheduler/store.js';
-import type { ScheduledTask, ScheduledTaskTriggerType } from '../../scheduler/types.js';
+import type { ScheduledTask } from '../../scheduler/types.js';
 
 export const schedulerRouter = new Hono();
 const chatService = new ChatService(settings.projectRoot);
@@ -29,19 +29,14 @@ function validateTaskInput(input: {
   cron_expr?: string;
   task_prompt?: string;
   endpoint_name?: string;
-  trigger_type?: ScheduledTaskTriggerType;
   enabled?: boolean;
 }) {
   const name = input.name?.trim();
   const taskPrompt = input.task_prompt?.trim();
-  const triggerType = input.trigger_type ?? 'cron';
   if (!name) throw new Error('name is required');
   if (!taskPrompt) throw new Error('task_prompt is required');
-  if (!['cron', 'webhook'].includes(triggerType)) throw new Error('invalid trigger_type');
-  if (triggerType === 'cron') {
-    if (!input.cron_expr?.trim()) throw new Error('cron_expr is required');
-    if (!cron.validate(input.cron_expr.trim())) throw new Error('invalid cron_expr');
-  }
+  if (!input.cron_expr?.trim()) throw new Error('cron_expr is required');
+  if (!cron.validate(input.cron_expr.trim())) throw new Error('invalid cron_expr');
   if (input.endpoint_name && !chatService.getEndpointConfig(input.endpoint_name)) {
     throw new Error(`endpoint not found: ${input.endpoint_name}`);
   }
@@ -66,21 +61,16 @@ schedulerRouter.post('/api/scheduler/tasks', async (c) => {
       cron_expr?: string;
       task_prompt?: string;
       endpoint_name?: string;
-      trigger_type?: ScheduledTaskTriggerType;
       enabled?: boolean;
     }>();
     validateTaskInput(body);
     const task = schedulerStore.create({
       name: body.name!.trim(),
       description: body.description?.trim(),
-      cron_expr: body.trigger_type === 'cron' ? body.cron_expr?.trim() : undefined,
+      cron_expr: body.cron_expr?.trim(),
       task_prompt: body.task_prompt!.trim(),
       endpoint_name: body.endpoint_name?.trim(),
-      trigger_type: body.trigger_type ?? 'cron',
-      webhook_secret:
-        (body.trigger_type ?? 'cron') === 'webhook'
-          ? schedulerStore.generateWebhookSecret()
-          : undefined,
+      trigger_type: 'cron',
       enabled: body.enabled !== false,
     });
     const synced = syncTask(task.id);
@@ -102,38 +92,23 @@ schedulerRouter.patch('/api/scheduler/tasks/:id', async (c) => {
       cron_expr?: string;
       task_prompt?: string;
       endpoint_name?: string;
-      trigger_type?: ScheduledTaskTriggerType;
       enabled?: boolean;
     }>();
     validateTaskInput({
       name: body.name ?? existing.name,
       description: body.description ?? existing.description,
-      cron_expr:
-        body.trigger_type === 'cron'
-          ? body.cron_expr
-          : body.trigger_type === 'webhook'
-            ? undefined
-            : existing.cron_expr,
+      cron_expr: body.cron_expr ?? existing.cron_expr,
       task_prompt: body.task_prompt ?? existing.task_prompt,
       endpoint_name: body.endpoint_name ?? existing.endpoint_name,
-      trigger_type: body.trigger_type ?? existing.trigger_type,
       enabled: body.enabled ?? existing.enabled,
     });
     schedulerStore.update(id, {
       name: body.name,
       description: body.description,
-      cron_expr:
-        (body.trigger_type ?? existing.trigger_type) === 'cron'
-          ? (body.cron_expr ?? existing.cron_expr)
-          : undefined,
+      cron_expr: body.cron_expr ?? existing.cron_expr,
       task_prompt: body.task_prompt,
       endpoint_name: body.endpoint_name,
-      trigger_type: body.trigger_type,
       enabled: body.enabled,
-      webhook_secret:
-        (body.trigger_type ?? existing.trigger_type) === 'webhook'
-          ? (existing.webhook_secret ?? schedulerStore.generateWebhookSecret())
-          : undefined,
       next_run_at: undefined,
     });
     const synced = syncTask(id);
@@ -183,28 +158,6 @@ schedulerRouter.post('/api/scheduler/tasks/:id/disable', (c) => {
   return c.json({ task: serializeTask(schedulerStore.get(task.id)!) });
 });
 
-schedulerRouter.get('/api/scheduler/tasks/:id/webhook-info', (c) => {
-  const task = schedulerStore.get(c.req.param('id'));
-  if (!task) return c.json({ detail: 'task not found' }, 404);
-  if (task.trigger_type !== 'webhook') return c.json({ detail: 'task is not webhook' }, 400);
-  return c.json({
-    url: `/api/webhooks/${task.id}/trigger`,
-    secret: task.webhook_secret,
-  });
-});
-
-schedulerRouter.post('/api/scheduler/tasks/:id/regenerate-secret', (c) => {
-  const task = schedulerStore.get(c.req.param('id'));
-  if (!task) return c.json({ detail: 'task not found' }, 404);
-  if (task.trigger_type !== 'webhook') return c.json({ detail: 'task is not webhook' }, 400);
-  const secret = schedulerStore.generateWebhookSecret();
-  const updated = schedulerStore.update(task.id, { webhook_secret: secret });
-  return c.json({
-    task: serializeTask(updated),
-    url: `/api/webhooks/${task.id}/trigger`,
-    secret,
-  });
-});
 
 schedulerRouter.post('/api/scheduler/nl-to-cron', async (c) => {
   const body = await c.req.json<{ text?: string; endpoint_name?: string }>();

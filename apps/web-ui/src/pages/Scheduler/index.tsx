@@ -1,9 +1,11 @@
+import type { CSSProperties } from 'react';
 import { useEffect, useMemo, useState } from 'react';
 import {
   Alert,
   Button,
   Form,
   Input,
+  InputNumber,
   Modal,
   Popconfirm,
   Select,
@@ -16,11 +18,13 @@ import {
   message,
 } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import { CopyOutlined, PlayCircleOutlined } from '@ant-design/icons';
+import { PlayCircleOutlined } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
 import { apiDelete, apiGet, apiPatch, apiPost } from '../../api/base';
 
 const { Title, Text } = Typography;
+
+type FrequencyType = 'daily' | 'weekly' | 'monthly' | 'custom';
 
 type EndpointItem = {
   name?: string;
@@ -33,8 +37,6 @@ type ScheduledTask = {
   cron_expr?: string;
   task_prompt: string;
   endpoint_name?: string;
-  trigger_type: 'cron' | 'webhook';
-  webhook_secret?: string;
   enabled: boolean;
   next_run_at?: string;
   created_at: string;
@@ -44,7 +46,7 @@ type ScheduledTask = {
 type TaskRun = {
   id: string;
   task_id: string;
-  triggered_by: 'cron' | 'webhook' | 'manual';
+  triggered_by: 'cron' | 'manual';
   status: 'success' | 'error' | 'timeout';
   result?: string;
   duration_ms?: number;
@@ -54,19 +56,88 @@ type TaskRun = {
 type FormValues = {
   name: string;
   description?: string;
-  trigger_type: 'cron' | 'webhook';
+  frequency: FrequencyType;
+  time_hour: number;
+  time_minute: number;
+  weekly_day: number;
+  monthly_day: number;
   cron_expr?: string;
   task_prompt: string;
   endpoint_name?: string;
   nl_text?: string;
 };
 
-function buildWebhookPath(taskId: string): string {
-  return `/api/webhooks/${taskId}/trigger`;
-}
-
 function formatDate(value?: string): string {
   return value ? new Date(value).toLocaleString() : '-';
+}
+
+function buildCronExpr(values: FormValues): string {
+  const h = values.time_hour ?? 9;
+  const m = values.time_minute ?? 0;
+  switch (values.frequency) {
+    case 'daily':
+      return `${m} ${h} * * *`;
+    case 'weekly':
+      return `${m} ${h} * * ${values.weekly_day ?? 1}`;
+    case 'monthly':
+      return `${m} ${h} ${values.monthly_day ?? 1} * *`;
+    default:
+      return values.cron_expr?.trim() ?? '';
+  }
+}
+
+function parseCronToForm(cronExpr?: string): Partial<FormValues> {
+  if (!cronExpr) return { frequency: 'daily', time_hour: 9, time_minute: 0 };
+  const parts = cronExpr.trim().split(/\s+/);
+  if (parts.length !== 5) return { frequency: 'custom', cron_expr: cronExpr };
+  const [m, h, dom, mon, dow] = parts;
+  const isNum = (s: string) => /^\d+$/.test(s);
+  if (dom === '*' && mon === '*' && dow === '*' && isNum(m) && isNum(h)) {
+    return { frequency: 'daily', time_hour: parseInt(h), time_minute: parseInt(m) };
+  }
+  if (dom === '*' && mon === '*' && /^\d$/.test(dow) && isNum(m) && isNum(h)) {
+    return {
+      frequency: 'weekly',
+      time_hour: parseInt(h),
+      time_minute: parseInt(m),
+      weekly_day: parseInt(dow),
+    };
+  }
+  if (dow === '*' && mon === '*' && isNum(dom) && isNum(m) && isNum(h)) {
+    return {
+      frequency: 'monthly',
+      time_hour: parseInt(h),
+      time_minute: parseInt(m),
+      monthly_day: parseInt(dom),
+    };
+  }
+  return { frequency: 'custom', cron_expr: cronExpr };
+}
+
+/** 每日/周/月「时间」字段：用 `Space.Compact` 替代已弃用的 `InputNumber.addonAfter`（见 `.cursor/rules/antd-input-addonafter.mdc`）。 */
+function TimeOfDayFields() {
+  const { t } = useTranslation();
+  const suffixStyle: CSSProperties = {
+    width: 48,
+    textAlign: 'center',
+    pointerEvents: 'none',
+  };
+  return (
+    <Space>
+      <Space.Compact>
+        <Form.Item name="time_hour" noStyle rules={[{ required: true }]}>
+          <InputNumber min={0} max={23} style={{ width: 90 }} />
+        </Form.Item>
+        <Input readOnly value={t('scheduler.hourLabel')} style={suffixStyle} tabIndex={-1} />
+      </Space.Compact>
+      <Space.Compact>
+        <Form.Item name="time_minute" noStyle rules={[{ required: true }]}>
+          <InputNumber min={0} max={59} style={{ width: 90 }} />
+        </Form.Item>
+        <Input readOnly value={t('scheduler.minuteLabel')} style={suffixStyle} tabIndex={-1} />
+      </Space.Compact>
+    </Space>
+  );
 }
 
 export function SchedulerPage() {
@@ -83,9 +154,9 @@ export function SchedulerPage() {
   const [convertingCron, setConvertingCron] = useState(false);
   const [switchingIds, setSwitchingIds] = useState<Set<string>>(new Set());
   const [runningIds, setRunningIds] = useState<Set<string>>(new Set());
+  const [frequency, setFrequency] = useState<FrequencyType>('daily');
   const [messageApi, contextHolder] = message.useMessage();
   const [form] = Form.useForm<FormValues>();
-  const triggerType = Form.useWatch('trigger_type', form) ?? 'cron';
 
   const endpointOptions = useMemo(
     () => [
@@ -96,6 +167,24 @@ export function SchedulerPage() {
         .map((name) => ({ value: name, label: name })),
     ],
     [endpoints, t]
+  );
+
+  const frequencyOptions = useMemo(
+    () =>
+      (['daily', 'weekly', 'monthly', 'custom'] as FrequencyType[]).map((v) => ({
+        value: v,
+        label: t(`scheduler.frequencyOptions.${v}`),
+      })),
+    [t]
+  );
+
+  const weekDayOptions = useMemo(
+    () =>
+      [1, 2, 3, 4, 5, 6, 0].map((d) => ({
+        value: d,
+        label: t(`scheduler.weekDays.${d}`),
+      })),
+    [t]
   );
 
   const load = async () => {
@@ -137,30 +226,40 @@ export function SchedulerPage() {
     }
   };
 
+  const defaultFormValues = (): Partial<FormValues> => ({
+    name: '',
+    description: '',
+    frequency: 'daily',
+    time_hour: 9,
+    time_minute: 0,
+    weekly_day: 1,
+    monthly_day: 1,
+    cron_expr: '0 9 * * *',
+    task_prompt: '',
+    endpoint_name: '',
+    nl_text: '',
+  });
+
   const openCreate = () => {
     setEditing(null);
-    form.setFieldsValue({
-      name: '',
-      description: '',
-      trigger_type: 'cron',
-      cron_expr: '0 9 * * *',
-      task_prompt: '',
-      endpoint_name: '',
-      nl_text: '',
-    });
+    setFrequency('daily');
+    form.setFieldsValue(defaultFormValues());
     setModalOpen(true);
   };
 
   const openEdit = (task: ScheduledTask) => {
     setEditing(task);
+    const parsed = parseCronToForm(task.cron_expr);
+    const freq = (parsed.frequency ?? 'daily') as FrequencyType;
+    setFrequency(freq);
     form.setFieldsValue({
+      ...defaultFormValues(),
       name: task.name,
       description: task.description,
-      trigger_type: task.trigger_type,
-      cron_expr: task.cron_expr,
       task_prompt: task.task_prompt,
       endpoint_name: task.endpoint_name ?? '',
       nl_text: '',
+      ...parsed,
     });
     setModalOpen(true);
   };
@@ -169,11 +268,12 @@ export function SchedulerPage() {
     const values = await form.validateFields();
     setSaving(true);
     try {
+      const cronExpr = buildCronExpr(values);
       const payload = {
         name: values.name,
         description: values.description,
-        trigger_type: values.trigger_type,
-        cron_expr: values.trigger_type === 'cron' ? values.cron_expr : undefined,
+        trigger_type: 'cron' as const,
+        cron_expr: cronExpr,
         task_prompt: values.task_prompt,
         endpoint_name: values.endpoint_name || undefined,
       };
@@ -255,24 +355,6 @@ export function SchedulerPage() {
     }
   };
 
-  const handleCopy = async (value: string, successText: string) => {
-    await navigator.clipboard.writeText(value);
-    messageApi.success(successText);
-  };
-
-  const handleRegenerateSecret = async (taskId: string) => {
-    try {
-      const data = await apiPost<{ task: ScheduledTask }>(
-        `/api/scheduler/tasks/${taskId}/regenerate-secret`,
-        {}
-      );
-      setTasks((prev) => prev.map((task) => (task.id === taskId ? data.task : task)));
-      await load();
-    } catch (e) {
-      messageApi.error(e instanceof Error ? e.message : t('scheduler.regenerateFailed'));
-    }
-  };
-
   const columns: ColumnsType<ScheduledTask> = [
     {
       title: t('scheduler.name'),
@@ -287,21 +369,10 @@ export function SchedulerPage() {
       ),
     },
     {
-      title: t('scheduler.triggerType'),
-      dataIndex: 'trigger_type',
-      width: 130,
-      render: (value: ScheduledTask['trigger_type']) => (
-        <Tag color={value === 'cron' ? 'blue' : 'purple'}>
-          {t(`scheduler.triggerLabels.${value}`)}
-        </Tag>
-      ),
-    },
-    {
       title: t('scheduler.nextRun'),
       dataIndex: 'next_run_at',
       width: 180,
-      render: (value: string, record) =>
-        record.trigger_type === 'webhook' ? '-' : value ? formatDate(value) : t('scheduler.never'),
+      render: (value: string) => (value ? formatDate(value) : t('scheduler.never')),
     },
     {
       title: t('scheduler.enabled'),
@@ -384,48 +455,9 @@ export function SchedulerPage() {
                 return (
                   <div className="space-y-3">
                     <div className="text-sm text-muted-foreground">{record.task_prompt}</div>
-                    {record.trigger_type === 'webhook' ? (
-                      <div className="space-y-2">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <Text strong>{t('scheduler.webhookUrl')}:</Text>
-                          <Text code>{buildWebhookPath(record.id)}</Text>
-                          <Button
-                            size="small"
-                            icon={<CopyOutlined />}
-                            onClick={() =>
-                              void handleCopy(buildWebhookPath(record.id), t('scheduler.copied'))
-                            }
-                          >
-                            {t('scheduler.copy')}
-                          </Button>
-                        </div>
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <Text strong>{t('scheduler.webhookSecret')}:</Text>
-                          <Text code>{record.webhook_secret || '-'}</Text>
-                          {record.webhook_secret ? (
-                            <Button
-                              size="small"
-                              icon={<CopyOutlined />}
-                              onClick={() =>
-                                void handleCopy(record.webhook_secret!, t('scheduler.copied'))
-                              }
-                            >
-                              {t('scheduler.copy')}
-                            </Button>
-                          ) : null}
-                          <Button
-                            size="small"
-                            onClick={() => void handleRegenerateSecret(record.id)}
-                          >
-                            {t('scheduler.regenerateSecret')}
-                          </Button>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="text-sm text-muted-foreground">
-                        <Text strong>{t('scheduler.cronExpr')}:</Text> {record.cron_expr || '-'}
-                      </div>
-                    )}
+                    <div className="text-sm text-muted-foreground">
+                      <Text strong>{t('scheduler.cronExpr')}:</Text> {record.cron_expr || '-'}
+                    </div>
 
                     <div>
                       <Text strong>{t('scheduler.executionHistory')}</Text>
@@ -508,9 +540,15 @@ export function SchedulerPage() {
         onOk={() => void handleSubmit()}
         confirmLoading={saving}
         destroyOnHidden
-        width={640}
+        width={600}
       >
-        <Form form={form} layout="vertical">
+        <Form
+          form={form}
+          layout="vertical"
+          onValuesChange={(changed) => {
+            if (changed.frequency !== undefined) setFrequency(changed.frequency as FrequencyType);
+          }}
+        >
           <Form.Item
             name="name"
             label={t('scheduler.name')}
@@ -521,20 +559,56 @@ export function SchedulerPage() {
           <Form.Item name="description" label={t('scheduler.description')}>
             <Input.TextArea rows={2} />
           </Form.Item>
-          <Form.Item
-            name="trigger_type"
-            label={t('scheduler.triggerType')}
-            rules={[{ required: true }]}
-          >
-            <Select
-              options={[
-                { value: 'cron', label: t('scheduler.triggerCron') },
-                { value: 'webhook', label: t('scheduler.triggerWebhook') },
-              ]}
-            />
+
+          <Form.Item name="frequency" label={t('scheduler.frequency')} rules={[{ required: true }]}>
+            <Select options={frequencyOptions} />
           </Form.Item>
 
-          {triggerType === 'cron' ? (
+          {frequency === 'daily' && (
+            <Form.Item label={t('scheduler.timeOfDay')} required>
+              <TimeOfDayFields />
+            </Form.Item>
+          )}
+
+          {frequency === 'weekly' && (
+            <>
+              <Form.Item
+                name="weekly_day"
+                label={t('scheduler.weekDay')}
+                rules={[{ required: true }]}
+              >
+                <Select options={weekDayOptions} style={{ width: 140 }} />
+              </Form.Item>
+              <Form.Item label={t('scheduler.timeOfDay')} required>
+                <TimeOfDayFields />
+              </Form.Item>
+            </>
+          )}
+
+          {frequency === 'monthly' && (
+            <>
+              <Form.Item label={t('scheduler.monthDay')} required>
+                <Space.Compact>
+                  <Form.Item name="monthly_day" noStyle rules={[{ required: true }]}>
+                    <InputNumber min={1} max={31} style={{ width: 120 }} />
+                  </Form.Item>
+                  {t('scheduler.monthDaySuffix') ? (
+                    <Input
+                      readOnly
+                      value={t('scheduler.monthDaySuffix')}
+                      style={{ width: 48, textAlign: 'center', pointerEvents: 'none' }}
+                      tabIndex={-1}
+                    />
+                  ) : null}
+                </Space.Compact>
+              </Form.Item>
+              <Form.Item label={t('scheduler.timeOfDay')} required>
+                <TimeOfDayFields />
+              </Form.Item>
+            </>
+          )}
+
+          {frequency === 'custom' && (
             <>
               <Form.Item
                 name="cron_expr"
@@ -543,22 +617,22 @@ export function SchedulerPage() {
               >
                 <Input placeholder="0 9 * * *" />
               </Form.Item>
-              <Form.Item name="nl_text" label={t('scheduler.nlToCron')}>
-                <Input
-                  addonAfter={
-                    <Button
-                      type="link"
-                      loading={convertingCron}
-                      onClick={() => void handleConvertNl()}
-                    >
-                      {t('scheduler.nlToCron')}
-                    </Button>
-                  }
-                  placeholder={t('scheduler.nlPlaceholder')}
-                />
+              <Form.Item label={t('scheduler.nlToCron')}>
+                <Space.Compact style={{ width: '100%' }}>
+                  <Form.Item name="nl_text" noStyle>
+                    <Input placeholder={t('scheduler.nlPlaceholder')} style={{ width: '100%' }} />
+                  </Form.Item>
+                  <Button
+                    type="link"
+                    loading={convertingCron}
+                    onClick={() => void handleConvertNl()}
+                  >
+                    {t('scheduler.nlToCron')}
+                  </Button>
+                </Space.Compact>
               </Form.Item>
             </>
-          ) : null}
+          )}
 
           <Form.Item name="endpoint_name" label={t('scheduler.endpoint')}>
             <Select options={endpointOptions} />

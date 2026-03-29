@@ -1,8 +1,8 @@
 # 阶段 5：IM 通道与技能系统
 
-> **目标**：通过 Telegram Bot 让 AI 助手走出浏览器；技能系统让功能可扩展；Artifact 渲染让代码输出即时可视化。
+> **目标**：通过 Telegram Bot 让 AI 助手走出浏览器；技能系统让功能可扩展。
 > **预估工作量**：3 周
-> **新增依赖**：`grammy`（Telegram Bot）、`gray-matter`（frontmatter 解析）、`mermaid`（前端图表渲染）
+> **新增依赖**：`grammy`（Telegram Bot）、`gray-matter`（frontmatter 解析）
 > **前置条件**：阶段 1-3 已完成（记忆、工具调用均可在 IM 对话中使用）
 
 ---
@@ -454,59 +454,6 @@ PATCH  /api/skills/:name/disable     禁用
 
 ---
 
-## 步骤 9b：Artifact 渲染系统（纯前端）
-
-这是对聊天体验最直接的提升：当 LLM 输出包含特定代码块时，自动渲染为可视化预览。
-
-**检测规则**：
-
-| 代码块语言标识  | 渲染方式                              |
-| --------------- | ------------------------------------- |
-| `html`          | `<iframe sandbox>` 内联渲染           |
-| `svg`           | 直接插入 SVG 元素                     |
-| `mermaid`       | mermaid.js 渲染流程图/时序图          |
-| `react` / `jsx` | babel-standalone 转译后渲染（懒加载） |
-
-**新增组件目录**：`apps/web-ui/src/components/ArtifactRenderer/`
-
-```
-ArtifactRenderer/
-  index.tsx         检测语言类型并分发到对应渲染器
-  HtmlArtifact.tsx  sandboxed iframe（src = blob URL）
-  SvgArtifact.tsx   dangerouslySetInnerHTML 渲染 SVG
-  MermaidArtifact.tsx  mermaid.initialize + mermaid.render()
-  ReactArtifact.tsx    babel.transform + eval（沙箱）
-  ArtifactToolbar.tsx  展开全屏 / 复制源码 / 切换"源码↔预览"
-```
-
-**MessageBubble 集成**（`apps/web-ui/src/components/MessageBubble/index.tsx`）：
-
-```typescript
-// 消息渲染时，检测代码块是否为 artifact 类型
-const ARTIFACT_LANGS = new Set(['html', 'svg', 'mermaid', 'react', 'jsx']);
-
-function renderContent(content: string) {
-  // 将 Markdown 解析结果中，语言为 artifact 类型的代码块替换为 <ArtifactRenderer>
-  return parseMarkdown(content, {
-    codeBlock: (lang, code) => {
-      if (ARTIFACT_LANGS.has(lang)) {
-        return <ArtifactRenderer lang={lang} code={code} />;
-      }
-      return <CodeBlock lang={lang} code={code} />;
-    },
-  });
-}
-```
-
-**新增依赖**（前端）：
-
-```bash
-npm install mermaid --workspace=apps/web-ui
-# @babel/standalone 按需动态 import，不加入主包
-```
-
----
-
 ## 步骤 10：前端 IM 通道页
 
 **文件**：`apps/web-ui/src/pages/IM/index.tsx`
@@ -593,11 +540,3 @@ skills: {
 - [ ] 内置 5 个技能（daily_summary/web_search/code_review/translate/task_decompose）均可在列表中看到
 - [ ] 手动执行 `daily_summary` 技能，收到 Markdown 格式的工作总结
 - [ ] `trigger: llm_call` 的技能被注册为工具，AI 在需要时自动调用
-
-### Artifact 渲染
-
-- [ ] 让 AI 生成一段 HTML 页面，代码块渲染为 iframe 预览，而非纯文本
-- [ ] 让 AI 用 Mermaid 画一个流程图，代码块渲染为图形
-- [ ] 工具栏"切换源码↔预览"功能正常
-- [ ] 工具栏"复制"按钮复制原始代码
-- [ ] 不在 ARTIFACT_LANGS 中的代码块（如 `python`）仍以普通代码高亮显示

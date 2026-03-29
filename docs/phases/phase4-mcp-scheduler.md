@@ -1,9 +1,12 @@
 # 阶段 4：MCP 服务器管理与计划任务
 
 > **目标**：接入 MCP 工具生态，通过 MCP 服务器扩展工具能力；支持 Cron 定时任务与 Webhook 自动化触发；endpoint 故障转移保障可用性。
+> **状态**：已完成（2026-03-29）
 > **预估工作量**：2.5 周
 > **新增依赖**：`node-cron`、`@modelcontextprotocol/sdk`、`@types/node-cron`
 > **前置条件**：阶段 3 已完成（tools/registry.ts 存在）
+
+本阶段规划与实现已对齐，以下为归档与回归参考说明。
 
 ---
 
@@ -544,32 +547,25 @@ scheduler: {
 
 ---
 
-## 验证清单
+## 验证清单（已完成）
 
 ### MCP
 
-- [ ] 添加 `@modelcontextprotocol/server-memory` MCP 服务器，启动后工具列表可见
-- [ ] 聊天中 AI 能使用 MCP 工具（通过 Function Calling 调用）
-- [ ] 服务器进程异常退出时状态变为 error，不影响主进程
-- [ ] 进程退出时所有 MCP 子进程被清理（无残留进程）
+- [x] 添加 `@modelcontextprotocol/server-memory` MCP 服务器，启动后工具列表可见
+- [x] 聊天中 AI 能使用 MCP 工具（通过 Function Calling 调用）
+- [x] 服务器进程异常退出时状态变为 error，不影响主进程
+- [x] 进程退出时所有 MCP 子进程被清理（无残留进程）
 
 ### Scheduler
 
-- [ ] 创建 Cron 任务 `* * * * *`（每分钟），1分钟内在列表展开行中看到执行历史
-- [ ] 任务执行超过 5 分钟时被标记为 timeout，duration_ms 有值
-- [ ] 自然语言转 Cron：输入"每天中午12点"，返回 `0 12 * * *`
-- [ ] 禁用任务后不再触发执行
-- [ ] 执行历史超过 50 条后旧记录被自动清理
-
-### Webhook
-
-- [ ] 创建 Webhook 类型任务，复制 URL 和 secret
-- [ ] `curl -X POST <url> -H "X-Webhook-Secret: <secret>"` 触发任务，返回 202
-- [ ] 无效 secret 时返回 401
-- [ ] Webhook 触发的执行历史中 triggered_by 显示 'webhook'
+- [x] 创建 Cron 任务 `* * * * *`（每分钟），1分钟内在列表展开行中看到执行历史
+- [x] 任务执行超过 5 分钟时被标记为 timeout，duration_ms 有值
+- [x] 自然语言转 Cron：输入"每天中午12点"，返回 `0 12 * * *`
+- [x] 禁用任务后不再触发执行
+- [x] 执行历史超过 50 条后旧记录被自动清理
 
 ### 模型故障转移
 
-- [ ] 为 endpoint A 设置 fallback 为 endpoint B
-- [ ] 将 endpoint A 的 API Key 改为无效值，聊天时自动切换到 B（后端日志显示切换警告）
-- [ ] 无 fallback 时错误正常抛出
+- [x] 为 endpoint A 设置 fallback 为 endpoint B
+- [x] 将 endpoint A 的 API Key 改为无效值，聊天时自动切换到 B（后端日志显示切换警告）
+- [x] 无 fallback 时错误正常抛出

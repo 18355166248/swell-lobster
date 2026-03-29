@@ -1,274 +1,145 @@
 /**
- * ChineseBQB 表情包索引：关键词搜索 + 情绪映射。
- * 数据源: https://github.com/zhaoolee/ChineseBQB
+ * Emoji 表情引擎：关键词搜索 + 情绪映射，纯内存数据，无网络依赖。
  */
-import { createHash } from 'node:crypto';
-import { mkdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
-import { resolve } from 'node:path';
 
 export type StickerRecord = {
   name: string;
-  category?: string;
-  url: string;
+  emoji: string;
+  keywords: string[];
+  mood?: string;
 };
 
-const INDEX_URL =
-  'https://raw.githubusercontent.com/zhaoolee/ChineseBQB/master/chinesebqb_github.json';
-const MIRRORS = [
-  'https://cdn.jsdelivr.net/gh/zhaoolee/ChineseBQB@master/',
-  'https://raw.gitmirror.com/zhaoolee/ChineseBQB/master/',
-];
-const GITHUB_RAW_PREFIX = 'https://raw.githubusercontent.com/zhaoolee/ChineseBQB/master/';
-
-/** 情绪 → 检索用词（与 openakita sticker.py 对齐） */
+/** 情绪 → emoji 列表 */
 export const MOOD_KEYWORDS: Record<string, string[]> = {
-  happy: ['开心', '高兴', '哈哈', '笑', '鼓掌', '庆祝', '耶', '棒'],
-  sad: ['难过', '伤心', '哭', '可怜', '委屈', '泪'],
-  angry: ['生气', '愤怒', '菜刀', '打人', '暴怒', '摔'],
-  greeting: ['你好', '早安', '晚安', '问好', '招手', '嗨'],
-  encourage: ['加油', '棒', '厉害', '优秀', 'tql', '冲', '赞'],
-  love: ['爱心', '心心', '比心', '送你', '花', '爱', '亲亲'],
-  tired: ['累', '困', '摸鱼', '划水', '上吊', '要饭', '躺平', '摆烂'],
-  surprise: ['震惊', '惊吓', '天哪', '不是吧', '卧槽', '吃惊'],
+  happy: ['开心', '高兴', '哈哈', '笑', '庆祝', '棒'],
+  sad: ['难过', '伤心', '哭', '委屈', '泪'],
+  angry: ['生气', '愤怒', '暴怒'],
+  greeting: ['你好', '早安', '晚安', '嗨'],
+  encourage: ['加油', '棒', '厉害', '优秀', '赞'],
+  love: ['爱心', '比心', '花', '爱', '亲亲'],
+  tired: ['累', '困', '摸鱼', '躺平', '摆烂'],
+  surprise: ['震惊', '天哪', '吃惊'],
 };
 
-function extractStickerList(data: unknown): StickerRecord[] {
-  if (Array.isArray(data)) {
-    return data.filter((item) => item && typeof item === 'object' && 'url' in item) as StickerRecord[];
-  }
-  if (data && typeof data === 'object') {
-    const d = data as Record<string, unknown>;
-    if (Array.isArray(d.data)) {
-      return d.data.filter((item) => item && typeof item === 'object' && 'url' in item) as StickerRecord[];
-    }
-    if (Array.isArray(d.stickers)) {
-      return d.stickers.filter(
-        (item) => item && typeof item === 'object' && 'url' in item
-      ) as StickerRecord[];
-    }
-  }
-  return [];
-}
+const EMOJI_DATA: StickerRecord[] = [
+  // happy
+  { emoji: '😄', name: '开心笑', keywords: ['开心', '高兴', '笑', '哈哈'], mood: 'happy' },
+  { emoji: '😆', name: '哈哈大笑', keywords: ['哈哈', '大笑', '好笑'], mood: 'happy' },
+  { emoji: '🤣', name: '笑哭', keywords: ['笑哭', '哈哈', '太好笑'], mood: 'happy' },
+  { emoji: '😁', name: '咧嘴笑', keywords: ['笑', '开心', '嘿嘿'], mood: 'happy' },
+  { emoji: '🎉', name: '庆祝', keywords: ['庆祝', '撒花', '耶', '完成'], mood: 'happy' },
+  { emoji: '🎊', name: '派对彩带', keywords: ['庆祝', '撒花', '派对'], mood: 'happy' },
+  { emoji: '👏', name: '鼓掌', keywords: ['鼓掌', '棒', '厉害', '赞'], mood: 'happy' },
+  { emoji: '🥳', name: '派对脸', keywords: ['派对', '庆祝', '生日'], mood: 'happy' },
+  { emoji: '✨', name: '闪光', keywords: ['闪闪', '漂亮', '赞'], mood: 'happy' },
 
-async function downloadBytes(url: string, timeoutMs: number): Promise<Uint8Array | null> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    const res = await fetch(url, { signal: controller.signal });
-    if (!res.ok) return null;
-    const buf = new Uint8Array(await res.arrayBuffer());
-    return buf;
-  } catch {
-    return null;
-  } finally {
-    clearTimeout(timer);
-  }
-}
+  // sad
+  { emoji: '😢', name: '哭泣', keywords: ['难过', '哭', '伤心', '泪'], mood: 'sad' },
+  { emoji: '😭', name: '嚎啕大哭', keywords: ['大哭', '哭', '委屈', '伤心'], mood: 'sad' },
+  { emoji: '🥺', name: '可怜', keywords: ['可怜', '委屈', '求你', '泪'], mood: 'sad' },
+  { emoji: '😔', name: '沮丧', keywords: ['难过', '沮丧', '郁闷'], mood: 'sad' },
+  { emoji: '💔', name: '心碎', keywords: ['心碎', '伤心', '分手'], mood: 'sad' },
+
+  // angry
+  { emoji: '😤', name: '生气', keywords: ['生气', '气哼哼', '不高兴'], mood: 'angry' },
+  { emoji: '😠', name: '愤怒', keywords: ['愤怒', '生气', '发火'], mood: 'angry' },
+  { emoji: '😡', name: '暴怒', keywords: ['暴怒', '大怒', '气死'], mood: 'angry' },
+  { emoji: '🤬', name: '骂人脸', keywords: ['骂人', '愤怒', '暴怒'], mood: 'angry' },
+  { emoji: '💢', name: '愤怒符号', keywords: ['生气', '愤怒', '暴怒'], mood: 'angry' },
+
+  // greeting
+  { emoji: '👋', name: '挥手', keywords: ['你好', '嗨', '再见', '招手'], mood: 'greeting' },
+  { emoji: '🙋', name: '举手', keywords: ['你好', '问好'], mood: 'greeting' },
+  { emoji: '🌅', name: '日出', keywords: ['早安', '早上好', '清晨'], mood: 'greeting' },
+  { emoji: '🌙', name: '月亮', keywords: ['晚安', '晚上好', '夜'], mood: 'greeting' },
+  { emoji: '😊', name: '微笑', keywords: ['你好', '嗨', '微笑', '友好'], mood: 'greeting' },
+
+  // encourage
+  { emoji: '💪', name: '加油', keywords: ['加油', '冲', '努力', '坚持'], mood: 'encourage' },
+  { emoji: '🔥', name: '火', keywords: ['冲', '加油', '厉害', '牛'], mood: 'encourage' },
+  { emoji: '⭐', name: '星星', keywords: ['棒', '优秀', '厉害'], mood: 'encourage' },
+  { emoji: '🏆', name: '奖杯', keywords: ['厉害', '冠军', '优秀', 'tql'], mood: 'encourage' },
+  { emoji: '👍', name: '点赞', keywords: ['赞', '棒', '好', '不错'], mood: 'encourage' },
+  { emoji: '🫡', name: '敬礼', keywords: ['收到', '明白', '是的', 'tql'], mood: 'encourage' },
+
+  // love
+  { emoji: '❤️', name: '红心', keywords: ['爱心', '爱', '喜欢'], mood: 'love' },
+  { emoji: '🥰', name: '爱心脸', keywords: ['爱心', '爱', '喜欢', '可爱'], mood: 'love' },
+  { emoji: '😍', name: '花痴', keywords: ['喜欢', '爱', '帅', '美'], mood: 'love' },
+  { emoji: '🫶', name: '比心', keywords: ['比心', '爱心'], mood: 'love' },
+  { emoji: '💕', name: '双心', keywords: ['爱心', '心心', '喜欢'], mood: 'love' },
+  { emoji: '🌸', name: '樱花', keywords: ['花', '美', '可爱'], mood: 'love' },
+  { emoji: '💝', name: '礼物心', keywords: ['送你', '爱心'], mood: 'love' },
+  { emoji: '😘', name: '飞吻', keywords: ['亲亲', '飞吻', '爱'], mood: 'love' },
+
+  // tired
+  { emoji: '😴', name: '睡着', keywords: ['睡觉', '困', '累', '晚安'], mood: 'tired' },
+  { emoji: '🥱', name: '打哈欠', keywords: ['困', '打哈欠', '无聊'], mood: 'tired' },
+  { emoji: '😩', name: '精疲力竭', keywords: ['累', '好累', '不行了'], mood: 'tired' },
+  { emoji: '🛌', name: '躺平', keywords: ['躺平', '摆烂', '休息'], mood: 'tired' },
+  { emoji: '🫠', name: '融化', keywords: ['累', '摸鱼', '划水', '摆烂'], mood: 'tired' },
+  { emoji: '😪', name: '瞌睡', keywords: ['困', '睡', '摸鱼'], mood: 'tired' },
+
+  // surprise
+  { emoji: '😱', name: '尖叫', keywords: ['震惊', '天哪', '吃惊', '可怕'], mood: 'surprise' },
+  { emoji: '😮', name: '张大嘴', keywords: ['吃惊', '震惊', '哇'], mood: 'surprise' },
+  { emoji: '🤯', name: '脑爆', keywords: ['天哪', '不是吧', '卧槽', '惊了'], mood: 'surprise' },
+  { emoji: '😲', name: '惊讶', keywords: ['惊讶', '吃惊', '震惊'], mood: 'surprise' },
+  { emoji: '👀', name: '眼睛', keywords: ['震惊', '盯着看', '注意'], mood: 'surprise' },
+
+  // misc
+  { emoji: '🤔', name: '思考', keywords: ['思考', '想想', '嗯'] },
+  { emoji: '😏', name: '坏笑', keywords: ['坏笑', '嘿嘿', '阴险'] },
+  { emoji: '🙈', name: '捂眼猴', keywords: ['不看', '害羞', '尴尬'] },
+  { emoji: '🤗', name: '抱抱', keywords: ['抱抱', '温暖', '拥抱'] },
+  { emoji: '😎', name: '酷', keywords: ['酷', '帅', '厉害'] },
+  { emoji: '🤪', name: '滑稽', keywords: ['搞笑', '逗', '滑稽'] },
+  { emoji: '🫣', name: '偷看', keywords: ['偷看', '害羞', '尴尬'] },
+  { emoji: '🤭', name: '捂嘴笑', keywords: ['捂嘴', '偷笑', '哈哈'] },
+  { emoji: '😐', name: '无语', keywords: ['无语', '沉默', '呵呵'] },
+  { emoji: '🙄', name: '翻白眼', keywords: ['无语', '翻眼', '呵呵'] },
+  { emoji: '💀', name: '骷髅', keywords: ['笑死', '累死', '死了'] },
+  { emoji: '🫥', name: '隐身', keywords: ['不想说话', '消失', '摸鱼'] },
+  { emoji: '🥴', name: '头晕', keywords: ['头晕', '晕', '迷糊'] },
+  { emoji: '🤡', name: '小丑', keywords: ['小丑', '搞笑', '丑'] },
+  { emoji: '👻', name: '鬼', keywords: ['鬼', '吓', '玩笑'] },
+  { emoji: '🐶', name: '狗', keywords: ['狗', '可爱', '汪'] },
+  { emoji: '🐱', name: '猫', keywords: ['猫', '可爱', '喵'] },
+  { emoji: '🐸', name: '青蛙', keywords: ['青蛙', '呱'] },
+  { emoji: '🐼', name: '熊猫', keywords: ['熊猫', '可爱'] },
+];
 
 export class StickerEngine {
-  private readonly indexFile: string;
-  private readonly cacheDir: string;
-  private _stickers: StickerRecord[] = [];
-  private readonly keywordIndex = new Map<string, number[]>();
-  private readonly categoryIndex = new Map<string, number[]>();
-  private _initialized = false;
-  private initPromise: Promise<boolean> | null = null;
-
-  constructor(dataDir: string) {
-    this.indexFile = resolve(dataDir, 'chinesebqb_index.json');
-    this.cacheDir = resolve(dataDir, 'cache');
-  }
-
-  /** 懒加载：首次 search / mood 前拉取或读本地索引 */
-  async ensureInitialized(): Promise<boolean> {
-    if (this._initialized) return true;
-    if (!this.initPromise) {
-      this.initPromise = this.initialize();
-    }
-    const ok = await this.initPromise;
-    if (!ok) this.initPromise = null;
-    return ok;
-  }
-
-  private async initialize(): Promise<boolean> {
-    mkdirSync(resolve(this.indexFile, '..'), { recursive: true });
-    mkdirSync(this.cacheDir, { recursive: true });
-
-    if (existsSync(this.indexFile)) {
-      try {
-        const raw = readFileSync(this.indexFile, 'utf-8');
-        const data = JSON.parse(raw) as unknown;
-        this._stickers = extractStickerList(data);
-        this._buildIndices();
-        this._initialized = true;
-        return true;
-      } catch {
-        // fall through to download
-      }
-    }
-
-    const ok = await this.downloadIndex();
-    if (ok) {
-      this._buildIndices();
-      this._initialized = true;
-    }
-    return this._initialized;
-  }
-
-  private async downloadIndex(): Promise<boolean> {
-    const relative = 'chinesebqb_github.json';
-    const urls = [INDEX_URL, ...MIRRORS.map((m) => m + relative)];
-
-    for (const url of urls) {
-      const bytes = await downloadBytes(url, 45_000);
-      if (!bytes) continue;
-      try {
-        const text = new TextDecoder('utf-8').decode(bytes);
-        const data = JSON.parse(text) as unknown;
-        this._stickers = extractStickerList(data);
-        writeFileSync(this.indexFile, JSON.stringify(data), 'utf-8');
-        return true;
-      } catch {
-        continue;
-      }
-    }
-    return false;
-  }
-
-  private _buildIndices(): void {
-    this.keywordIndex.clear();
-    this.categoryIndex.clear();
-
-    for (let idx = 0; idx < this._stickers.length; idx++) {
-      const sticker = this._stickers[idx];
-      const name = sticker.name ?? '';
-      const category = sticker.category ?? '';
-
-      if (category) {
-        const catCn = category.replace(/^\d+\w*_/, '');
-        if (!this.categoryIndex.has(catCn)) this.categoryIndex.set(catCn, []);
-        this.categoryIndex.get(catCn)!.push(idx);
-      }
-
-      const baseName = name.replace(/\.\w+$/, '');
-      const parts = baseName.split(/[-_]/);
-      for (const part of parts) {
-        const cnMatches = part.match(/[\u4e00-\u9fff]+/g);
-        if (!cnMatches) continue;
-        for (const kw of cnMatches) {
-          if (kw.length < 1) continue;
-          if (!this.keywordIndex.has(kw)) this.keywordIndex.set(kw, []);
-          this.keywordIndex.get(kw)!.push(idx);
-        }
-      }
-    }
-  }
-
-  async search(query: string, category: string | undefined, limit: number): Promise<StickerRecord[]> {
-    await this.ensureInitialized();
-    if (this._stickers.length === 0) return [];
-
-    const candidateIndices = new Set<number>();
-
-    for (const [kw, indices] of this.keywordIndex) {
-      if (query.includes(kw) || kw.includes(query)) {
-        for (const i of indices) candidateIndices.add(i);
-      }
-    }
-
-    if (candidateIndices.size === 0) {
-      for (const char of query) {
-        const indices = this.keywordIndex.get(char);
-        if (indices) for (const i of indices) candidateIndices.add(i);
-      }
-    }
-
-    if (category) {
-      const catIndices = new Set<number>();
-      for (const [catName, indices] of this.categoryIndex) {
-        if (category.includes(catName) || catName.includes(category)) {
-          for (const i of indices) catIndices.add(i);
-        }
-      }
-      if (catIndices.size > 0) {
-        if (candidateIndices.size > 0) {
-          for (const i of candidateIndices) {
-            if (!catIndices.has(i)) candidateIndices.delete(i);
-          }
-        } else {
-          for (const i of catIndices) candidateIndices.add(i);
-        }
-      }
-    }
-
+  search(query: string, limit: number): StickerRecord[] {
+    if (!query) return [];
     const results: StickerRecord[] = [];
-    for (const i of candidateIndices) {
-      if (i < this._stickers.length) results.push(this._stickers[i]);
-    }
-
-    if (results.length <= limit) return results;
-
-    const shuffled = [...results];
-    for (let i = shuffled.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-    }
-    return shuffled.slice(0, limit);
-  }
-
-  async getRandomByMood(mood: string): Promise<StickerRecord | null> {
-    const keywords = MOOD_KEYWORDS[mood] ?? [];
-    if (keywords.length === 0) return null;
-
-    const pool: StickerRecord[] = [];
-    const shuffledKw = [...keywords].sort(() => Math.random() - 0.5);
-    for (const kw of shuffledKw.slice(0, 4)) {
-      const found = await this.search(kw, undefined, 12);
-      pool.push(...found);
-    }
-
-    const seen = new Set<string>();
-    const unique: StickerRecord[] = [];
-    for (const s of pool) {
-      const u = s.url;
-      if (seen.has(u)) continue;
-      seen.add(u);
-      unique.push(s);
-    }
-
-    if (unique.length === 0) return null;
-    return unique[Math.floor(Math.random() * unique.length)];
-  }
-
-  /** 下载到本地缓存（可选，供将来 IM 发文件等）；返回缓存路径 */
-  async downloadAndCache(url: string): Promise<string | null> {
-    await this.ensureInitialized();
-    const hash = createHash('md5').update(url).digest('hex');
-    const ext = url.includes('.') ? url.split('.').pop()?.replace(/[^a-z0-9]/gi, '') || 'gif' : 'gif';
-    const cachePath = resolve(this.cacheDir, `${hash}.${ext}`);
-    if (existsSync(cachePath)) return cachePath;
-
-    const urlsToTry = [url];
-    if (url.startsWith(GITHUB_RAW_PREFIX)) {
-      const relative = url.slice(GITHUB_RAW_PREFIX.length);
-      for (const mirror of MIRRORS) urlsToTry.push(mirror + relative);
-    }
-
-    for (const attemptUrl of urlsToTry) {
-      const bytes = await downloadBytes(attemptUrl, 20_000);
-      if (bytes) {
-        writeFileSync(cachePath, bytes);
-        return cachePath;
+    for (const record of EMOJI_DATA) {
+      if (record.keywords.some((kw) => query.includes(kw) || kw.includes(query))) {
+        results.push(record);
       }
     }
-    return null;
+    if (results.length === 0) {
+      for (const char of query) {
+        for (const record of EMOJI_DATA) {
+          if (record.keywords.some((kw) => kw.includes(char))) results.push(record);
+        }
+      }
+    }
+    const unique = [...new Map(results.map((r) => [r.emoji, r])).values()];
+    if (unique.length <= limit) return unique;
+    return [...unique].sort(() => Math.random() - 0.5).slice(0, limit);
+  }
+
+  getRandomByMood(mood: string): StickerRecord | null {
+    const pool = EMOJI_DATA.filter((r) => r.mood === mood);
+    if (pool.length === 0) return null;
+    return pool[Math.floor(Math.random() * pool.length)] ?? null;
   }
 }
 
 let singleton: StickerEngine | null = null;
 
-/** 单例：索引较大，避免重复构建 keyword 映射 */
-export function getStickerEngine(dataDir: string): StickerEngine {
-  if (!singleton) singleton = new StickerEngine(dataDir);
+export function getStickerEngine(): StickerEngine {
+  if (!singleton) singleton = new StickerEngine();
   return singleton;
 }

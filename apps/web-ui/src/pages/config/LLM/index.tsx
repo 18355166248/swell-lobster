@@ -97,6 +97,7 @@ export function ConfigLLMPage() {
         context_window: data.context_window,
         timeout: data.timeout,
         rpm_limit: data.rpm_limit,
+        fallback_endpoint_id: data.fallback_endpoint_id,
         cost_per_1m_input: data.cost_per_1m_input,
         cost_per_1m_output: data.cost_per_1m_output,
       };
@@ -120,6 +121,7 @@ export function ConfigLLMPage() {
       setEndpoints((prev) => {
         const nameToMatch = String(editingTarget?.name ?? '');
         const updated: EndpointItem = {
+          id: editingTarget?.id,
           name: data.name,
           model: data.model,
           api_type: data.api_type,
@@ -133,6 +135,7 @@ export function ConfigLLMPage() {
           context_window: data.context_window,
           timeout: data.timeout,
           rpm_limit: data.rpm_limit,
+          fallback_endpoint_id: data.fallback_endpoint_id,
           cost_per_1m_input: data.cost_per_1m_input,
           cost_per_1m_output: data.cost_per_1m_output,
         };
@@ -208,6 +211,9 @@ export function ConfigLLMPage() {
           onConfirm={handleAddEndpoint}
           existingNames={endpoints.map((e) => String(e.name ?? '')).filter(Boolean)}
           endpointCount={endpoints.length}
+          fallbackOptions={endpoints
+            .filter((item) => item.id && item.name)
+            .map((item) => ({ value: item.id!, label: String(item.name) }))}
         />
       </div>
 
@@ -267,6 +273,9 @@ export function ConfigLLMPage() {
         endpointCount={endpoints.length}
         mode="edit"
         initial={editingTarget}
+        fallbackOptions={endpoints
+          .filter((item) => item.id && item.name && item.id !== editingTarget?.id)
+          .map((item) => ({ value: item.id!, label: String(item.name) }))}
       />
     </div>
   );

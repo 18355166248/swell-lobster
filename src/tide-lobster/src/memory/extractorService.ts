@@ -1,6 +1,7 @@
-import { requestChatCompletion, type LLMRequestMessage } from '../chat/llmClient.js';
+import { requestWithFallback, type LLMRequestMessage } from '../chat/llmClient.js';
 import { ChatStore } from '../chat/chatStore.js';
 import type { EndpointConfig } from '../chat/models.js';
+import { EndpointStore } from '../store/endpointStore.js';
 import { memoryStore } from './store.js';
 import type { CreateMemoryInput, MemoryType } from './types.js';
 
@@ -32,6 +33,7 @@ function buildConversation(messages: LLMRequestMessage[]): string {
 
 export class MemoryExtractorService {
   private readonly chatStore = new ChatStore();
+  private readonly endpointStore = new EndpointStore();
 
   /**
    * 从会话中提取记忆
@@ -100,10 +102,33 @@ ${fullText}
     `.trim();
 
     try {
-      const result = await requestChatCompletion({
+      const result = await requestWithFallback({
         endpoint,
         apiKey,
         messages: [{ role: 'user', content: prompt }],
+        resolveFallback: (endpointId) => {
+          const raw = this.endpointStore
+            .listEndpoints()
+            .find((item: any) => String(item.id ?? '') === endpointId && item.enabled !== 0);
+          if (!raw) return undefined;
+          return {
+            id: raw.id ? String(raw.id) : undefined,
+            name: String(raw.name ?? ''),
+            model: String(raw.model ?? ''),
+            api_type: String(raw.api_type ?? 'openai'),
+            base_url: String(raw.base_url ?? '').replace(/\/+$/, ''),
+            api_key_env: String(raw.api_key_env ?? ''),
+            timeout: Number(raw.timeout ?? 120),
+            max_tokens: Number(raw.max_tokens ?? 0),
+            fallback_endpoint_id: raw.fallback_endpoint_id
+              ? String(raw.fallback_endpoint_id)
+              : undefined,
+          } satisfies EndpointConfig;
+        },
+        resolveApiKey: (fallback) => {
+          if (!fallback.api_key_env) return apiKey;
+          return String(process.env[fallback.api_key_env] ?? apiKey);
+        },
       });
 
       let raw = result.content.trim();

@@ -9,7 +9,7 @@ import { resolve } from 'node:path';
 
 import { parseEnv } from '../utils/envUtils.js';
 import type { ChatMessage, ChatSession, EndpointConfig, SessionSummary } from './models.js';
-import { requestChatCompletion, type LLMRequestMessage, type LLMUsage } from './llmClient.js';
+import { requestWithFallback, type LLMRequestMessage, type LLMUsage } from './llmClient.js';
 import { ChatStore } from './chatStore.js';
 import { EndpointStore } from '../store/endpointStore.js';
 import { IdentityService } from '../identity/identityService.js';
@@ -277,6 +277,13 @@ export class ChatService {
     return this.endpointStore.listEndpoints();
   }
 
+  getEndpointConfigById(endpointId: string): EndpointConfig | undefined {
+    const endpoint = this.endpointStore
+      .listEndpoints()
+      .find((item: any) => String(item.id ?? '') === endpointId && item.enabled !== 0);
+    return endpoint ? this.toEndpointConfig(endpoint) : undefined;
+  }
+
   /**
    * 解析本次请求使用的 LLM 端点：按 name 精确匹配；未传 name 时取「已启用」列表中 priority 最小的一个。
    */
@@ -302,6 +309,7 @@ export class ChatService {
     const costIn = raw.cost_per_1m_input;
     const costOut = raw.cost_per_1m_output;
     return {
+      id: raw.id ? String(raw.id) : undefined,
       name: String(raw.name ?? ''),
       model: String(raw.model ?? ''),
       api_type: String(raw.api_type ?? 'openai'),
@@ -309,6 +317,7 @@ export class ChatService {
       api_key_env: String(raw.api_key_env ?? ''),
       timeout: Number(raw.timeout ?? 120),
       max_tokens: Number(raw.max_tokens ?? 0),
+      fallback_endpoint_id: raw.fallback_endpoint_id ? String(raw.fallback_endpoint_id) : undefined,
       cost_per_1m_input:
         typeof costIn === 'number' && Number.isFinite(costIn) && costIn > 0 ? costIn : undefined,
       cost_per_1m_output:
@@ -352,7 +361,7 @@ export class ChatService {
 
     for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
       // anthropic / openai 两套 tools schema 由 registry 分别序列化
-      const result = await requestChatCompletion({
+      const result = await requestWithFallback({
         endpoint: args.endpoint,
         apiKey: args.apiKey,
         messages: currentMessages,
@@ -361,6 +370,11 @@ export class ChatService {
           args.endpoint.api_type === 'anthropic'
             ? globalToolRegistry.toAnthropicFormat()
             : globalToolRegistry.toOpenAIFormat(),
+        resolveFallback: (endpointId) => this.getEndpointConfigById(endpointId),
+        resolveApiKey: (endpoint) => {
+          const apiKey = this.getApiKeyValue(endpoint.api_key_env);
+          return apiKey || 'local';
+        },
       });
 
       console.log('result', JSON.stringify(result, null, 2));
@@ -585,8 +599,6 @@ export class ChatService {
     const rateOut = endpoint?.cost_per_1m_output ?? 0;
     const out =
       typeof rateOut === 'number' && Number.isFinite(rateOut) && rateOut >= 0 ? rateOut : 0;
-    return (
-      (usage.prompt_tokens / 1_000_000) * rateIn + (usage.completion_tokens / 1_000_000) * out
-    );
+    return (usage.prompt_tokens / 1_000_000) * rateIn + (usage.completion_tokens / 1_000_000) * out;
   }
 }

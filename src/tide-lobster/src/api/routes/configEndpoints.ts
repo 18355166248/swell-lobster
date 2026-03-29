@@ -12,6 +12,7 @@
 
 import { Hono } from 'hono';
 import { EndpointStore } from '../../store/endpointStore.js';
+import { getDb } from '../../db/index.js';
 import { listProviders, providerInfoToDict } from '../../llm/registries/index.js';
 import { listModelsAnthropic, listModelsOpenAI } from '../../llm/bridge.js';
 
@@ -21,6 +22,33 @@ const store = new EndpointStore();
 configEndpointsRouter.get('/api/config/endpoints', (c) => {
   const endpoints = store.listEndpoints();
   return c.json({ endpoints });
+});
+
+// 1. 获取 endpoint id
+// 2. 获取 body 中的 fallback_endpoint_id
+// 3. 如果 fallback_endpoint_id 存在，则更新 endpoint 的 fallback_endpoint_id
+// 4. 如果 fallback_endpoint_id 不存在，则删除 endpoint 的 fallback_endpoint_id
+// 5. 返回更新后的 endpoint
+// 6. 如果更新失败，则返回 500 错误
+// 7. 如果更新成功，则返回 200 成功
+// 8. 如果更新失败，则返回 500 错误
+configEndpointsRouter.patch('/api/config/endpoints/:id/fallback', async (c) => {
+  const id = c.req.param('id');
+  const body = await c.req.json<{ fallback_endpoint_id?: string | null }>();
+  const db = getDb();
+  const exists = db.prepare(`SELECT id FROM llm_endpoints WHERE id = ?`).get(id);
+  if (!exists) return c.json({ detail: 'endpoint not found' }, 404);
+
+  const fallbackId = body.fallback_endpoint_id ?? null;
+  if (fallbackId) {
+    const fallback = db.prepare(`SELECT id FROM llm_endpoints WHERE id = ?`).get(fallbackId);
+    if (!fallback) return c.json({ detail: 'fallback endpoint not found' }, 404);
+    if (fallbackId === id) return c.json({ detail: 'fallback endpoint cannot be self' }, 400);
+  }
+
+  db.prepare(`UPDATE llm_endpoints SET fallback_endpoint_id = ? WHERE id = ?`).run(fallbackId, id);
+  const endpoint = db.prepare(`SELECT * FROM llm_endpoints WHERE id = ?`).get(id);
+  return c.json({ endpoint });
 });
 
 // ── POST /api/config/endpoints ─────────────────────────────────────────────────

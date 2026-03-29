@@ -66,3 +66,9 @@ await apiPost('/api/endpoint', payload);
 - Named exports only — no `export default`
 - PascalCase component names
 - Co-locate page-specific types and API calls in the page directory
+
+## Ant Design Form + Modal
+
+- `Modal` 使用 `destroyOnHidden` 时，关闭会卸载内部 `<Form>`。不要在**弹窗外的父组件**里写 `Form.useWatch('x', form)`，否则会触发 `useForm is not connected to any Form` 警告。
+- 做法：在 `<Form>` **内部子组件**里使用 `Form.useWatch('x')`（不传 `form`）；或去掉 `destroyOnHidden`；或将含 `useForm`/`useWatch` 的整段 UI 仅在 `open` 时挂载并处理好重置。
+- 使用 `Form.useForm()` 时务必 `<Form form={form}>` 与之绑定。

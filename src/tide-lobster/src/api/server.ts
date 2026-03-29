@@ -21,6 +21,7 @@ import { mcpRouter } from './routes/mcp.js';
 import { memoryRouter } from './routes/memory.js';
 import { schedulerRouter } from './routes/scheduler.js';
 import { tokenStatsRouter } from './routes/tokenStats.js';
+import { webhooksRouter } from './routes/webhooks.js';
 
 export function createApp(): Hono {
   const app = new Hono();
@@ -54,6 +55,8 @@ export function createApp(): Hono {
   app.route('/', memoryRouter);
   app.route('/', schedulerRouter);
   app.route('/', tokenStatsRouter);
+  // Webhook 触发调度任务（与 scheduler 任务配置配合，见 webhooksRouter）
+  app.route('/', webhooksRouter);
 
   return app;
 }

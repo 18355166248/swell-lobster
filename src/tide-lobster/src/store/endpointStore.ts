@@ -31,10 +31,11 @@ export class EndpointStore {
         capabilities,
         context_window,
         rpm_limit,
+        fallback_endpoint_id,
         cost_per_1m_input,
         cost_per_1m_output
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     const transaction = this.db.transaction(() => {
@@ -55,6 +56,7 @@ export class EndpointStore {
           JSON.stringify(this.normalizeCapabilities(ep.capabilities)),
           ep.context_window ?? null,
           ep.rpm_limit ?? null,
+          ep.fallback_endpoint_id ?? null,
           ep.cost_per_1m_input ?? null,
           ep.cost_per_1m_output ?? null
         );

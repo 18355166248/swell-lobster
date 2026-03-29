@@ -27,6 +27,7 @@ export type ListedModel = {
 
 /** 单条端点配置（与后端 endpoints[] 项结构一致） */
 export type EndpointItem = {
+  id?: string;
   name?: string;
   model?: string;
   /** openai 或 anthropic */
@@ -49,6 +50,8 @@ export type EndpointItem = {
   timeout?: number;
   /** 每分钟请求数限制，0 表示不限制 */
   rpm_limit?: number;
+  /** 故障转移目标 endpoint id */
+  fallback_endpoint_id?: string | null;
   /** 美元/百万 input tokens，可选 */
   cost_per_1m_input?: number;
   /** 美元/百万 output tokens，可选 */
@@ -73,6 +76,7 @@ export type EndpointFormData = {
   context_window: number;
   timeout: number;
   rpm_limit: number;
+  fallback_endpoint_id?: string | null;
   /** 美元/百万 input tokens */
   cost_per_1m_input?: number;
   /** 美元/百万 output tokens */

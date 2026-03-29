@@ -6,67 +6,14 @@
  * 使用 Node.js 18+ 内置 fetch + AbortController，无需额外依赖。
  */
 
-import { ProxyAgent } from 'undici';
 import type { Dispatcher } from 'undici';
 
+import { getFetchDispatcherForUrl } from '../net/fetchDispatcher.js';
 import { inferCapabilities, getProviderSlugFromBaseUrl } from './capabilities.js';
 
 const ANTHROPIC_DEFAULT_BASE = 'https://api.anthropic.com';
 const OPENAI_DEFAULT_BASE = 'https://api.openai.com/v1';
 const REQUEST_TIMEOUT_MS = 30_000;
-
-// ── HTTP(S) 代理（读 .env：HTTP_PROXY / HTTPS_PROXY / NO_PROXY，与常见工具一致）────────
-
-function shouldBypassProxy(hostname: string, noProxyRaw: string): boolean {
-  const h = hostname.toLowerCase();
-  for (const part of noProxyRaw.split(',')) {
-    const pat = part.trim().toLowerCase();
-    if (!pat) continue;
-    if (pat === '*') return true;
-    if (pat.startsWith('.')) {
-      const root = pat.slice(1);
-      if (h === root || h.endsWith(pat)) return true;
-    } else if (h === pat || h.endsWith(`.${pat}`)) return true;
-  }
-  return false;
-}
-
-function proxyUrlForTarget(targetUrl: string): string | undefined {
-  let hostname: string;
-  try {
-    hostname = new URL(targetUrl).hostname;
-  } catch {
-    return undefined;
-  }
-  const noProxy = process.env.NO_PROXY ?? process.env.no_proxy ?? '';
-  if (noProxy && shouldBypassProxy(hostname, noProxy)) return undefined;
-
-  const isHttps = targetUrl.startsWith('https:');
-  const raw = isHttps
-    ? (process.env.HTTPS_PROXY ??
-      process.env.https_proxy ??
-      process.env.ALL_PROXY ??
-      process.env.all_proxy)
-    : (process.env.HTTP_PROXY ??
-      process.env.http_proxy ??
-      process.env.ALL_PROXY ??
-      process.env.all_proxy);
-  const trimmed = raw?.trim();
-  return trimmed || undefined;
-}
-
-let cachedProxyUrl: string | undefined;
-let cachedProxyAgent: ProxyAgent | undefined;
-
-function dispatcherForUrl(url: string): Dispatcher | undefined {
-  const proxyUrl = proxyUrlForTarget(url);
-  if (!proxyUrl) return undefined;
-  if (cachedProxyUrl === proxyUrl && cachedProxyAgent) return cachedProxyAgent;
-  void cachedProxyAgent?.close();
-  cachedProxyAgent = new ProxyAgent(proxyUrl);
-  cachedProxyUrl = proxyUrl;
-  return cachedProxyAgent;
-}
 
 // ── URL helpers ────────────────────────────────────────────────────────────────
 
@@ -87,13 +34,12 @@ function openaiModelsUrl(baseUrl: string): string {
 async function fetchWithTimeout(url: string, init: RequestInit): Promise<Response> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
-  const dispatcher = dispatcherForUrl(url);
   try {
     return await fetch(url, {
       ...init,
       signal: controller.signal,
-      ...(dispatcher ? { dispatcher } : {}),
-    });
+      dispatcher: getFetchDispatcherForUrl(url),
+    } as RequestInit & { dispatcher: Dispatcher });
   } finally {
     clearTimeout(timer);
   }

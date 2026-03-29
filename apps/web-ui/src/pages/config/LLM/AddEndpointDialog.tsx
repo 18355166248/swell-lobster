@@ -34,6 +34,7 @@ type FormValues = {
   contextWindow: number;
   timeoutSec: number;
   rpmLimit: number;
+  fallbackEndpointId?: string;
   costPer1mInput?: number | null;
   costPer1mOutput?: number | null;
 };
@@ -54,6 +55,7 @@ export type AddEndpointDialogProps = {
   endpointCount?: number;
   mode?: 'add' | 'edit';
   initial?: EndpointItem | null;
+  fallbackOptions?: { value: string; label: string }[];
 };
 
 export function AddEndpointDialog({
@@ -64,6 +66,7 @@ export function AddEndpointDialog({
   endpointCount = 0,
   mode = 'add',
   initial = null,
+  fallbackOptions = [],
 }: AddEndpointDialogProps) {
   const { t } = useTranslation();
   const [messageApi, contextHolder] = message.useMessage();
@@ -152,6 +155,7 @@ export function AddEndpointDialog({
         contextWindow: initial.context_window ?? DEFAULT_CONTEXT_WINDOW,
         timeoutSec: initial.timeout ?? DEFAULT_TIMEOUT,
         rpmLimit: initial.rpm_limit ?? 0,
+        fallbackEndpointId: initial.fallback_endpoint_id ?? undefined,
         costPer1mInput: initial.cost_per_1m_input ?? undefined,
         costPer1mOutput: initial.cost_per_1m_output ?? undefined,
       });
@@ -170,6 +174,7 @@ export function AddEndpointDialog({
         contextWindow: DEFAULT_CONTEXT_WINDOW,
         timeoutSec: DEFAULT_TIMEOUT,
         rpmLimit: 0,
+        fallbackEndpointId: undefined,
         costPer1mInput: undefined,
         costPer1mOutput: undefined,
       });
@@ -337,6 +342,7 @@ export function AddEndpointDialog({
         context_window: Math.max(1024, values.contextWindow ?? DEFAULT_CONTEXT_WINDOW),
         timeout: Math.max(10, values.timeoutSec ?? DEFAULT_TIMEOUT),
         rpm_limit: Math.max(0, values.rpmLimit ?? 0),
+        fallback_endpoint_id: values.fallbackEndpointId || undefined,
         cost_per_1m_input:
           typeof values.costPer1mInput === 'number' &&
           Number.isFinite(values.costPer1mInput) &&
@@ -424,6 +430,13 @@ export function AddEndpointDialog({
           >
             <InputNumber min={0} className="w-full" />
           </Form.Item>
+          <Form.Item name="fallbackEndpointId" label={t('addEndpoint.fallbackEndpoint')}>
+            <Select
+              allowClear
+              options={fallbackOptions}
+              placeholder={t('addEndpoint.fallbackEndpointPlaceholder')}
+            />
+          </Form.Item>
           <p className="text-xs text-muted-foreground mb-2">{t('addEndpoint.costPer1mHint')}</p>
           <div className="grid grid-cols-2 gap-4">
             <Form.Item name="costPer1mInput" label={t('addEndpoint.costPer1mInput')}>
@@ -447,7 +460,6 @@ export function AddEndpointDialog({
         title={mode === 'edit' ? t('editEndpoint.title') : t('addEndpoint.title')}
         footer={footer}
         width={720}
-        destroyOnHidden
       >
         <p className="text-sm text-muted-foreground mb-4">
           {mode === 'edit' ? t('addEndpoint.description') : t('addEndpoint.description')}

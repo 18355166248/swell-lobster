@@ -1,5 +1,7 @@
+import type { Dispatcher } from 'undici';
 import type { EndpointConfig } from './models.js';
 import type { AnthropicTool, OpenAITool, ToolCall } from '../tools/types.js';
+import { getFetchDispatcherForUrl } from '../net/fetchDispatcher.js';
 
 export interface LLMUsage {
   prompt_tokens: number;
@@ -40,8 +42,7 @@ function estimateUsage(args: {
         if ('content' in message && typeof message.content === 'string') return message.content;
         return '';
       })
-      .join('\n') +
-    (args.systemPrompt ? `\n${args.systemPrompt}` : '');
+      .join('\n') + (args.systemPrompt ? `\n${args.systemPrompt}` : '');
   const promptTokens = estimateTokens(promptText);
   const completionTokens = estimateTokens(args.content);
   return {
@@ -94,23 +95,77 @@ function anthropicMessagesUrl(baseUrl: string): string {
   return `${base}/v1/messages`;
 }
 
+/** 从 Error / cause 链上取 Node / undici 的 code（如 ECONNRESET） */
+function getNestedErrorCode(err: unknown): string | undefined {
+  let cur: unknown = err;
+  for (let i = 0; i < 8 && cur; i++) {
+    if (typeof cur === 'object' && cur !== null) {
+      const code = (cur as { code?: string }).code;
+      if (typeof code === 'string') return code;
+      cur = (cur as { cause?: unknown }).cause;
+    } else {
+      break;
+    }
+  }
+  return undefined;
+}
+
+function isAbortError(err: unknown): boolean {
+  if (err instanceof DOMException && err.name === 'AbortError') return true;
+  if (err instanceof Error && err.name === 'AbortError') return true;
+  return false;
+}
+
+/** TLS 握手断连、对端重置等可短时重试的网络错误 */
+const TRANSIENT_NETWORK_CODES = new Set([
+  'ECONNRESET',
+  'ECONNREFUSED',
+  'ETIMEDOUT',
+  'EPIPE',
+  'UND_ERR_SOCKET',
+  'UND_ERR_CONNECT_TIMEOUT',
+]);
+
+function isTransientNetworkError(err: unknown): boolean {
+  if (isAbortError(err)) return false;
+  const code = getNestedErrorCode(err);
+  return code !== undefined && TRANSIENT_NETWORK_CODES.has(code);
+}
+
 async function fetchWithTimeout(
   url: string,
   init: RequestInit,
   timeoutSec: number,
   signal?: AbortSignal
 ): Promise<Response> {
-  const controller = new AbortController();
-  const timeoutMs = Math.max(10, timeoutSec) * 1000;
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-  const abort = () => controller.abort(signal?.reason);
-  signal?.addEventListener('abort', abort, { once: true });
-  try {
-    return await fetch(url, { ...init, signal: controller.signal });
-  } finally {
-    clearTimeout(timer);
-    signal?.removeEventListener('abort', abort);
+  const maxAttempts = 3;
+  let lastError: unknown;
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    if (signal?.aborted) {
+      throw new DOMException('Aborted', 'AbortError');
+    }
+    const controller = new AbortController();
+    const timeoutMs = Math.max(10, timeoutSec) * 1000;
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    const abort = () => controller.abort(signal?.reason);
+    signal?.addEventListener('abort', abort, { once: true });
+    try {
+      return await fetch(url, {
+        ...init,
+        signal: controller.signal,
+        dispatcher: getFetchDispatcherForUrl(url),
+      } as RequestInit & { dispatcher: Dispatcher });
+    } catch (e) {
+      lastError = e;
+      if (signal?.aborted || isAbortError(e)) throw e;
+      if (!isTransientNetworkError(e) || attempt === maxAttempts - 1) throw e;
+      await new Promise((r) => setTimeout(r, 200 * 2 ** attempt));
+    } finally {
+      clearTimeout(timer);
+      signal?.removeEventListener('abort', abort);
+    }
   }
+  throw lastError;
 }
 
 export async function streamChatCompletion(args: {
@@ -157,9 +212,59 @@ export async function requestChatCompletion(args: {
 
   if (!endpoint.base_url) throw new Error('endpoint base_url is empty');
   if (apiType === 'anthropic') {
-    return requestAnthropic(endpoint, apiKey, messages, systemPrompt, tools as AnthropicTool[] | undefined);
+    return requestAnthropic(
+      endpoint,
+      apiKey,
+      messages,
+      systemPrompt,
+      tools as AnthropicTool[] | undefined
+    );
   }
   return requestOpenAI(endpoint, apiKey, messages, systemPrompt, tools as OpenAITool[] | undefined);
+}
+
+/**
+ * 非流式补全：先请求当前端点，失败时再尝试「备用端点」（仅一层，不会链式多级回退）。
+ *
+ * 当 `requestChatCompletion` 抛错（网络、4xx/5xx、超时等）且同时满足：
+ * - 当前 `endpoint.fallback_endpoint_id` 已配置；
+ * - 传入 `resolveFallback`：按 id 从配置表等解析出备用 `EndpointConfig`；
+ * - 传入 `resolveApiKey`：解析备用端点对应的 API Key（通常读 `api_key_env`）；
+ * 则打一条 warn 日志后，用相同 `messages` / `systemPrompt` / `tools` 再请求备用端点一次。
+ * 若未配置备用或解析失败，则原样抛出首次错误。
+ */
+export async function requestWithFallback(args: {
+  endpoint: EndpointConfig;
+  apiKey: string;
+  messages: LLMRequestMessage[];
+  systemPrompt?: string;
+  tools?: OpenAITool[] | AnthropicTool[];
+  resolveFallback?: (endpointId: string) => EndpointConfig | undefined;
+  resolveApiKey?: (endpoint: EndpointConfig) => string;
+}): Promise<ChatCompletionResult> {
+  try {
+    return await requestChatCompletion(args);
+  } catch (error) {
+    const fallbackId = args.endpoint.fallback_endpoint_id;
+    if (!fallbackId || !args.resolveFallback || !args.resolveApiKey) throw error;
+
+    const fallback = args.resolveFallback(fallbackId);
+    if (!fallback) throw error;
+
+    const fallbackApiKey = args.resolveApiKey(fallback);
+    console.warn(
+      `[llm] endpoint [${args.endpoint.name}] failed, falling back to [${fallback.name}]`,
+      error
+    );
+
+    return requestChatCompletion({
+      endpoint: fallback,
+      apiKey: fallbackApiKey,
+      messages: args.messages,
+      systemPrompt: args.systemPrompt,
+      tools: args.tools,
+    });
+  }
 }
 
 function normalizeOpenAIMessages(
@@ -179,20 +284,22 @@ function normalizeOpenAIMessages(
     return {
       role: message.role,
       content: message.content,
-      ...('tool_calls' in message ? { tool_calls: message.tool_calls.map((toolCall) => ({
-        id: toolCall.id,
-        type: 'function',
-        function: {
-          name: toolCall.name,
-          arguments: JSON.stringify(toolCall.arguments),
-        },
-      })) } : {}),
+      ...('tool_calls' in message
+        ? {
+            tool_calls: message.tool_calls.map((toolCall) => ({
+              id: toolCall.id,
+              type: 'function',
+              function: {
+                name: toolCall.name,
+                arguments: JSON.stringify(toolCall.arguments),
+              },
+            })),
+          }
+        : {}),
     };
   });
 
-  return systemPrompt
-    ? [{ role: 'system', content: systemPrompt }, ...normalized]
-    : normalized;
+  return systemPrompt ? [{ role: 'system', content: systemPrompt }, ...normalized] : normalized;
 }
 
 function normalizeAnthropicMessages(messages: LLMRequestMessage[]): Array<Record<string, unknown>> {
@@ -555,8 +662,10 @@ async function streamAnthropic(
         if (usage && eventUsage) {
           usage.completion_tokens = eventUsage.completion_tokens;
           usage.total_tokens = usage.prompt_tokens + usage.completion_tokens;
-          if (eventUsage.cache_read_tokens !== undefined) usage.cache_read_tokens = eventUsage.cache_read_tokens;
-          if (eventUsage.cache_write_tokens !== undefined) usage.cache_write_tokens = eventUsage.cache_write_tokens;
+          if (eventUsage.cache_read_tokens !== undefined)
+            usage.cache_read_tokens = eventUsage.cache_read_tokens;
+          if (eventUsage.cache_write_tokens !== undefined)
+            usage.cache_write_tokens = eventUsage.cache_write_tokens;
         } else if (eventUsage) {
           usage = eventUsage;
         }

@@ -7,7 +7,10 @@ function toJsonSchema(tool: ToolDef): OpenAITool['function']['parameters'] {
       {
         type: parameter.type,
         description: parameter.description,
-        ...(parameter.enum ? { enum: parameter.enum } : {}),
+        // Gemini function_declarations：enum 仅允许 string 类型属性
+        ...(parameter.type === 'string' && parameter.enum?.length
+          ? { enum: parameter.enum }
+          : {}),
       },
     ])
   );

@@ -148,12 +148,8 @@ const migrations: Array<{ version: number; up: (db: Database.Database) => void }
         `CREATE UNIQUE INDEX IF NOT EXISTS idx_memories_fingerprint ON memories(fingerprint)`
       );
       // token_stats 表：增加 Prompt Caching 字段和成本字段
-      db.exec(
-        `ALTER TABLE token_stats ADD COLUMN cache_read_tokens INTEGER NOT NULL DEFAULT 0`
-      );
-      db.exec(
-        `ALTER TABLE token_stats ADD COLUMN cache_write_tokens INTEGER NOT NULL DEFAULT 0`
-      );
+      db.exec(`ALTER TABLE token_stats ADD COLUMN cache_read_tokens INTEGER NOT NULL DEFAULT 0`);
+      db.exec(`ALTER TABLE token_stats ADD COLUMN cache_write_tokens INTEGER NOT NULL DEFAULT 0`);
       db.exec(`ALTER TABLE token_stats ADD COLUMN cost_usd REAL NOT NULL DEFAULT 0`);
     },
   },
@@ -192,6 +188,94 @@ const migrations: Array<{ version: number; up: (db: Database.Database) => void }
       // 已有历史消息一次性灌入 FTS
       db.exec(`
         INSERT INTO messages_fts(rowid, content) SELECT rowid, content FROM chat_messages;
+      `);
+    },
+  },
+  {
+    version: 9,
+    up: (db) => {
+      // Phase 4：MCP 服务端注册表 + 调度任务表（后续 v10 扩展列与运行历史）
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS mcp_servers (
+          id TEXT PRIMARY KEY,
+          name TEXT NOT NULL,
+          type TEXT NOT NULL DEFAULT 'stdio',
+          command TEXT NOT NULL,
+          args TEXT NOT NULL DEFAULT '[]',
+          env TEXT NOT NULL DEFAULT '{}',
+          enabled INTEGER NOT NULL DEFAULT 1,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS scheduler_tasks (
+          id TEXT PRIMARY KEY,
+          name TEXT NOT NULL,
+          task_type TEXT NOT NULL DEFAULT 'reminder',
+          trigger_type TEXT NOT NULL DEFAULT 'once',
+          trigger_config TEXT NOT NULL DEFAULT '{}',
+          prompt TEXT NOT NULL DEFAULT '',
+          enabled INTEGER NOT NULL DEFAULT 1,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          last_run_at TEXT
+        );
+      `);
+    },
+  },
+  {
+    version: 10,
+    up: (db) => {
+      const execSafe = (sql: string) => {
+        try {
+          db.exec(sql);
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          if (!message.includes('duplicate column name')) throw error;
+        }
+      };
+
+      execSafe(`ALTER TABLE llm_endpoints ADD COLUMN fallback_endpoint_id TEXT;`);
+      execSafe(`ALTER TABLE mcp_servers ADD COLUMN status TEXT NOT NULL DEFAULT 'stopped';`);
+      execSafe(`ALTER TABLE mcp_servers ADD COLUMN error_message TEXT;`);
+      db.exec(`
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_mcp_servers_name ON mcp_servers(name);
+      `);
+
+      execSafe(`ALTER TABLE scheduler_tasks ADD COLUMN description TEXT;`);
+      execSafe(`ALTER TABLE scheduler_tasks ADD COLUMN cron_expr TEXT;`);
+      execSafe(`ALTER TABLE scheduler_tasks ADD COLUMN task_prompt TEXT;`);
+      execSafe(`ALTER TABLE scheduler_tasks ADD COLUMN endpoint_name TEXT;`);
+      execSafe(`ALTER TABLE scheduler_tasks ADD COLUMN webhook_secret TEXT;`);
+      execSafe(`ALTER TABLE scheduler_tasks ADD COLUMN next_run_at TEXT;`);
+
+      db.exec(`
+        UPDATE scheduler_tasks
+        SET
+          task_prompt = COALESCE(NULLIF(task_prompt, ''), prompt, ''),
+          cron_expr = CASE
+            WHEN cron_expr IS NOT NULL AND cron_expr != '' THEN cron_expr
+            WHEN trigger_type = 'cron' THEN json_extract(trigger_config, '$.expression')
+            ELSE cron_expr
+          END
+        WHERE task_prompt IS NULL OR task_prompt = '' OR cron_expr IS NULL;
+      `);
+
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS scheduled_task_runs (
+          id TEXT PRIMARY KEY,
+          task_id TEXT NOT NULL,
+          triggered_by TEXT NOT NULL,
+          status TEXT NOT NULL,
+          result TEXT,
+          duration_ms INTEGER,
+          created_at TEXT NOT NULL,
+          FOREIGN KEY (task_id) REFERENCES scheduler_tasks(id) ON DELETE CASCADE
+        );
+      `);
+      db.exec(`
+        CREATE INDEX IF NOT EXISTS idx_scheduled_task_runs_task_created
+        ON scheduled_task_runs(task_id, created_at DESC);
       `);
     },
   },

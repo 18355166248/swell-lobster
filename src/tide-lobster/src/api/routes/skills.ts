@@ -1,10 +1,9 @@
 /**
  * Skills 路由
  *
- * 扫描 ~/.claude/skills/ 目录，读取 SKILL.md frontmatter，
- * 支持通过 key_value_store 持久化启用/禁用状态。
- *
- * 与「文件系统真实技能」分离：禁用只影响本应用展示/策略，不删除磁盘上的 SKILL.md。
+ * 两套技能系统：
+ * 1. Claude Code 技能：~/.claude/skills/ 目录，SKILL.md，agent 工具
+ * 2. 助手技能：identity/skills/ + data/skills/，用于 AI 助手执行的 prompt 模板
  */
 
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
@@ -12,6 +11,8 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { Hono } from 'hono';
 import { getDb } from '../../db/index.js';
+import { loadAllSkills, getSkill, setSkillEnabled } from '../../skills/loader.js';
+import { executeSkill } from '../../skills/service.js';
 
 export const skillsRouter = new Hono();
 
@@ -163,4 +164,48 @@ skillsRouter.post('/api/skills/toggle', async (c) => {
   }
   saveDisabledSet(disabled);
   return c.json({ status: 'ok', skill_id: skillId, enabled: !disabled.has(skillId) });
+});
+
+// ─── 助手技能（identity/skills + data/skills）─────────────────────────────────
+
+/** GET /api/assistant-skills */
+skillsRouter.get('/api/assistant-skills', (c) => {
+  const skills = loadAllSkills();
+  return c.json({ skills, total: skills.length });
+});
+
+/** GET /api/assistant-skills/:name */
+skillsRouter.get('/api/assistant-skills/:name', (c) => {
+  const name = c.req.param('name');
+  const skill = getSkill(name);
+  if (!skill) return c.json({ detail: 'skill not found' }, 404);
+  return c.json(skill);
+});
+
+/** POST /api/assistant-skills/:name/execute */
+skillsRouter.post('/api/assistant-skills/:name/execute', async (c) => {
+  const name = c.req.param('name');
+  const body = await c.req.json<{ context?: string }>();
+  try {
+    const result = await executeSkill(name, body.context ?? '');
+    return c.json({ result });
+  } catch (err: unknown) {
+    return c.json({ detail: String(err) }, 400);
+  }
+});
+
+/** PATCH /api/assistant-skills/:name/enable */
+skillsRouter.patch('/api/assistant-skills/:name/enable', (c) => {
+  const name = c.req.param('name');
+  const ok = setSkillEnabled(name, true);
+  if (!ok) return c.json({ detail: 'skill not found' }, 404);
+  return c.json({ status: 'ok', name, enabled: true });
+});
+
+/** PATCH /api/assistant-skills/:name/disable */
+skillsRouter.patch('/api/assistant-skills/:name/disable', (c) => {
+  const name = c.req.param('name');
+  const ok = setSkillEnabled(name, false);
+  if (!ok) return c.json({ detail: 'skill not found' }, 404);
+  return c.json({ status: 'ok', name, enabled: false });
 });

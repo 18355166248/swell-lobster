@@ -279,6 +279,23 @@ const migrations: Array<{ version: number; up: (db: Database.Database) => void }
       `);
     },
   },
+  {
+    version: 11,
+    up: (db) => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS im_channels (
+          id TEXT PRIMARY KEY,
+          channel_type TEXT NOT NULL,
+          name TEXT NOT NULL,
+          config TEXT NOT NULL DEFAULT '{}',
+          enabled INTEGER NOT NULL DEFAULT 0,
+          status TEXT NOT NULL DEFAULT 'stopped',
+          error_message TEXT,
+          created_at TEXT NOT NULL
+        );
+      `);
+    },
+  },
 ];
 
 function runMigrations(db: Database.Database): void {

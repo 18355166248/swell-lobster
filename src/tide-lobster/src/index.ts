@@ -12,6 +12,8 @@ import { createApp } from './api/server.js';
 import { mcpManager } from './mcp/manager.js';
 import { cronManager } from './scheduler/cronManager.js';
 import { initializeBuiltinTools } from './tools/index.js';
+import { imManager } from './im/manager.js';
+import { chatService } from './chat/index.js';
 
 const proxyUrl =
   process.env.HTTPS_PROXY ??
@@ -27,10 +29,17 @@ initializeBuiltinTools();
 // 启动时加载已启用的 MCP 子进程与 Cron 任务（失败项仅日志，不阻塞 HTTP）
 await mcpManager.loadAll();
 cronManager.loadAll();
+// 启动时加载已启用的 IM 通道
+imManager.setChatService(chatService);
+await imManager.loadAll();
 
 const cleanup = async () => {
   cronManager.shutdown();
   await mcpManager.cleanup();
+  // 停止所有 IM 通道
+  for (const ch of (await import('./im/store.js')).imStore.list()) {
+    await imManager.stopChannel(ch.id).catch(() => {});
+  }
 };
 
 // exit 无法可靠 await 异步清理，仅停止 Cron；SIGINT/SIGTERM 走 cleanup 完整释放 MCP

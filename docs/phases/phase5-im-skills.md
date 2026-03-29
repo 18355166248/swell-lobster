@@ -540,3 +540,35 @@ skills: {
 - [ ] 内置 5 个技能（daily_summary/web_search/code_review/translate/task_decompose）均可在列表中看到
 - [ ] 手动执行 `daily_summary` 技能，收到 Markdown 格式的工作总结
 - [ ] `trigger: llm_call` 的技能被注册为工具，AI 在需要时自动调用
+
+后端
+IM 通道模块（可扩展架构）：
+
+- im/base.ts — ChannelAdapter 抽象基类，后续加飞书/微信只需实现此接口
+- im/channels/telegram/ — Telegram 适配器（grammy，支持文字 + 图片消息）
+- im/store.ts — im_channels 表 CRUD
+- im/manager.ts — 生命周期管理 + 消息路由到 ChatService
+- api/routes/im.ts — 完整 REST API（列表/增删改/start/stop/channel-types）
+- DB migration v11 — im_channels 表
+
+技能系统（与 Claude Code skills 分离）：
+
+- skills/loader.ts — 用 gray-matter 扫描 identity/skills/ + data/skills/
+- skills/service.ts — executeSkill() 调用默认 LLM 端点
+- api/routes/skills.ts — 新增 /api/assistant-skills/\* 路由（列表/详情/执行/启停）
+- 5 个内置技能模板：daily_summary、web_search、code_review、translate、task_decompose
+
+前端
+
+- IM 页面 — 通道列表（类型、名称、状态）、两步 Modal 添加（选类型 → 填配置）、启动/停止/删除
+- Skills 页面 — Tabs 分两组：「助手技能」（执行按钮 + Prompt 预览 + 触发方式 Tag）和「Claude Code
+  技能」（原有功能）
+
+扩展方式
+
+添加飞书通道：
+
+1. 新建 src/im/channels/feishu/index.ts，继承 ChannelAdapter
+2. 在 im/manager.ts 的 createAdapter() 中注册 case 'feishu'
+3. 在 im/types.ts 的 ChannelType 联合类型中加 'feishu'
+4. 在 api/routes/im.ts 的 CHANNEL_TYPES 中加字段描述

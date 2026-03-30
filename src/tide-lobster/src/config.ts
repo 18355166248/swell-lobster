@@ -1,7 +1,7 @@
 /**
  * 应用配置
  *
- * 对应 Python: swell_lobster/config.py（Pydantic Settings, SWELL_ 前缀）
+ * 配置与 SWELL_* 环境变量约定（原 Python/Pydantic 参考已移除）。
  *
  * 加载顺序：process.env > .env 文件 > 计算默认值
  */

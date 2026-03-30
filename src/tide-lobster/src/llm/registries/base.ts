@@ -1,7 +1,7 @@
 /**
  * 服务商注册表基础类型与接口
  *
- * 对应 Python: swell_lobster/llm/registries/base.py
+ * Node 后端实现（原 Python 参考已移除）。
  */
 
 export interface ProviderInfo {

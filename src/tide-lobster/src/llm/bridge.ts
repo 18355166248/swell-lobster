@@ -1,7 +1,7 @@
 /**
  * LLM bridge: model-list fetching for Anthropic and OpenAI-compatible APIs
  *
- * 对应 Python: swell_lobster/llm/bridge.py
+ * Node 后端实现（原 Python 参考已移除）。
  *
  * 使用 Node.js 18+ 内置 fetch + AbortController，无需额外依赖。
  */

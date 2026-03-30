@@ -1,7 +1,7 @@
 /**
  * .env 文件解析与合并工具函数
  *
- * 对应 Python: swell_lobster/utils/env_utils.py
+ * Node 后端实现（原 Python 参考已移除）。
  */
 
 /**

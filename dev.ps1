@@ -1,5 +1,5 @@
-# dev.ps1 — 一键切换 Node 版本并启动前后端开发服务（Windows）
-# 行为对齐仓库根目录的 dev.sh；需 PowerShell 5.1+（建议 PowerShell 7+）
+# dev.ps1 — 一键启动前后端开发服务（Node 版本由 fnm/nvm/系统自行管理）
+# 需 PowerShell 5.1+（建议 PowerShell 7+）
 
 $ErrorActionPreference = 'Stop'
 
@@ -7,14 +7,6 @@ $RepoRoot = $PSScriptRoot
 if (-not $RepoRoot) {
   $RepoRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 }
-
-$nvmrcPath = Join-Path $RepoRoot '.nvmrc'
-if (-not (Test-Path -LiteralPath $nvmrcPath)) {
-  Write-Error "未找到 .nvmrc：$nvmrcPath"
-  exit 1
-}
-
-$NvmVersion = (Get-Content -LiteralPath $nvmrcPath -Raw).Trim()
 
 function Test-CommandAvailable {
   param([string]$Name)
@@ -34,52 +26,8 @@ function Stop-DevProcessTree {
   }
 }
 
-# ── 1. 切换 Node 版本（nvm-windows → fnm → 仅校验） ─────────────────────────
-if ($env:DEV_SKIP_NVM -eq '1') {
-  Write-Host '⏭️   已设置 DEV_SKIP_NVM=1，跳过 nvm/fnm。' -ForegroundColor DarkYellow
-} else {
-  $switched = $false
-
-  if (Test-CommandAvailable 'nvm') {
-    Write-Host "⚙️   切换 Node.js → v$NvmVersion （nvm-windows）..." -ForegroundColor Cyan
-    & nvm use $NvmVersion
-    if ($LASTEXITCODE -ne 0) {
-      Write-Host "📦   v$NvmVersion 未安装或切换失败，尝试 nvm install..." -ForegroundColor Yellow
-      & nvm install $NvmVersion
-      if ($LASTEXITCODE -ne 0) {
-        Write-Error "nvm install $NvmVersion 失败，请检查 nvm-windows 是否已正确安装。"
-        exit 1
-      }
-      & nvm use $NvmVersion
-      if ($LASTEXITCODE -ne 0) {
-        Write-Error "nvm use $NvmVersion 失败。"
-        exit 1
-      }
-    }
-    $switched = $true
-  } elseif (Test-CommandAvailable 'fnm') {
-    Write-Host "⚙️   使用 fnm 按 .nvmrc 切换 Node..." -ForegroundColor Cyan
-    Push-Location $RepoRoot
-    try {
-      fnm use
-      if ($LASTEXITCODE -ne 0) {
-        Write-Error 'fnm use 失败，请先在仓库根目录安装对应 Node 版本。'
-        exit 1
-      }
-    } finally {
-      Pop-Location
-    }
-    $switched = $true
-  }
-
-  if (-not $switched) {
-    Write-Host '⚠️   未检测到 nvm-windows（nvm）或 fnm，将使用当前 PATH 中的 node。' -ForegroundColor Yellow
-    Write-Host '    建议安装其一，或设置 DEV_SKIP_NVM=1 并自行保证 Node >= 20.20.0。' -ForegroundColor DarkYellow
-  }
-}
-
 if (-not (Test-CommandAvailable 'node') -or -not (Test-CommandAvailable 'npm')) {
-  Write-Error '未找到 node 或 npm，请先安装 Node.js。'
+  Write-Error '未找到 node 或 npm，请先安装 Node.js（建议 >= 20.20.0）。'
   exit 1
 }
 
@@ -94,7 +42,7 @@ foreach ($d in @($backendDir, $frontendDir)) {
   }
 }
 
-# ── 2. 启动后端 / 前端（同一控制台，Ctrl+C 时尽量结束子进程树） ─────────────
+# ── 启动后端 / 前端（同一控制台，Ctrl+C 时尽量结束子进程树） ─────────────
 Write-Host '🚀   启动后端  (src/tide-lobster) ...' -ForegroundColor Cyan
 $pBackend = Start-Process -FilePath 'cmd.exe' `
   -ArgumentList @('/c', 'npm run dev') `

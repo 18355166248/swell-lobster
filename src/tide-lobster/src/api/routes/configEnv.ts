@@ -1,7 +1,7 @@
 /**
  * Config routes — .env 环境变量管理
  *
- * 对应 Python: swell_lobster/api/routes/config_env.py
+ * Node 后端实现（原 Python 参考已移除）。
  *
  * 接口：
  * - GET  /api/config/env   读取 .env（敏感值脱敏）

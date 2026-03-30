@@ -1,7 +1,7 @@
 /**
  * Config routes — LLM 端点管理
  *
- * 对应 Python: swell_lobster/api/routes/config_endpoints.py
+ * Node 后端实现（原 Python 参考已移除）。
  *
  * 接口：
  * - GET  /api/config/endpoints    读取 data/llm_endpoints.json

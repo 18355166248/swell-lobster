@@ -1,7 +1,7 @@
 /**
  * Identity 文件管理 API
  *
- * 对应 Python: swell_lobster/api/routes/identity.py
+ * Node 后端实现（原 Python 参考已移除）。
  *
  * 接口：
  * - GET  /api/identity/files          列出 identity 目录下的 .md/.yaml 文件

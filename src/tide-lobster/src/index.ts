@@ -1,7 +1,7 @@
 /**
- * Tide-Lobster 入口
+ * Tide-Lobster 入口（`npm run dev` / serve）
  *
- * 对应 Python: swell_lobster/main.py `serve` 命令
+ * Node 后端实现（原 Python 参考已移除）。
  */
 
 // 须最先加载，保证 .env 中的 HTTP(S)_PROXY 等在任意路由/bridge 执行前已注入 process.env

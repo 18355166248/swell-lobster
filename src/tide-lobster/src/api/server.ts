@@ -1,8 +1,8 @@
 /**
  * Hono HTTP API server for Tide-Lobster
  *
- * 对应 Python: swell_lobster/api/server.py
- * 默认端口: 18900（与 OpenAkita / swell_lobster 一致）
+ * 默认端口: 18900（与 OpenAkita 约定一致）。
+ * Node 后端实现（原 Python 参考已移除）。
  */
 
 import { Hono } from 'hono';

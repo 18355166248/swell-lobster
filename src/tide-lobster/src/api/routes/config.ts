@@ -1,7 +1,7 @@
 /**
  * Config routes — 核心（工作区信息、热重载、服务重启）
  *
- * 对应 Python: swell_lobster/api/routes/config.py
+ * Node 后端实现（原 Python 参考已移除）。
  */
 
 import { Hono } from 'hono';

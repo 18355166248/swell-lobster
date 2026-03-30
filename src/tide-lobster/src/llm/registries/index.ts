@@ -1,7 +1,7 @@
 /**
  * 服务商注册表
  *
- * 对应 Python: swell_lobster/llm/registries/__init__.py
+ * Node 后端实现（原 Python 参考已移除）。
  *
  * 数据来源：
  *   1. 内置 registries/providers.json（repo 根，两端共用）

@@ -1,7 +1,7 @@
 /**
  * 模型能力表与推断逻辑
  *
- * 对应 Python: swell_lobster/llm/capabilities.py
+ * Node 后端实现（原 Python 参考已移除）。
  *
  * 七种能力：
  * - text     : 支持文本输入/输出（所有模型都支持）

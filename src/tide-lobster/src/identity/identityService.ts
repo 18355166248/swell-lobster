@@ -32,6 +32,19 @@ export class IdentityService {
     return parts.join('\n\n---\n\n');
   }
 
+  /**
+   * 未指定会话人格时使用的「默认助手」：`personas/default.md` 存在则优先；
+   * 否则取目录内第一个 .md（不含 user_custom），保证新会话总有可落库的 persona_path。
+   */
+  getDefaultAssistantPersonaPath(): string | null {
+    const defaultFile = 'default.md';
+    const defaultAbs = join(this.identityDir, 'personas', defaultFile);
+    if (existsSync(defaultAbs)) return defaultFile;
+
+    const personas = this.listPersonas();
+    return personas[0]?.path ?? null;
+  }
+
   listPersonas(): PersonaInfo[] {
     const personasDir = join(this.identityDir, 'personas');
     if (!existsSync(personasDir)) return [];

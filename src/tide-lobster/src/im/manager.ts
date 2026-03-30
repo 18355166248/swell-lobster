@@ -1,11 +1,19 @@
+/**
+ * IM 中枢：适配器生命周期 + 入站消息到 `ChatService` 的路由。
+ *
+ * 每个 `channel_id` 最多一个运行中的 `ChannelAdapter`；`handleMessage` 根据
+ * `im_session:<externalKey>` 在 `key_value_store` 与 `chat_sessions` 间建立稳定映射，
+ * 使同一 Telegram 用户始终落在同一会话 id 上。
+ */
 import { ChannelAdapter } from './base.js';
 import { TelegramChannel } from './channels/telegram/index.js';
 import { imStore } from './store.js';
 import type { IMChannelConfig, UnifiedMessage } from './types.js';
 import type { ChatService } from '../chat/service.js';
+import { IdentityService } from '../identity/identityService.js';
 import { getDb } from '../db/index.js';
 
-/** 根据通道配置创建对应的适配器实例 */
+/** 工厂：按 `channel_type` 实例化具体适配器，未知类型抛错 */
 function createAdapter(cfg: IMChannelConfig): ChannelAdapter {
   switch (cfg.channel_type) {
     case 'telegram':
@@ -15,15 +23,21 @@ function createAdapter(cfg: IMChannelConfig): ChannelAdapter {
   }
 }
 
-/** 管理所有 IM 通道的生命周期，并将收到的消息路由到 ChatService */
 export class IMManager {
+  /** channel_id → 运行中的适配器 */
   private adapters = new Map<string, ChannelAdapter>();
+  /** 由入口在 `loadAll` 前注入，未设置时入站消息直接丢弃 */
   private chatService: ChatService | null = null;
 
+  /** 必须在 `loadAll` 之前调用，否则 IM 消息无法调用 LLM */
   setChatService(svc: ChatService): void {
     this.chatService = svc;
   }
 
+  /**
+   * 若该 id 已有适配器则先停止再重建，避免热更新配置后仍用旧实例。
+   * 成功后写入 `imStore` 为 `running`。
+   */
   async startChannel(cfg: IMChannelConfig): Promise<void> {
     if (this.adapters.has(cfg.id)) {
       await this.stopChannel(cfg.id);
@@ -35,6 +49,7 @@ export class IMManager {
     imStore.setStatus(cfg.id, 'running');
   }
 
+  /** 停止并移除适配器；DB 状态置为 `stopped`（不区分是否曾报错） */
   async stopChannel(id: string): Promise<void> {
     const adapter = this.adapters.get(id);
     if (adapter) {
@@ -44,11 +59,15 @@ export class IMManager {
     imStore.setStatus(id, 'stopped');
   }
 
+  /** 进程内真实状态；无适配器时视为 `stopped` */
   getRunningStatus(id: string): 'running' | 'stopped' | 'error' {
     return this.adapters.get(id)?.getStatus() ?? 'stopped';
   }
 
-  /** 服务启动时加载所有 enabled 通道 */
+  /**
+   * 进程启动时调用：对 `imStore` 中 `enabled` 的通道逐个 `startChannel`，
+   * 单路失败仅记录错误状态，不阻塞其他通道。
+   */
   async loadAll(): Promise<void> {
     const channels = imStore.list().filter((c) => c.enabled);
     for (const c of channels) {
@@ -58,6 +77,10 @@ export class IMManager {
     }
   }
 
+  /**
+   * 入站统一消息：解析/创建会话 → 组装 `chat` 参数（含图片附件）→
+   * 调用 `ChatService.chat` → 将回复文本发回 `chat_id`。
+   */
   private async handleMessage(msg: UnifiedMessage): Promise<void> {
     if (!this.chatService) return;
     const adapter = this.adapters.get(msg.channel_id);
@@ -82,7 +105,10 @@ export class IMManager {
         }));
       }
 
+      // 走与 Web UI 相同的 `ChatService.chat`：按 `conversation_id` 续写历史、选端点/人格、
+      // 流式或非流式调用 LLM；`result.message` 为助手最终文本（已落库一侧由 ChatService 负责）。
       const result = await this.chatService.chat(chatArgs);
+      // 将助手回复发回该 IM 侧 `chat_id`（如 Telegram 的 chat id），与入站同一会话线程。
       await adapter.sendMessage(msg.chat_id, result.message);
     } catch (err: unknown) {
       await adapter.sendMessage(msg.chat_id, '抱歉，处理消息时出现错误。').catch(() => {});
@@ -91,7 +117,10 @@ export class IMManager {
   }
 }
 
-/** 通过 key_value_store 查找或创建与外部 IM 用户关联的聊天会话 */
+/**
+ * 用稳定外部键 `im_<channel_type>_<channel_id>_<user_id>` 在 KV 中查找已绑定的 `chat_sessions.id`；
+ * 缺失或会话已被删则新建会话并写回 KV，保证 IM 用户与网页聊天使用同一套消息表。
+ */
 async function getOrCreateSession(
   externalKey: string,
   defaults: { title: string }
@@ -99,26 +128,27 @@ async function getOrCreateSession(
   const db = getDb();
   const kvKey = `im_session:${externalKey}`;
 
-  const row = db
-    .prepare(`SELECT value FROM key_value_store WHERE key = ?`)
-    .get(kvKey) as { value: string } | undefined;
+  const row = db.prepare(`SELECT value FROM key_value_store WHERE key = ?`).get(kvKey) as
+    | { value: string }
+    | undefined;
 
   if (row?.value) {
     // 验证会话仍然存在
-    const session = db
-      .prepare(`SELECT id FROM chat_sessions WHERE id = ?`)
-      .get(row.value) as { id: string } | undefined;
+    const session = db.prepare(`SELECT id FROM chat_sessions WHERE id = ?`).get(row.value) as
+      | { id: string }
+      | undefined;
     if (session) return session;
   }
 
-  // 创建新会话
+  // 创建新会话（与 Web UI 一致：无显式人格时落库默认助手人格，便于侧栏与系统提示一致）
+  const personaPath = new IdentityService().getDefaultAssistantPersonaPath();
   const { randomUUID } = await import('node:crypto');
   const sessionId = `chat_${randomUUID().replace(/-/g, '').slice(0, 10)}`;
   const now = new Date().toISOString();
   db.prepare(
     `INSERT INTO chat_sessions (id, title, endpoint_name, persona_path, created_at, updated_at)
-     VALUES (?, ?, NULL, NULL, ?, ?)`
-  ).run(sessionId, defaults.title, now, now);
+     VALUES (?, ?, NULL, ?, ?, ?)`
+  ).run(sessionId, defaults.title, personaPath, now, now);
 
   db.prepare(
     `INSERT INTO key_value_store (key, value) VALUES (?, ?)

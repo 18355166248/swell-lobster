@@ -282,6 +282,7 @@ const migrations: Array<{ version: number; up: (db: Database.Database) => void }
   {
     version: 11,
     up: (db) => {
+      // IM 通道：多 Bot/多平台配置；`config` 为 JSON，敏感信息仅存 env 变量名
       db.exec(`
         CREATE TABLE IF NOT EXISTS im_channels (
           id TEXT PRIMARY KEY,

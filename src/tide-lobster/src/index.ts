@@ -29,7 +29,7 @@ initializeBuiltinTools();
 // 启动时加载已启用的 MCP 子进程与 Cron 任务（失败项仅日志，不阻塞 HTTP）
 await mcpManager.loadAll();
 cronManager.loadAll();
-// 启动时加载已启用的 IM 通道
+// 注入共享 ChatService，并对 imStore 中 enabled 的通道启动适配器（如 Telegram long polling）
 imManager.setChatService(chatService);
 await imManager.loadAll();
 

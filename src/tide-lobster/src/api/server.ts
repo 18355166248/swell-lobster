@@ -49,7 +49,7 @@ export function createApp(): Hono {
   app.route('/', identityRouter);
   app.route('/', skillsRouter);
   app.route('/', chatRouter);
-  app.route('/', imRouter);
+  app.route('/', imRouter); // /api/im/* — 即时通讯通道配置与启停
   app.route('/', mcpRouter);
   app.route('/', memoryRouter);
   app.route('/', schedulerRouter);

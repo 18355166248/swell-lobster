@@ -98,13 +98,26 @@ export class ChatService {
     return this.store.getSession(sessionId);
   }
 
-  /** 新建会话；可指定默认端点名与 persona 文件路径。 */
+  /** 新建会话；可指定默认端点名与 persona 文件路径。未传人格时落库默认助手人格（见 IdentityService.getDefaultAssistantPersonaPath）。 */
   createSession(endpointName?: string | null, personaPath?: string | null): ChatSession {
     const endpoint = this.getEndpointConfig(endpointName);
     if (endpointName && !endpoint) {
       throw new Error(`endpoint not found: ${endpointName}`);
     }
-    return this.store.createSession(endpoint?.name ?? endpointName ?? null, personaPath ?? null);
+    const trimmed = personaPath?.trim();
+    const resolvedPersona = trimmed
+      ? trimmed
+      : (new IdentityService().getDefaultAssistantPersonaPath() ?? null);
+    return this.store.createSession(endpoint?.name ?? endpointName ?? null, resolvedPersona);
+  }
+
+  /** 会话尚无 persona_path 时补全为默认助手人格并写回 SQLite（兼容历史会话与 IM 等直接插库场景）。 */
+  private ensureSessionPersona(session: ChatSession): ChatSession {
+    if ((session.persona_path ?? '').trim()) return session;
+    const defaultPath = new IdentityService().getDefaultAssistantPersonaPath();
+    if (!defaultPath) return session;
+    const updated = this.updateSession(session.id, { persona_path: defaultPath });
+    return updated ?? { ...session, persona_path: defaultPath };
   }
 
   updateSession(
@@ -135,7 +148,7 @@ export class ChatService {
 
     if (!session) {
       endpoint = this.getEndpointConfig(args.endpoint_name);
-      session = this.store.createSession(endpoint?.name ?? args.endpoint_name ?? null);
+      session = this.createSession(endpoint?.name ?? args.endpoint_name ?? null, null);
     } else {
       endpoint = this.getEndpointConfig(args.endpoint_name ?? session.endpoint_name ?? null);
     }
@@ -143,6 +156,8 @@ export class ChatService {
     if (!endpoint) {
       throw new Error('未找到可用端点，请先在 LLM 配置里添加并启用端点');
     }
+
+    session = this.ensureSessionPersona(session);
 
     // 从环境变量 / .env 解析 API Key；无 key_env 时用占位，便于本地等特殊配置
     let apiKey = this.getApiKeyValue(endpoint.api_key_env);
@@ -216,7 +231,7 @@ export class ChatService {
 
     if (!session) {
       endpoint = this.getEndpointConfig(args.endpoint_name);
-      session = this.store.createSession(endpoint?.name ?? args.endpoint_name ?? null);
+      session = this.createSession(endpoint?.name ?? args.endpoint_name ?? null, null);
     } else {
       endpoint = this.getEndpointConfig(args.endpoint_name ?? session.endpoint_name ?? null);
     }
@@ -224,6 +239,8 @@ export class ChatService {
     if (!endpoint) {
       throw new Error('未找到可用端点，请先在 LLM 配置里添加并启用端点');
     }
+
+    session = this.ensureSessionPersona(session);
 
     // 从环境变量 / .env 解析 API Key；无 key_env 时用占位，便于本地等特殊配置
     let apiKey = this.getApiKeyValue(endpoint.api_key_env);

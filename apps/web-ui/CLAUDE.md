@@ -73,6 +73,12 @@ await apiPost('/api/endpoint', payload);
 
 ## Ant Design Form + Modal
 
-- `Modal` 使用 `destroyOnHidden` 时，关闭会卸载内部 `<Form>`。不要在**弹窗外的父组件**里写 `Form.useWatch('x', form)`，否则会触发 `useForm is not connected to any Form` 警告。
-- 做法：在 `<Form>` **内部子组件**里使用 `Form.useWatch('x')`（不传 `form`）；或去掉 `destroyOnHidden`；或将含 `useForm`/`useWatch` 的整段 UI 仅在 `open` 时挂载并处理好重置。
-- 使用 `Form.useForm()` 时务必 `<Form form={form}>` 与之绑定。
+控制台若出现 **`Instance created by useForm is not connected to any Form element`**，说明 `Form.useForm()` 拿到的实例当前没有挂在任何 `<Form form={form}>` 上。常见原因与对策：
+
+1. **`Modal` + `destroyOnHidden`**：关闭弹窗会卸载内部 `<Form>`，父组件里的 `form` 实例仍存在 → 告警。含表单的弹窗**不要**对 `Modal` 使用 `destroyOnHidden`（除非把 `useForm` 与整段表单 UI 一起放进仅在 `open` 时挂载的子组件，并在该子组件内持有实例）。
+2. **分步弹窗只渲染部分步骤**：若第一步没有 `<Form>`、第二步才有，第一步起 `form` 就处于未连接状态 → 用**一个** `<Form form={form}>` 包住弹窗内所有步骤（第一步可无 `Form.Item`）。
+3. **`Form.useWatch('field', form)` 写在含 `<Form>` 的父组件里**：与 (1) 叠加时更易触发。优先在 **`<Form>` 的子组件内**使用 `Form.useWatch('field')`（不传第二个参数，走上下文）；或在父组件用 **`onValuesChange` + `useState`** 镜像需要的字段，避免在「Form 未挂载」阶段订阅。
+
+硬规则：**只要调用了 `Form.useForm()`，就必须保证在对应 UI 生命周期内始终有 `<Form form={form}>` 与之绑定**（同一 `form` 实例不要离开 Form 树仍被 `useWatch`/校验使用）。
+
+参考实现：`pages/IM/index.tsx`（多步 + 单 Form）、`pages/config/LLM/AddEndpointDialog.tsx`（`onValuesChange` 同步字段）。

@@ -72,6 +72,23 @@ export function AddEndpointDialog({
   const [messageApi, contextHolder] = message.useMessage();
   const [form] = Form.useForm<FormValues>();
 
+  /** 替代在弹窗外对同一 form 实例使用 Form.useWatch（易在 Modal 关闭或未挂载 Form 时触发告警） */
+  const [watched, setWatched] = useState({
+    providerSlug: '',
+    baseUrl: '',
+    apiKeyValue: '',
+    selectedModelId: '',
+  });
+  const syncWatchedFromForm = useCallback(() => {
+    const v = form.getFieldsValue();
+    setWatched({
+      providerSlug: (v.providerSlug as string) ?? '',
+      baseUrl: (v.baseUrl as string) ?? '',
+      apiKeyValue: (v.apiKeyValue as string) ?? '',
+      selectedModelId: (v.selectedModelId as string) ?? '',
+    });
+  }, [form]);
+
   const [providers, setProviders] = useState<ProviderInfo[]>([]);
   const [providersLoading, setProvidersLoading] = useState(false);
   const [providersError, setProvidersError] = useState<string | null>(null);
@@ -86,10 +103,10 @@ export function AddEndpointDialog({
   } | null>(null);
   const [baseUrlExpanded, setBaseUrlExpanded] = useState(false);
 
-  const providerSlug = Form.useWatch('providerSlug', form);
-  const baseUrl = Form.useWatch('baseUrl', form) ?? '';
-  const apiKeyValue = Form.useWatch('apiKeyValue', form) ?? '';
-  const selectedModelId = Form.useWatch('selectedModelId', form) ?? '';
+  const providerSlug = watched.providerSlug;
+  const baseUrl = watched.baseUrl ?? '';
+  const apiKeyValue = watched.apiKeyValue ?? '';
+  const selectedModelId = watched.selectedModelId ?? '';
   const selectedProvider = useMemo(
     () => providers.find((p) => p.slug === providerSlug) ?? providers[0] ?? null,
     [providers, providerSlug]
@@ -120,6 +137,7 @@ export function AddEndpointDialog({
     if (isLocalProvider(selectedProvider) && !(form.getFieldValue('apiKeyValue') ?? '').trim()) {
       form.setFieldValue('apiKeyValue', localPlaceholderKey(selectedProvider));
     }
+    syncWatchedFromForm();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedProvider]);
 
@@ -179,6 +197,7 @@ export function AddEndpointDialog({
         costPer1mOutput: undefined,
       });
     }
+    syncWatchedFromForm();
 
     setProviders([]);
     setProvidersError(null);
@@ -189,6 +208,7 @@ export function AddEndpointDialog({
         setProviders(list);
         if (mode === 'edit' && initial && initial.provider) {
           form.setFieldValue('providerSlug', initial.provider);
+          syncWatchedFromForm();
         }
       })
       .catch(() => setProvidersError(t('addEndpoint.providerLoadFailed')))
@@ -200,6 +220,7 @@ export function AddEndpointDialog({
     if (providers.length === 0) return;
     if (form.getFieldValue('providerSlug')) return;
     form.setFieldValue('providerSlug', providers[0].slug);
+    syncWatchedFromForm();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [providers]);
 
@@ -465,7 +486,19 @@ export function AddEndpointDialog({
           {mode === 'edit' ? t('addEndpoint.description') : t('addEndpoint.description')}
         </p>
 
-        <Form form={form} layout="vertical" onFinish={onFinish}>
+        <Form
+          form={form}
+          layout="vertical"
+          onValuesChange={(_, all) => {
+            setWatched({
+              providerSlug: all.providerSlug ?? '',
+              baseUrl: all.baseUrl ?? '',
+              apiKeyValue: all.apiKeyValue ?? '',
+              selectedModelId: all.selectedModelId ?? '',
+            });
+          }}
+          onFinish={onFinish}
+        >
           {/* 服务商 */}
           <Form.Item
             name="providerSlug"

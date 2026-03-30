@@ -327,7 +327,6 @@ export function MCPPage() {
         onCancel={() => setModalOpen(false)}
         onOk={() => void handleSubmit()}
         confirmLoading={saving}
-        destroyOnHidden
       >
         <Form form={form} layout="vertical">
           <Form.Item

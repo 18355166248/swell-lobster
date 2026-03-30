@@ -312,52 +312,54 @@ export function IMPage() {
             </Space>
           ) : null
         }
-        destroyOnHidden
         width={480}
       >
-        {addStep === 1 && (
-          <div className="grid grid-cols-2 gap-3 mt-4">
-            {channelTypes.map((typeDef) => (
-              <button
-                key={typeDef.type}
-                type="button"
-                className="rounded-lg border border-border p-4 text-left hover:border-primary hover:bg-accent/30 transition-colors cursor-pointer bg-transparent"
-                onClick={() => handleSelectType(typeDef)}
-              >
-                <div className="font-medium text-foreground">{typeDef.label}</div>
-                <div className="text-xs text-muted-foreground mt-1">{typeDef.type}</div>
-              </button>
-            ))}
-          </div>
-        )}
+        {/* 与 Form.useForm() 绑定的 <Form> 必须在弹窗打开时始终挂载；勿与 destroyOnHidden 组合，勿仅在第二步才渲染 Form */}
+        <Form form={form} layout="vertical" className="mt-4">
+          {addStep === 1 && (
+            <div className="grid grid-cols-2 gap-3">
+              {channelTypes.map((typeDef) => (
+                <button
+                  key={typeDef.type}
+                  type="button"
+                  className="rounded-lg border border-border p-4 text-left hover:border-primary hover:bg-accent/30 transition-colors cursor-pointer bg-transparent"
+                  onClick={() => handleSelectType(typeDef)}
+                >
+                  <div className="font-medium text-foreground">{typeDef.label}</div>
+                  <div className="text-xs text-muted-foreground mt-1">{typeDef.type}</div>
+                </button>
+              ))}
+            </div>
+          )}
 
-        {addStep === 2 && selectedType && (
-          <Form form={form} layout="vertical" className="mt-4">
-            <Form.Item name="channel_type" hidden>
-              <Input />
-            </Form.Item>
-            <Form.Item
-              name="channel_name"
-              label={t('im.channelName')}
-              rules={[{ required: true, message: t('im.channelNameRequired') }]}
-            >
-              <Input placeholder={t('im.channelNamePlaceholder')} />
-            </Form.Item>
-            {selectedType.fields.map((field) => (
-              <Form.Item
-                key={field.key}
-                name={field.key}
-                label={field.label}
-                rules={
-                  field.required ? [{ required: true, message: `${field.label} 不能为空` }] : []
-                }
-                extra={field.hint}
-              >
-                <Input placeholder={field.hint} />
+          {addStep === 2 && selectedType && (
+            <>
+              <Form.Item name="channel_type" hidden>
+                <Input />
               </Form.Item>
-            ))}
-          </Form>
-        )}
+              <Form.Item
+                name="channel_name"
+                label={t('im.channelName')}
+                rules={[{ required: true, message: t('im.channelNameRequired') }]}
+              >
+                <Input placeholder={t('im.channelNamePlaceholder')} />
+              </Form.Item>
+              {selectedType.fields.map((field) => (
+                <Form.Item
+                  key={field.key}
+                  name={field.key}
+                  label={field.label}
+                  rules={
+                    field.required ? [{ required: true, message: `${field.label} 不能为空` }] : []
+                  }
+                  extra={field.hint}
+                >
+                  <Input placeholder={field.hint} />
+                </Form.Item>
+              ))}
+            </>
+          )}
+        </Form>
       </Modal>
     </div>
   );

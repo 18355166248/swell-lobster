@@ -539,7 +539,6 @@ export function SchedulerPage() {
         onCancel={() => setModalOpen(false)}
         onOk={() => void handleSubmit()}
         confirmLoading={saving}
-        destroyOnHidden
         width={600}
       >
         <Form

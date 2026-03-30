@@ -317,7 +317,6 @@ export function MemoryPage() {
         onCancel={() => setModalOpen(false)}
         onOk={() => void handleSubmit()}
         confirmLoading={saving}
-        destroyOnHidden
       >
         <Form form={form} layout="vertical">
           <Form.Item

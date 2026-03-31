@@ -103,7 +103,6 @@ export class TelegramChannel extends ChannelAdapter {
       return false;
     }
 
-    console.log('isApprovedUser', isApprovedUser(this.channelId, userId), this.channelId, userId);
     // pairing 策略：检查是否已批准
     if (isApprovedUser(this.channelId, userId)) return true;
 
@@ -144,9 +143,12 @@ export class TelegramChannel extends ChannelAdapter {
       timestamp: new Date(),
     };
 
-    // 发送正在输入状态
-    await ctx.api.sendChatAction(ctx.chat.id, 'typing');
-    await this.onMessage?.(msg);
+    const stopTyping = this.keepTyping(ctx.chat.id);
+    try {
+      await this.onMessage?.(msg);
+    } finally {
+      stopTyping();
+    }
   }
 
   /**
@@ -189,7 +191,28 @@ export class TelegramChannel extends ChannelAdapter {
       timestamp: new Date(),
     };
 
-    await ctx.api.sendChatAction(ctx.chat.id, 'typing');
-    await this.onMessage?.(msg);
+    const stopTyping = this.keepTyping(ctx.chat.id);
+    try {
+      await this.onMessage?.(msg);
+    } finally {
+      stopTyping();
+    }
+  }
+
+  /**
+   * 每隔 4 秒向指定 chat 发送 typing 动作，持续到调用返回的 stop 函数为止。
+   * 立即发送第一次，避免首帧空白；超过 `maxMs`（默认 120 秒）自动停止，防止异常时泄漏。
+   */
+  private keepTyping(chatId: number, maxMs = 120_000): () => void {
+    const send = () => {
+      void this.bot?.api.sendChatAction(chatId, 'typing').catch(() => {});
+    };
+    send(); // 立即发一次
+    const timer = setInterval(send, 4_000);
+    const guard = setTimeout(() => clearInterval(timer), maxMs);
+    return () => {
+      clearInterval(timer);
+      clearTimeout(guard);
+    };
   }
 }

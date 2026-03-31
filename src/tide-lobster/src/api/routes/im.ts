@@ -3,11 +3,23 @@
  *
  * 配置存 SQLite `im_channels`；启停由 `imManager` 操作内存中的适配器。
  * 列表中 `status` 在 `enabled` 为真时用进程内运行态覆盖 DB，避免显示「stopped」但实际仍在轮询。
+ *
+ * Telegram 配对码管理端点（`/api/im/channels/:id/pairing/*`）：
+ * - GET  pending          — 获取待审配对请求列表
+ * - POST approve          — 通过 userId 或 code 批准用户
+ * - GET  approved         — 获取已批准用户列表
+ * - DELETE approved/:uid  — 撤销已批准用户的访问权限
  */
 import { Hono } from 'hono';
 import { imStore } from '../../im/store.js';
 import { imManager } from '../../im/manager.js';
 import type { ChannelType } from '../../im/types.js';
+import {
+  getPendingRequests,
+  getApprovedUsers,
+  approveUser,
+  revokeUser,
+} from '../../im/channels/telegram/pairing.js';
 
 export const imRouter = new Hono();
 
@@ -25,10 +37,20 @@ const CHANNEL_TYPES = [
         hint: '例如 TELEGRAM_BOT_TOKEN，Token 本身存入 .env 文件',
       },
       {
+        key: 'dm_policy',
+        label: 'DM 访问策略',
+        type: 'select',
+        options: [
+          { value: 'pairing', label: '配对码（默认）— 未知用户需管理员审批' },
+          { value: 'allowlist', label: '白名单 — 仅允许指定用户 ID' },
+        ],
+        hint: '推荐使用配对码策略，安全性更高',
+      },
+      {
         key: 'allowed_user_ids',
-        label: '允许的用户 ID（逗号分隔，为空不限制）',
+        label: '白名单用户 ID（逗号分隔）',
         type: 'string',
-        hint: '向 @userinfobot 发消息可获取自己的 user_id',
+        hint: '配对码策略下白名单用户直接放行；白名单策略下为唯一准入来源。向 @userinfobot 发消息可获取 user_id',
       },
     ],
   },
@@ -127,4 +149,75 @@ imRouter.post('/api/im/channels/:id/stop', async (c) => {
   await imManager.stopChannel(id);
   imStore.update(id, { enabled: false });
   return c.json({ status: 'stopped' });
+});
+
+// ──────────────────────────────────────────────
+// Telegram 配对码管理（仅 Telegram 通道有效）
+// ──────────────────────────────────────────────
+
+/** 获取待审批的配对请求列表 */
+imRouter.get('/api/im/channels/:id/pairing/pending', (c) => {
+  const id = c.req.param('id');
+  const channel = imStore.get(id);
+  if (!channel) return c.json({ detail: 'channel not found' }, 404);
+  if (channel.channel_type !== 'telegram') {
+    return c.json({ detail: '仅 Telegram 通道支持配对码功能' }, 400);
+  }
+
+  const pending = getPendingRequests(id);
+  return c.json({ pending });
+});
+
+/**
+ * 批准用户。请求体支持两种方式：
+ * - `{ "user_id": 123456789 }` — 按用户 ID 批准
+ * - `{ "code": "ABCD12" }` — 按配对码批准
+ */
+imRouter.post('/api/im/channels/:id/pairing/approve', async (c) => {
+  const id = c.req.param('id');
+  const channel = imStore.get(id);
+  if (!channel) return c.json({ detail: 'channel not found' }, 404);
+  if (channel.channel_type !== 'telegram') {
+    return c.json({ detail: '仅 Telegram 通道支持配对码功能' }, 400);
+  }
+
+  const body = await c.req.json<{ user_id?: number; code?: string }>();
+  if (body.user_id === undefined && !body.code) {
+    return c.json({ detail: '需提供 user_id 或 code' }, 400);
+  }
+
+  const approvedId = approveUser(id, { userId: body.user_id, code: body.code });
+  if (approvedId === null) {
+    return c.json({ detail: '未找到匹配的待审请求' }, 404);
+  }
+
+  return c.json({ approved_user_id: approvedId });
+});
+
+/** 获取已批准用户列表 */
+imRouter.get('/api/im/channels/:id/pairing/approved', (c) => {
+  const id = c.req.param('id');
+  const channel = imStore.get(id);
+  if (!channel) return c.json({ detail: 'channel not found' }, 404);
+  if (channel.channel_type !== 'telegram') {
+    return c.json({ detail: '仅 Telegram 通道支持配对码功能' }, 400);
+  }
+
+  const approved = getApprovedUsers(id);
+  return c.json({ approved });
+});
+
+/** 撤销已批准用户的访问权限 */
+imRouter.delete('/api/im/channels/:id/pairing/approved/:userId', (c) => {
+  const id = c.req.param('id');
+  const userId = Number(c.req.param('userId'));
+  const channel = imStore.get(id);
+  if (!channel) return c.json({ detail: 'channel not found' }, 404);
+  if (channel.channel_type !== 'telegram') {
+    return c.json({ detail: '仅 Telegram 通道支持配对码功能' }, 400);
+  }
+  if (isNaN(userId)) return c.json({ detail: '无效的 user_id' }, 400);
+
+  revokeUser(id, userId);
+  return c.json({ status: 'ok' });
 });

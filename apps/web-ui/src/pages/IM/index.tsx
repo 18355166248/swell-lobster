@@ -7,9 +7,11 @@ import {
   Input,
   Modal,
   Popconfirm,
+  Select,
   Space,
   Spin,
   Table,
+  Tabs,
   Tag,
   Typography,
   message,
@@ -32,18 +34,29 @@ type Channel = {
   created_at: string;
 };
 
+type FieldOption = { value: string; label: string };
+
 type ChannelFieldDef = {
   key: string;
   label: string;
-  type: 'string' | 'number' | 'boolean';
+  type: 'string' | 'number' | 'boolean' | 'select';
   required?: boolean;
   hint?: string;
+  options?: FieldOption[];
 };
 
 type ChannelTypeDef = {
   type: string;
   label: string;
   fields: ChannelFieldDef[];
+};
+
+type PendingRequest = {
+  user_id: number;
+  code: string;
+  created_at: string;
+  first_name?: string;
+  username?: string;
 };
 
 export function IMPage() {
@@ -57,6 +70,10 @@ export function IMPage() {
   const [selectedType, setSelectedType] = useState<ChannelTypeDef | null>(null);
   const [saving, setSaving] = useState(false);
   const [operating, setOperating] = useState<Set<string>>(new Set());
+  const [pairingChannel, setPairingChannel] = useState<Channel | null>(null);
+  const [pendingRequests, setPendingRequests] = useState<PendingRequest[]>([]);
+  const [approvedUsers, setApprovedUsers] = useState<number[]>([]);
+  const [pairingLoading, setPairingLoading] = useState(false);
   const [messageApi, contextHolder] = message.useMessage();
   const [form] = Form.useForm();
 
@@ -186,6 +203,47 @@ export function IMPage() {
     }
   };
 
+  const openPairing = async (channel: Channel) => {
+    setPairingChannel(channel);
+    await loadPairingData(channel.id);
+  };
+
+  const loadPairingData = async (channelId: string) => {
+    setPairingLoading(true);
+    try {
+      const [pendingData, approvedData] = await Promise.all([
+        apiGet<{ pending: PendingRequest[] }>(`/api/im/channels/${channelId}/pairing/pending`),
+        apiGet<{ approved: number[] }>(`/api/im/channels/${channelId}/pairing/approved`),
+      ]);
+      setPendingRequests(pendingData.pending ?? []);
+      setApprovedUsers(approvedData.approved ?? []);
+    } catch {
+      // ignore
+    } finally {
+      setPairingLoading(false);
+    }
+  };
+
+  const handleApprove = async (userId: number) => {
+    if (!pairingChannel) return;
+    try {
+      await apiPost(`/api/im/channels/${pairingChannel.id}/pairing/approve`, { user_id: userId });
+      await loadPairingData(pairingChannel.id);
+    } catch (e) {
+      messageApi.error(e instanceof Error ? e.message : t('im.pairingApproveFailed'));
+    }
+  };
+
+  const handleRevoke = async (userId: number) => {
+    if (!pairingChannel) return;
+    try {
+      await apiDelete(`/api/im/channels/${pairingChannel.id}/pairing/approved/${userId}`);
+      setApprovedUsers((prev) => prev.filter((id) => id !== userId));
+    } catch (e) {
+      messageApi.error(e instanceof Error ? e.message : t('im.pairingRevokeFailed'));
+    }
+  };
+
   const statusBadge = (status: ChannelStatus) => {
     const map = {
       running: { status: 'success' as const, text: t('im.statusRunning') },
@@ -259,7 +317,7 @@ export function IMPage() {
               {
                 title: t('common.actions'),
                 key: 'actions',
-                width: 160,
+                width: 200,
                 render: (_, record) => {
                   const busy = operating.has(record.id);
                   return (
@@ -276,6 +334,11 @@ export function IMPage() {
                           onClick={() => void handleStart(record)}
                         >
                           {t('im.startChannel')}
+                        </Button>
+                      )}
+                      {record.channel_type === 'telegram' && (
+                        <Button size="small" onClick={() => void openPairing(record)}>
+                          {t('im.manage')}
                         </Button>
                       )}
                       <Popconfirm
@@ -354,12 +417,137 @@ export function IMPage() {
                   }
                   extra={field.hint}
                 >
-                  <Input placeholder={field.hint} />
+                  {field.type === 'select' ? (
+                    <Select
+                      placeholder={field.hint}
+                      options={field.options?.map((o) => ({ value: o.value, label: o.label }))}
+                    />
+                  ) : (
+                    <Input placeholder={field.hint} />
+                  )}
                 </Form.Item>
               ))}
             </>
           )}
         </Form>
+      </Modal>
+
+      {/* 配对管理弹窗 */}
+      <Modal
+        title={`${t('im.pairing')} — ${pairingChannel?.name ?? ''}`}
+        open={!!pairingChannel}
+        onCancel={() => setPairingChannel(null)}
+        footer={null}
+        width={600}
+      >
+        {pairingLoading ? (
+          <div className="flex items-center gap-2 py-4">
+            <Spin size="small" />
+            <Text type="secondary">{t('common.loading')}</Text>
+          </div>
+        ) : (
+          <Tabs
+            items={[
+              {
+                key: 'pending',
+                label: `${t('im.pairingPending')} (${pendingRequests.length})`,
+                children: (
+                  <Table<PendingRequest>
+                    rowKey="user_id"
+                    dataSource={pendingRequests}
+                    pagination={false}
+                    size="small"
+                    locale={{ emptyText: t('im.pairingNoPending') }}
+                    columns={[
+                      {
+                        title: t('im.pairingUserId'),
+                        dataIndex: 'user_id',
+                        key: 'user_id',
+                        width: 120,
+                      },
+                      {
+                        title: t('im.pairingUsername'),
+                        key: 'username',
+                        render: (_, r) =>
+                          r.first_name
+                            ? `${r.first_name}${r.username ? ` (@${r.username})` : ''}`
+                            : (r.username ?? '—'),
+                      },
+                      {
+                        title: t('im.pairingCode'),
+                        dataIndex: 'code',
+                        key: 'code',
+                        width: 100,
+                        render: (code: string) => (
+                          <Tag color="blue" style={{ fontFamily: 'monospace' }}>
+                            {code}
+                          </Tag>
+                        ),
+                      },
+                      {
+                        title: t('im.pairingRequestedAt'),
+                        dataIndex: 'created_at',
+                        key: 'created_at',
+                        render: (v: string) => new Date(v).toLocaleString(),
+                      },
+                      {
+                        title: t('common.actions'),
+                        key: 'actions',
+                        width: 80,
+                        render: (_, r) => (
+                          <Button
+                            type="primary"
+                            size="small"
+                            onClick={() => void handleApprove(r.user_id)}
+                          >
+                            {t('im.pairingApprove')}
+                          </Button>
+                        ),
+                      },
+                    ]}
+                  />
+                ),
+              },
+              {
+                key: 'approved',
+                label: `${t('im.pairingApproved')} (${approvedUsers.length})`,
+                children: (
+                  <Table<{ id: number }>
+                    rowKey="id"
+                    dataSource={approvedUsers.map((id) => ({ id }))}
+                    pagination={false}
+                    size="small"
+                    locale={{ emptyText: t('im.pairingNoApproved') }}
+                    columns={[
+                      {
+                        title: t('im.pairingUserId'),
+                        dataIndex: 'id',
+                        key: 'id',
+                      },
+                      {
+                        title: t('common.actions'),
+                        key: 'actions',
+                        width: 80,
+                        render: (_, r) => (
+                          <Popconfirm
+                            title={t('im.pairingRevokeConfirm')}
+                            onConfirm={() => void handleRevoke(r.id)}
+                            okText={t('common.confirm')}
+                            cancelText={t('common.cancel')}
+                          >
+                            <Button size="small" danger>
+                              {t('im.pairingRevoke')}
+                            </Button>
+                          </Popconfirm>
+                        ),
+                      },
+                    ]}
+                  />
+                ),
+              },
+            ]}
+          />
+        )}
       </Modal>
     </div>
   );

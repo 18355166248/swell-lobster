@@ -3,16 +3,28 @@
  *
  * Token 不写入 DB，仅通过 `bot_token_env` 指向进程环境（或 `.env`）中的变量名。
  * 支持文本与带图消息：图片拉取为 base64 后走多模态聊天；出站优先 Markdown，失败则降级纯文本。
+ *
+ * 安全模型（`dm_policy`）：
+ * - `pairing`（默认）：未认证用户收到配对码提示，管理员通过 API 审批后方可对话。
+ *   `allowed_user_ids` 中的用户始终放行，无需配对。
+ * - `allowlist`：仅 `allowed_user_ids` 中的用户可交互，完全无配对码流程。
  */
 import { Bot, type Context } from 'grammy';
 import { ChannelAdapter } from '../../base.js';
 import type { ChannelStatus, SendOptions, UnifiedMessage } from '../../types.js';
+import { isApprovedUser, upsertPendingRequest } from './pairing.js';
 
 /** 持久化在 `im_channels.config` 中的结构（由前端表单序列化） */
 export interface TelegramConfig {
   /** 环境变量名，如 TELEGRAM_BOT_TOKEN，值为 BotFather 下发的 token */
   bot_token_env: string;
-  /** 允许交互的 Telegram user id；省略或空数组表示不限制 */
+  /**
+   * DM 访问策略：
+   * - `pairing`（默认）：未知用户需通过配对码审批
+   * - `allowlist`：仅白名单用户可访问
+   */
+  dm_policy?: 'pairing' | 'allowlist';
+  /** 白名单用户 ID；`pairing` 策略下始终放行，`allowlist` 策略下是唯一准入来源 */
   allowed_user_ids?: number[];
 }
 
@@ -73,11 +85,45 @@ export class TelegramChannel extends ChannelAdapter {
     }
   }
 
-  /** 白名单为空则放行；否则仅允许列表内用户 */
-  private isAllowed(userId: number): boolean {
-    const list = this.cfg.allowed_user_ids;
-    if (!list || list.length === 0) return true;
-    return list.includes(userId);
+  /**
+   * 访问控制检查。
+   *
+   * - `allowlist` 策略：仅 `allowed_user_ids` 中的用户通过。
+   * - `pairing` 策略（默认）：`allowed_user_ids` 直通；已通过配对审批的用户通过；
+   *   其他用户签发配对码并返回 `false`。
+   *
+   * 返回 `true` 表示允许，`false` 表示拒绝（已向用户发送提示）。
+   */
+  private async checkAccess(ctx: Context, userId: number): Promise<boolean> {
+    const policy = this.cfg.dm_policy ?? 'pairing';
+    const whitelist = this.cfg.allowed_user_ids ?? [];
+
+    // 白名单始终放行（两种策略均适用）
+    if (whitelist.includes(userId)) return true;
+
+    if (policy === 'allowlist') {
+      await ctx.reply('抱歉，您没有访问权限。');
+      return false;
+    }
+
+    console.log('isApprovedUser', isApprovedUser(this.channelId, userId), this.channelId, userId);
+    // pairing 策略：检查是否已批准
+    if (isApprovedUser(this.channelId, userId)) return true;
+
+    // 未授权：生成/刷新配对码并提示用户
+    const code = upsertPendingRequest(this.channelId, userId, {
+      first_name: ctx.from?.first_name,
+      username: ctx.from?.username,
+    });
+
+    await ctx.reply(
+      `🔐 *访问需要授权*\n\n` +
+        `请将以下配对码发送给管理员，由管理员通过后台审批后您即可使用。\n\n` +
+        `配对码：\`${code}\`\n\n` +
+        `_授权通过后，重新发送消息即可开始对话。_`,
+      { parse_mode: 'Markdown' }
+    );
+    return false;
   }
 
   /** 文本消息：校验权限 → 构造 `UnifiedMessage` → typing → 交给 `onMessage` */
@@ -86,10 +132,8 @@ export class TelegramChannel extends ChannelAdapter {
     const text = ctx.message?.text;
     if (!userId || !text) return;
 
-    if (!this.isAllowed(userId)) {
-      await ctx.reply('抱歉，您没有使用权限。');
-      return;
-    }
+    const allowed = await this.checkAccess(ctx, userId);
+    if (!allowed) return;
 
     if (!ctx.chat) return;
 
@@ -116,10 +160,8 @@ export class TelegramChannel extends ChannelAdapter {
     const userId = ctx.from?.id;
     if (!userId) return;
 
-    if (!this.isAllowed(userId)) {
-      await ctx.reply('抱歉，您没有使用权限。');
-      return;
-    }
+    const allowed = await this.checkAccess(ctx, userId);
+    if (!allowed) return;
 
     if (!ctx.chat) return;
 

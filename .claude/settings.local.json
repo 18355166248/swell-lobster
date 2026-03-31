@@ -58,7 +58,11 @@
       "Bash(git clone:*)",
       "Bash(./setup)",
       "Bash(find F:FrontEndOtherCodeLobsterAI/src -type f \\\\\\(-name *.ts -o -name *.tsx \\\\\\))",
-      "Bash(find F:FrontEndOtherCodeopenakita -type f \\\\\\(-name *.ts -o -name *.tsx -o -name *.md \\\\\\))"
+      "Bash(find F:FrontEndOtherCodeopenakita -type f \\\\\\(-name *.ts -o -name *.tsx -o -name *.md \\\\\\))",
+      "Bash(find /Users/xmly/Swell/ai-code/swell-lobster/src -type f -name *.ts -o -name *.tsx)",
+      "Bash(find /Users/xmly/Swell/ai-code/swell-lobster -name *.sql)",
+      "Bash(find /Users/xmly/Swell/ai-code/swell-lobster -name README* -o -name CLAUDE.md)",
+      "Bash(npx eslint:*)"
     ]
   }
 }

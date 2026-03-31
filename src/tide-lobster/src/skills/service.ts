@@ -44,9 +44,6 @@ export async function executeSkill(
   const skill = getSkill(skillName);
   if (!skill) throw new Error(`技能 "${skillName}" 不存在`);
   if (!skill.enabled) throw new Error(`技能 "${skillName}" 已禁用`);
-  if (skill.invocation_policy === 'llm_only') {
-    throw new Error(`技能 "${skillName}" 仅允许 AI 自动调用`);
-  }
 
   const startedAt = Date.now();
   const payload: Record<string, unknown> = { context };

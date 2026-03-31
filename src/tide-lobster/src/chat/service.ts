@@ -18,6 +18,7 @@ import { memoryStore } from '../memory/store.js';
 import { extractorService } from '../memory/extractorService.js';
 import { globalToolRegistry } from '../tools/registry.js';
 import type { ToolCall, ToolExecutionTrace } from '../tools/types.js';
+import { buildSkillsAutoRoutingPrompt } from '../skills/autoRouting.js';
 
 /** 单次用户提问内，模型最多可发起多少轮「助手带 tool_calls → 执行工具 → 再请求模型」；防止死循环。 */
 const MAX_TOOL_ROUNDS = 5;
@@ -346,19 +347,28 @@ export class ChatService {
     };
   }
 
-  /** 人格系统提示 + 与当前用户句相关的记忆片段（无记忆则仅人格或 undefined）。 */
+  /** 人格系统提示 + 与当前用户句相关的记忆片段 + skills auto-routing 块。 */
   private buildSystemPrompt(session: ChatSession, userMessage: string): string | undefined {
     const identityService = new IdentityService();
     const basePrompt = identityService.loadSystemPrompt(session.persona_path ?? undefined);
     const relevantMemories = memoryStore.findRelevant(userMessage, 5);
 
-    if (relevantMemories.length === 0) return basePrompt || undefined;
-    const MAX_MEMORY_BLOCK_CHARS = 2000;
-    const memoryBlock = relevantMemories
-      .map((item) => `- ${item.content}`)
-      .join('\n')
-      .slice(0, MAX_MEMORY_BLOCK_CHARS);
-    return `${basePrompt || ''}\n\n## 关于用户的记忆\n${memoryBlock}`.trim();
+    const parts: string[] = [];
+    if (basePrompt) parts.push(basePrompt);
+
+    if (relevantMemories.length > 0) {
+      const MAX_MEMORY_BLOCK_CHARS = 2000;
+      const memoryBlock = relevantMemories
+        .map((item) => `- ${item.content}`)
+        .join('\n')
+        .slice(0, MAX_MEMORY_BLOCK_CHARS);
+      parts.push(`## 关于用户的记忆\n${memoryBlock}`);
+    }
+
+    const skillsPrompt = buildSkillsAutoRoutingPrompt();
+    if (skillsPrompt) parts.push(skillsPrompt);
+
+    return parts.length > 0 ? parts.join('\n\n') : undefined;
   }
 
   /**

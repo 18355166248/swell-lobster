@@ -9,12 +9,7 @@ import { existsSync, readdirSync, readFileSync, watch, writeFileSync } from 'nod
 import { join } from 'node:path';
 import matter from 'gray-matter';
 import { settings } from '../config.js';
-import type {
-  SkillDef,
-  SkillInvocationPolicy,
-  SkillParameter,
-  SkillTrigger,
-} from './types.js';
+import type { SkillDef, SkillParameter } from './types.js';
 import { getDb } from '../db/index.js';
 
 /** key_value_store 中存放禁用技能名集合的键 */
@@ -72,23 +67,6 @@ function listSkillDirs(root: string): string[] {
 }
 
 /**
- * 规范化 invocation_policy 字段。
- *
- * frontmatter 中未填写或值非法时，根据 trigger 推断默认值：
- * - trigger = 'llm_call' → 'llm_only'（只允许 LLM 自动调用）
- * - trigger = 'manual'   → 'user_only'（只允许手动执行）
- */
-function normalizeInvocationPolicy(
-  value: unknown,
-  trigger: SkillTrigger
-): SkillInvocationPolicy {
-  if (value === 'user_only' || value === 'llm_only' || value === 'both') {
-    return value;
-  }
-  return trigger === 'llm_call' ? 'llm_only' : 'user_only';
-}
-
-/**
  * 规范化 parameters 字段。
  *
  * frontmatter 中的 parameters 为任意 YAML 对象，此处做类型收窄：
@@ -133,7 +111,6 @@ function parseSkillFile(filePath: string, source: 'builtin' | 'user'): SkillDef 
     const { data, content: body } = matter(content);
     if (!data.name) return null;
 
-    const trigger = (data.trigger as SkillTrigger) ?? 'manual';
     const tags = Array.isArray(data.tags) ? data.tags.map(String) : [];
 
     return {
@@ -141,12 +118,10 @@ function parseSkillFile(filePath: string, source: 'builtin' | 'user'): SkillDef 
       display_name: String(data.display_name ?? data.name),
       description: String(data.description ?? ''),
       version: String(data.version ?? '1.0.0'),
-      trigger,
       // frontmatter 中 enabled 缺失时默认为 true；显式写 enabled: false 才禁用
       enabled: data.enabled !== false,
       tags,
       prompt_template: body.trim(),
-      invocation_policy: normalizeInvocationPolicy(data.invocation_policy, trigger),
       parameters: normalizeParameters(data.parameters),
       file_path: filePath,
       source,

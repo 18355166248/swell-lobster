@@ -14,7 +14,6 @@ import { getDb } from '../../db/index.js';
 import { loadAllSkills, getSkill, setSkillEnabled } from '../../skills/loader.js';
 import { querySkillLogs } from '../../skills/logger.js';
 import { executeSkill } from '../../skills/service.js';
-import { syncSkillsToToolRegistry } from '../../skills/skillToolRegistry.js';
 
 export const skillsRouter = new Hono();
 
@@ -194,7 +193,6 @@ skillsRouter.patch('/api/assistant-skills/:name/enable', (c) => {
   const name = c.req.param('name');
   const ok = setSkillEnabled(name, true);
   if (!ok) return c.json({ detail: 'skill not found' }, 404);
-  syncSkillsToToolRegistry();
   return c.json({ status: 'ok', name, enabled: true });
 });
 
@@ -202,6 +200,5 @@ skillsRouter.patch('/api/assistant-skills/:name/disable', (c) => {
   const name = c.req.param('name');
   const ok = setSkillEnabled(name, false);
   if (!ok) return c.json({ detail: 'skill not found' }, 404);
-  syncSkillsToToolRegistry();
   return c.json({ status: 'ok', name, enabled: false });
 });

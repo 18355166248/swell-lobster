@@ -32,7 +32,6 @@ export class TelegramChannel extends ChannelAdapter {
   readonly channelType = 'telegram' as const;
   private bot: Bot | null = null;
   private _status: ChannelStatus = 'stopped';
-  private _error: string | null = null;
 
   private get cfg(): TelegramConfig {
     return this.config as unknown as TelegramConfig;
@@ -51,13 +50,11 @@ export class TelegramChannel extends ChannelAdapter {
     this.bot.on('message:photo', (ctx) => void this.handlePhoto(ctx));
 
     // start() 是非阻塞的（内部启动 long polling 协程），不需要 await
-    this.bot.start().catch((err: unknown) => {
+    this.bot.start().catch((_err: unknown) => {
       this._status = 'error';
-      this._error = String(err);
     });
 
     this._status = 'running';
-    this._error = null;
   }
 
   /** 停止 grammy 轮询并清空引用 */

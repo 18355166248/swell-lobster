@@ -238,6 +238,8 @@ const en = {
     deleteFailed: 'Delete failed',
     deleteConfirm: 'Delete this channel?',
     saveFailed: 'Save failed',
+    updateFailed: 'Update failed',
+    editChannel: 'Edit Channel',
     noChannels: 'No channels yet, click the button to add one',
     pairing: 'Pairing',
     pairingPending: 'Pending',

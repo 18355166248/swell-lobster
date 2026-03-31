@@ -117,7 +117,7 @@ export function approveUser(
   if (by.userId !== undefined) {
     target = pending.find((r) => r.user_id === by.userId);
   } else if (by.code) {
-    target = pending.find((r) => r.code === by.code.toUpperCase());
+    target = pending.find((r) => r.code === by.code!.toUpperCase());
   }
 
   if (!target) return null;

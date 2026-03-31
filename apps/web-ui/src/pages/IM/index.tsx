@@ -17,7 +17,7 @@ import {
   message,
 } from 'antd';
 import { useTranslation } from 'react-i18next';
-import { apiGet, apiPost, apiDelete } from '../../api/base';
+import { apiGet, apiPost, apiPatch, apiDelete } from '../../api/base';
 
 const { Title, Text } = Typography;
 
@@ -59,23 +59,76 @@ type PendingRequest = {
   username?: string;
 };
 
+/** config 字段反序列化为表单初始值 */
+function configToFormValues(
+  fields: ChannelFieldDef[],
+  config: Record<string, unknown>
+): Record<string, unknown> {
+  const values: Record<string, unknown> = {};
+  for (const field of fields) {
+    const raw = config[field.key];
+    if (raw === undefined || raw === null) continue;
+    if (field.key === 'allowed_user_ids' && Array.isArray(raw)) {
+      values[field.key] = raw.join(', ');
+    } else {
+      values[field.key] = raw;
+    }
+  }
+  return values;
+}
+
+/** 表单值序列化为 config 对象 */
+function formValuesToConfig(
+  fields: ChannelFieldDef[],
+  values: Record<string, unknown>
+): Record<string, unknown> {
+  const config: Record<string, unknown> = {};
+  for (const field of fields) {
+    const raw = values[field.key];
+    if (raw === undefined || raw === '') continue;
+    if (field.key === 'allowed_user_ids' && typeof raw === 'string') {
+      config[field.key] = raw
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean)
+        .map(Number)
+        .filter((n) => !isNaN(n));
+    } else {
+      config[field.key] = raw;
+    }
+  }
+  return config;
+}
+
 export function IMPage() {
   const { t } = useTranslation();
   const [channels, setChannels] = useState<Channel[]>([]);
   const [channelTypes, setChannelTypes] = useState<ChannelTypeDef[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // 新增弹窗
   const [addOpen, setAddOpen] = useState(false);
   const [addStep, setAddStep] = useState<1 | 2>(1);
   const [selectedType, setSelectedType] = useState<ChannelTypeDef | null>(null);
-  const [saving, setSaving] = useState(false);
+  const [addSaving, setAddSaving] = useState(false);
+  const [addForm] = Form.useForm();
+
+  // 编辑弹窗
+  const [editChannel, setEditChannel] = useState<Channel | null>(null);
+  const [editSaving, setEditSaving] = useState(false);
+  const [editForm] = Form.useForm();
+
+  // 操作状态
   const [operating, setOperating] = useState<Set<string>>(new Set());
+
+  // 配对管理弹窗
   const [pairingChannel, setPairingChannel] = useState<Channel | null>(null);
   const [pendingRequests, setPendingRequests] = useState<PendingRequest[]>([]);
   const [approvedUsers, setApprovedUsers] = useState<number[]>([]);
   const [pairingLoading, setPairingLoading] = useState(false);
+
   const [messageApi, contextHolder] = message.useMessage();
-  const [form] = Form.useForm();
 
   const load = async () => {
     setLoading(true);
@@ -148,8 +201,9 @@ export function IMPage() {
     }
   };
 
+  // ── 新增 ──────────────────────────────────────
   const openAdd = () => {
-    form.resetFields();
+    addForm.resetFields();
     setSelectedType(null);
     setAddStep(1);
     setAddOpen(true);
@@ -158,36 +212,19 @@ export function IMPage() {
   const handleSelectType = (typeDef: ChannelTypeDef) => {
     setSelectedType(typeDef);
     setAddStep(2);
-    form.setFieldValue('channel_type', typeDef.type);
+    addForm.setFieldValue('channel_type', typeDef.type);
   };
 
   const handleAddSubmit = async () => {
     let values: Record<string, unknown>;
     try {
-      values = await form.validateFields();
+      values = await addForm.validateFields();
     } catch {
       return;
     }
-
-    setSaving(true);
+    setAddSaving(true);
     try {
-      // 将 fields 中的值组合为 config 对象
-      const config: Record<string, unknown> = {};
-      for (const field of selectedType?.fields ?? []) {
-        const raw = values[field.key];
-        if (raw !== undefined && raw !== '') {
-          if (field.key === 'allowed_user_ids' && typeof raw === 'string') {
-            config[field.key] = raw
-              .split(',')
-              .map((s) => s.trim())
-              .filter(Boolean)
-              .map(Number)
-              .filter((n) => !isNaN(n));
-          } else {
-            config[field.key] = raw;
-          }
-        }
-      }
+      const config = formValuesToConfig(selectedType?.fields ?? [], values);
       const channel = await apiPost<Channel>('/api/im/channels', {
         channel_type: values.channel_type,
         name: values.channel_name,
@@ -199,10 +236,50 @@ export function IMPage() {
     } catch (e) {
       messageApi.error(e instanceof Error ? e.message : t('im.saveFailed'));
     } finally {
-      setSaving(false);
+      setAddSaving(false);
     }
   };
 
+  // ── 编辑 ──────────────────────────────────────
+  const openEdit = (channel: Channel) => {
+    const typeDef = channelTypes.find((t) => t.type === channel.channel_type);
+    if (!typeDef) return;
+    editForm.resetFields();
+    editForm.setFieldsValue({
+      channel_name: channel.name,
+      ...configToFormValues(typeDef.fields, channel.config),
+    });
+    setEditChannel(channel);
+  };
+
+  const handleEditSubmit = async () => {
+    if (!editChannel) return;
+    let values: Record<string, unknown>;
+    try {
+      values = await editForm.validateFields();
+    } catch {
+      return;
+    }
+    const typeDef = channelTypes.find((t) => t.type === editChannel.channel_type);
+    if (!typeDef) return;
+
+    setEditSaving(true);
+    try {
+      const config = formValuesToConfig(typeDef.fields, values);
+      const updated = await apiPatch<Channel>(`/api/im/channels/${editChannel.id}`, {
+        name: String(values.channel_name ?? editChannel.name),
+        config,
+      });
+      setChannels((prev) => prev.map((c) => (c.id === editChannel.id ? { ...c, ...updated } : c)));
+      setEditChannel(null);
+    } catch (e) {
+      messageApi.error(e instanceof Error ? e.message : t('im.updateFailed'));
+    } finally {
+      setEditSaving(false);
+    }
+  };
+
+  // ── 配对管理 ───────────────────────────────────
   const openPairing = async (channel: Channel) => {
     setPairingChannel(channel);
     await loadPairingData(channel.id);
@@ -253,6 +330,17 @@ export function IMPage() {
     const { status: badgeStatus, text } = map[status] ?? map.stopped;
     return <Badge status={badgeStatus} text={text} />;
   };
+
+  /** 通用字段渲染（新增 & 编辑共用） */
+  const renderField = (field: ChannelFieldDef) =>
+    field.type === 'select' ? (
+      <Select
+        placeholder={field.hint}
+        options={field.options?.map((o) => ({ value: o.value, label: o.label }))}
+      />
+    ) : (
+      <Input placeholder={field.hint} />
+    );
 
   return (
     <div className="p-6">
@@ -317,7 +405,7 @@ export function IMPage() {
               {
                 title: t('common.actions'),
                 key: 'actions',
-                width: 200,
+                width: 220,
                 render: (_, record) => {
                   const busy = operating.has(record.id);
                   return (
@@ -336,6 +424,9 @@ export function IMPage() {
                           {t('im.startChannel')}
                         </Button>
                       )}
+                      <Button size="small" onClick={() => openEdit(record)}>
+                        {t('common.edit')}
+                      </Button>
                       {record.channel_type === 'telegram' && (
                         <Button size="small" onClick={() => void openPairing(record)}>
                           {t('im.manage')}
@@ -360,7 +451,7 @@ export function IMPage() {
         </div>
       )}
 
-      {/* 添加通道弹窗（两步） */}
+      {/* 新增通道弹窗（两步） */}
       <Modal
         title={addStep === 1 ? t('im.selectChannelType') : t('im.configureChannel')}
         open={addOpen}
@@ -369,7 +460,7 @@ export function IMPage() {
           addStep === 2 ? (
             <Space>
               <Button onClick={() => setAddStep(1)}>{t('common.cancel')}</Button>
-              <Button type="primary" loading={saving} onClick={() => void handleAddSubmit()}>
+              <Button type="primary" loading={addSaving} onClick={() => void handleAddSubmit()}>
                 {t('common.save')}
               </Button>
             </Space>
@@ -377,8 +468,7 @@ export function IMPage() {
         }
         width={480}
       >
-        {/* 与 Form.useForm() 绑定的 <Form> 必须在弹窗打开时始终挂载；勿与 destroyOnHidden 组合，勿仅在第二步才渲染 Form */}
-        <Form form={form} layout="vertical" className="mt-4">
+        <Form form={addForm} layout="vertical" className="mt-4">
           {addStep === 1 && (
             <div className="grid grid-cols-2 gap-3">
               {channelTypes.map((typeDef) => (
@@ -417,19 +507,55 @@ export function IMPage() {
                   }
                   extra={field.hint}
                 >
-                  {field.type === 'select' ? (
-                    <Select
-                      placeholder={field.hint}
-                      options={field.options?.map((o) => ({ value: o.value, label: o.label }))}
-                    />
-                  ) : (
-                    <Input placeholder={field.hint} />
-                  )}
+                  {renderField(field)}
                 </Form.Item>
               ))}
             </>
           )}
         </Form>
+      </Modal>
+
+      {/* 编辑通道弹窗 */}
+      <Modal
+        title={t('im.editChannel')}
+        open={!!editChannel}
+        onCancel={() => setEditChannel(null)}
+        footer={
+          <Space>
+            <Button onClick={() => setEditChannel(null)}>{t('common.cancel')}</Button>
+            <Button type="primary" loading={editSaving} onClick={() => void handleEditSubmit()}>
+              {t('common.save')}
+            </Button>
+          </Space>
+        }
+        width={480}
+      >
+        {editChannel && (
+          <Form form={editForm} layout="vertical" className="mt-4">
+            <Form.Item
+              name="channel_name"
+              label={t('im.channelName')}
+              rules={[{ required: true, message: t('im.channelNameRequired') }]}
+            >
+              <Input />
+            </Form.Item>
+            {(channelTypes.find((t) => t.type === editChannel.channel_type)?.fields ?? []).map(
+              (field) => (
+                <Form.Item
+                  key={field.key}
+                  name={field.key}
+                  label={field.label}
+                  rules={
+                    field.required ? [{ required: true, message: `${field.label} 不能为空` }] : []
+                  }
+                  extra={field.hint}
+                >
+                  {renderField(field)}
+                </Form.Item>
+              )
+            )}
+          </Form>
+        )}
       </Modal>
 
       {/* 配对管理弹窗 */}

@@ -246,6 +246,8 @@ const zh = {
     deleteFailed: '删除失败',
     deleteConfirm: '确定删除该通道？',
     saveFailed: '保存失败',
+    updateFailed: '更新失败',
+    editChannel: '编辑通道',
     noChannels: '暂无通道，点击右上角添加',
     pairing: '配对管理',
     pairingPending: '待审批',

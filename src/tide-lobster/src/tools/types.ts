@@ -9,7 +9,12 @@ export interface ToolDef {
   name: string;
   description: string;
   parameters: Record<string, ToolParameter>;
-  execute(args: Record<string, unknown>): Promise<string>;
+  execute(
+    args: Record<string, unknown>,
+    context?: {
+      sessionId?: string;
+    }
+  ): Promise<string>;
 }
 
 export interface ToolCall {

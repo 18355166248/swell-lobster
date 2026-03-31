@@ -178,6 +178,7 @@ export class ChatService {
     const assistant = await this.runCompletion({
       endpoint,
       apiKey,
+      sessionId: session.id,
       messages: trimMessages(toLLMMessages(sessionAfterUser.messages)),
       systemPrompt,
     });
@@ -262,6 +263,7 @@ export class ChatService {
     const assistant = await this.runCompletion({
       endpoint,
       apiKey,
+      sessionId: session.id,
       messages: baseMessages,
       systemPrompt,
       onEvent,
@@ -367,6 +369,7 @@ export class ChatService {
   private async runCompletion(args: {
     endpoint: EndpointConfig;
     apiKey: string;
+    sessionId: string;
     messages: LLMRequestMessage[];
     systemPrompt?: string;
     onEvent?: (event: ChatStreamEvent) => void | Promise<void>;
@@ -425,7 +428,12 @@ export class ChatService {
       lastContent = result.content || lastContent;
 
       for (const toolCall of result.tool_calls) {
-        const trace = await this.executeTool(toolCall, toolInvocations, args.onEvent);
+        const trace = await this.executeTool(
+          toolCall,
+          toolInvocations,
+          args.onEvent,
+          args.sessionId
+        );
         currentMessages = [
           ...currentMessages,
           {
@@ -449,7 +457,8 @@ export class ChatService {
   private async executeTool(
     toolCall: ToolCall,
     toolInvocations: ToolExecutionTrace[],
-    onEvent?: (event: ChatStreamEvent) => void | Promise<void>
+    onEvent?: (event: ChatStreamEvent) => void | Promise<void>,
+    sessionId?: string // 会话 ID，用于记录技能调用日志
   ): Promise<ToolExecutionTrace> {
     const trace: ToolExecutionTrace = {
       id: toolCall.id,
@@ -480,7 +489,7 @@ export class ChatService {
 
     const TOOL_RESULT_MAX_CHARS = 20_000;
     try {
-      const rawResult = await tool.execute(toolCall.arguments);
+      const rawResult = await tool.execute(toolCall.arguments, { sessionId });
       const truncated = rawResult.length > TOOL_RESULT_MAX_CHARS;
       trace.result = truncated
         ? rawResult.slice(0, TOOL_RESULT_MAX_CHARS) +

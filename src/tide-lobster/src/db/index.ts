@@ -297,6 +297,33 @@ const migrations: Array<{ version: number; up: (db: Database.Database) => void }
       `);
     },
   },
+  {
+    version: 13,
+    up: (db) => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS skill_invocation_logs (
+          id TEXT PRIMARY KEY,
+          skill_name TEXT NOT NULL,
+          trigger_type TEXT NOT NULL CHECK(trigger_type IN ('manual', 'llm_call')),
+          invoked_by TEXT NOT NULL DEFAULT 'ui',
+          input_context TEXT NOT NULL DEFAULT '',
+          output TEXT,
+          status TEXT NOT NULL CHECK(status IN ('success', 'failed')),
+          error_message TEXT,
+          duration_ms INTEGER,
+          session_id TEXT,
+          endpoint_name TEXT,
+          created_at TEXT NOT NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_skill_invocation_logs_skill_created
+          ON skill_invocation_logs(skill_name, created_at DESC);
+
+        CREATE INDEX IF NOT EXISTS idx_skill_invocation_logs_created
+          ON skill_invocation_logs(created_at DESC);
+      `);
+    },
+  },
 ];
 
 function runMigrations(db: Database.Database): void {

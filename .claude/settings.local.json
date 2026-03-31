@@ -63,7 +63,17 @@
       "Bash(find /Users/xmly/Swell/ai-code/swell-lobster -name *.sql)",
       "Bash(find /Users/xmly/Swell/ai-code/swell-lobster -name README* -o -name CLAUDE.md)",
       "Bash(npx eslint:*)",
-      "Bash(find /Users/xmly/Swell/ai-code/swell-lobster -type f -name *im* -o -name *IM*)"
+      "Bash(find /Users/xmly/Swell/ai-code/swell-lobster -type f -name *im* -o -name *IM*)",
+      "Bash(node -e \":*)",
+      "Bash(find F:/FrontEnd/Code/swell-lobster/identity/skills F:/FrontEnd/Code/swell-lobster/data/skills -name *.md)",
+      "Bash(for f:*)",
+      "Bash(do)",
+      "Bash(echo \"=== $f ===\")",
+      "Read(//f/FrontEnd/Code/swell-lobster/**)",
+      "Bash(done)",
+      "Bash(xargs -I {} head -15 {})",
+      "Bash(do echo:*)",
+      "Bash(git:*)"
     ]
   }
 }

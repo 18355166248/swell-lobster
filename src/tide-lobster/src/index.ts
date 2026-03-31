@@ -14,6 +14,8 @@ import { cronManager } from './scheduler/cronManager.js';
 import { initializeBuiltinTools } from './tools/index.js';
 import { imManager } from './im/manager.js';
 import { chatService } from './chat/index.js';
+import { syncSkillsToToolRegistry } from './skills/skillToolRegistry.js';
+import { startSkillFileWatcher } from './skills/loader.js';
 
 const proxyUrl =
   process.env.HTTPS_PROXY ??
@@ -26,6 +28,8 @@ if (proxyUrl) {
 
 const app = createApp();
 initializeBuiltinTools();
+syncSkillsToToolRegistry();
+startSkillFileWatcher(() => syncSkillsToToolRegistry());
 // 启动时加载已启用的 MCP 子进程与 Cron 任务（失败项仅日志，不阻塞 HTTP）
 await mcpManager.loadAll();
 cronManager.loadAll();

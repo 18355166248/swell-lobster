@@ -10,6 +10,7 @@ type ChatComposerProps = {
   onSend: () => void;
   onStop: () => void;
   activeSessionId?: string;
+  streaming?: boolean;
 };
 
 export function ChatComposer({
@@ -19,6 +20,7 @@ export function ChatComposer({
   onSend,
   onStop,
   activeSessionId,
+  streaming,
 }: ChatComposerProps) {
   const { t } = useTranslation();
   const inputRef = useRef<TextAreaRef>(null);
@@ -28,7 +30,8 @@ export function ChatComposer({
   }, [activeSessionId]);
 
   return (
-    <div className="px-4 pb-4 pt-2 border-t border-border bg-background/95">
+    <div className={`px-4 pb-4 pt-2 bg-background/95 ${streaming ? '' : 'border-t border-border'}`}>
+      {streaming && <div className="streaming-bar" />}
       <ChatSender
         ref={inputRef}
         value={input}

@@ -158,3 +158,92 @@ code {
   background-color: var(--card);
   color: var(--foreground);
 }
+
+/* === 流式活动条 === */
+.streaming-bar {
+  position: relative;
+  height: 2px;
+  overflow: hidden;
+  background: hsl(var(--brand-h) var(--brand-s) var(--brand-l) / 0.12);
+  margin: -8px -16px 8px;
+}
+.streaming-bar::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -40%;
+  height: 100%;
+  width: 40%;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    hsl(var(--brand-h) var(--brand-s) var(--brand-l) / 0.8) 50%,
+    transparent 100%
+  );
+  animation: streaming-slide 1.5s ease-in-out infinite;
+}
+@keyframes streaming-slide {
+  0% {
+    left: -40%;
+  }
+  100% {
+    left: 100%;
+  }
+}
+
+/* === 工具调用状态圆点 === */
+.tool-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+.tool-status-dot.running {
+  background: hsl(var(--brand-h) var(--brand-s) var(--brand-l));
+  animation: tool-dot-pulse 1.2s ease-in-out infinite;
+}
+.tool-status-dot.completed {
+  background: #22c55e;
+}
+.tool-status-dot.failed {
+  background: #ef4444;
+}
+@keyframes tool-dot-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.4;
+    transform: scale(0.75);
+  }
+}
+
+/* === 滚动到底部浮动按钮 === */
+.scroll-to-bottom-btn {
+  position: absolute;
+  bottom: 76px;
+  right: 24px;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--background);
+  color: var(--muted-foreground);
+  font-size: 15px;
+  cursor: pointer;
+  box-shadow: var(--shadow);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition:
+    color 0.15s,
+    transform 0.15s;
+  z-index: 10;
+}
+.scroll-to-bottom-btn:hover {
+  color: var(--foreground);
+  transform: translateY(-2px);
+}

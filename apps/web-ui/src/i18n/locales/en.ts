@@ -85,6 +85,12 @@ const en = {
     toolCalling: 'Running tool...',
     toolResult: 'Tool result',
     toolTruncated: 'Output truncated, original length: {{length}} chars',
+    scrollToBottom: 'Scroll to bottom',
+    timeJustNow: 'just now',
+    timeMinutesAgo: '{{n}}m ago',
+    timeHoursAgo: '{{n}}h ago',
+    timeDaysAgo: '{{n}}d ago',
+    renameSessionFailed: 'Failed to rename',
   },
 
   persona: {

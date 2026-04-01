@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { DeleteOutlined, SearchOutlined } from '@ant-design/icons';
 import { App, Empty, Input, Spin } from 'antd';
 import { useTranslation } from 'react-i18next';
@@ -12,6 +12,7 @@ type SessionListProps = {
   onSelect: (sessionId: string) => void;
   onSelectSearchResult: (result: SessionSearchResult) => void;
   onDelete: (sessionId: string) => Promise<void>;
+  onRename: (sessionId: string, newTitle: string) => Promise<void>;
 };
 
 /** 列表预览：压空白并截断，避免搜索命中长消息撑破侧栏。 */
@@ -25,6 +26,7 @@ export function SessionList({
   onSelect,
   onSelectSearchResult,
   onDelete,
+  onRename,
 }: SessionListProps) {
   const { t } = useTranslation();
   const { modal } = App.useApp();
@@ -32,6 +34,9 @@ export function SessionList({
   const [results, setResults] = useState<SessionSearchResult[]>([]);
   // 上次请求结束时的 trimmed 词；与当前输入比较得到加载态，避免在 effect 里同步 setState。
   const [completedQuery, setCompletedQuery] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingTitle, setEditingTitle] = useState('');
+  const editInputRef = useRef<HTMLInputElement>(null);
 
   const trimmed = keyword.trim();
   const showingSearch = trimmed.length > 0;
@@ -75,6 +80,32 @@ export function SessionList({
       window.clearTimeout(timer);
     };
   }, [trimmed]);
+
+  const startRename = (session: SessionSummary, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEditingId(session.id);
+    setEditingTitle(session.title || '');
+    requestAnimationFrame(() => editInputRef.current?.select());
+  };
+
+  const commitRename = async (sessionId: string) => {
+    const trimmed = editingTitle.trim();
+    const orig = sessions.find((s) => s.id === sessionId)?.title;
+    if (trimmed && trimmed !== orig) {
+      await onRename(sessionId, trimmed);
+    }
+    setEditingId(null);
+  };
+
+  const handleRenameKeyDown = (e: React.KeyboardEvent, sessionId: string) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      void commitRename(sessionId);
+    }
+    if (e.key === 'Escape') {
+      setEditingId(null);
+    }
+  };
 
   const handleDelete = (sessionId: string) => {
     modal.confirm({
@@ -146,7 +177,21 @@ export function SessionList({
               }`}
               onClick={() => onSelect(session.id)}
             >
-              <span className="flex-1 truncate">{session.title || t('chat.newSession')}</span>
+              {editingId === session.id ? (
+                <input
+                  ref={editInputRef}
+                  className="flex-1 min-w-0 bg-transparent border-b border-primary text-sm outline-none px-0.5"
+                  value={editingTitle}
+                  onChange={(e) => setEditingTitle(e.target.value)}
+                  onBlur={() => void commitRename(session.id)}
+                  onKeyDown={(e) => handleRenameKeyDown(e, session.id)}
+                  onClick={(e) => e.stopPropagation()}
+                />
+              ) : (
+                <span className="flex-1 truncate" onDoubleClick={(e) => startRename(session, e)}>
+                  {session.title || t('chat.newSession')}
+                </span>
+              )}
               <button
                 type="button"
                 className={`ml-2 p-1 rounded-full hover:bg-red-500 hover:text-white ${

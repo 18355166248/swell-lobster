@@ -88,6 +88,12 @@ const zh = {
     toolCalling: '正在执行工具...',
     toolResult: '工具执行结果',
     toolTruncated: '输出已截断，原始长度 {{length}} 字符',
+    scrollToBottom: '滚动到底部',
+    timeJustNow: '刚刚',
+    timeMinutesAgo: '{{n}} 分钟前',
+    timeHoursAgo: '{{n}} 小时前',
+    timeDaysAgo: '{{n}} 天前',
+    renameSessionFailed: '重命名失败',
   },
 
   // 人设

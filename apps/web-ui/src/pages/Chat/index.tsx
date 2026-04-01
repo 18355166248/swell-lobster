@@ -125,6 +125,18 @@ function applyStreamEvent(messages: ChatMessage[], event: ChatStreamEvent): Chat
   });
 }
 
+function formatRelativeTime(
+  iso: string | undefined,
+  t: (k: string, o?: object) => string
+): string | null {
+  if (!iso) return null;
+  const diff = (Date.now() - new Date(iso).getTime()) / 1000;
+  if (diff < 60) return t('chat.timeJustNow');
+  if (diff < 3600) return t('chat.timeMinutesAgo', { n: Math.floor(diff / 60) });
+  if (diff < 86400) return t('chat.timeHoursAgo', { n: Math.floor(diff / 3600) });
+  return t('chat.timeDaysAgo', { n: Math.floor(diff / 86400) });
+}
+
 function ToolInvocationPanel({
   toolInvocations,
   t,
@@ -135,21 +147,19 @@ function ToolInvocationPanel({
   if (toolInvocations.length === 0) return null;
 
   return (
-    <div className="mt-3 flex flex-col gap-2">
+    <div className="my-3 flex flex-col gap-2">
       {toolInvocations.map((item) => (
         <details
           key={item.id}
           className="rounded-xl border border-border bg-muted/35 px-3 py-2 text-sm text-foreground"
         >
           <summary className="cursor-pointer list-none">
-            <div className="flex items-center justify-between gap-3">
-              <span className="font-medium">{item.name}</span>
-              <span className="text-xs text-muted-foreground">
-                {item.status === 'running' ? t('chat.toolCalling') : t('chat.toolResult')}
-              </span>
+            <div className="flex items-center gap-2">
+              <div className={`tool-status-dot ${item.status}`} />
+              <span className="font-medium flex-1 min-w-0 truncate">{item.name}</span>
             </div>
           </summary>
-          <div className="mt-2 space-y-2">
+          <div className="mt-2 max-h-64 overflow-y-auto space-y-2">
             <pre className="overflow-x-auto rounded-lg bg-background px-2 py-1.5 text-xs">
               {JSON.stringify(item.arguments, null, 2)}
             </pre>
@@ -186,12 +196,25 @@ export function ChatPage() {
   const [lastPersona, setLastPersona] = useAtom(lastPersonaAtom);
   const abortRef = useRef<AbortController | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
   const shouldScrollToBottomRef = useRef(false);
+  const userIsAtBottomRef = useRef(true);
   const scrollBehaviorRef = useRef<ScrollBehavior>('smooth');
   const pendingScrollTargetIdRef = useRef<string | null>(null);
   const highlightTimerRef = useRef<number | null>(null);
   const messageRefs = useRef(new Map<string, HTMLDivElement | null>());
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
+  const [showScrollBtn, setShowScrollBtn] = useState(false);
+
+  const SCROLL_THRESHOLD = 150;
+  const handleScroll = useCallback(() => {
+    const el = scrollContainerRef.current;
+    if (!el) return;
+    const dist = el.scrollHeight - el.scrollTop - el.clientHeight;
+    const atBottom = dist <= SCROLL_THRESHOLD;
+    userIsAtBottomRef.current = atBottom;
+    setShowScrollBtn(!atBottom);
+  }, []);
 
   const clearMessageHighlight = useCallback(() => {
     if (highlightTimerRef.current !== null) {
@@ -235,7 +258,7 @@ export function ChatPage() {
       return;
     }
 
-    if (shouldScrollToBottomRef.current) {
+    if (shouldScrollToBottomRef.current && userIsAtBottomRef.current) {
       const behavior = scrollBehaviorRef.current;
       requestAnimationFrame(() => {
         messagesEndRef.current?.scrollIntoView({ behavior });
@@ -338,12 +361,14 @@ export function ChatPage() {
   };
 
   const handleSelectSession = async (sessionId: string) => {
+    if (sessionId === activeSessionId) return;
     setError(null);
     setSessionLoading(true);
     try {
       pendingScrollTargetIdRef.current = null;
       clearMessageHighlight();
       shouldScrollToBottomRef.current = true;
+      userIsAtBottomRef.current = true;
       scrollBehaviorRef.current = 'instant';
       await loadSession(sessionId);
     } catch (e) {
@@ -398,6 +423,18 @@ export function ChatPage() {
     }
   };
 
+  const handleRenameSession = async (sessionId: string, newTitle: string) => {
+    setError(null);
+    try {
+      const updated = await updateSession(sessionId, { title: newTitle });
+      setSessions((prev) =>
+        prev.map((s) => (s.id === sessionId ? { ...s, title: updated.title } : s))
+      );
+    } catch (e) {
+      setError(e instanceof Error ? e.message : t('chat.renameSessionFailed'));
+    }
+  };
+
   const handleEndpointChange = async (endpointName: string) => {
     if (!activeSessionId) return;
     setError(null);
@@ -431,6 +468,7 @@ export function ChatPage() {
 
       setMessages((prev) => [...prev, { role: 'assistant', content: '', tool_invocations: [] }]);
       shouldScrollToBottomRef.current = true;
+      userIsAtBottomRef.current = true;
       setLoading(true);
       setError(null);
 
@@ -481,6 +519,7 @@ export function ChatPage() {
       { role: 'assistant', content: '', tool_invocations: [] },
     ]);
     shouldScrollToBottomRef.current = true;
+    userIsAtBottomRef.current = true;
     setLoading(true);
     setError(null);
 
@@ -551,6 +590,7 @@ export function ChatPage() {
             onSelect={handleSelectSession}
             onSelectSearchResult={handleSelectSearchResult}
             onDelete={handleDeleteSession}
+            onRename={handleRenameSession}
           />
         </div>
       </aside>
@@ -592,9 +632,13 @@ export function ChatPage() {
           </div>
         </div>
 
-        <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+        <div className="flex-1 flex flex-col min-h-0 overflow-hidden relative">
           {/* 全宽滚动：滚动条贴在主栏最右侧；内层 max-w-[800px] 仅限制内容宽度 */}
-          <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
+          <div
+            ref={scrollContainerRef}
+            className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden"
+            onScroll={handleScroll}
+          >
             {bootLoading ? (
               <div className="max-w-[800px] mx-auto w-full min-h-full min-w-0 px-6 flex items-center justify-center py-8">
                 <span className="text-sm text-muted-foreground">{t('common.loading')}</span>
@@ -659,16 +703,21 @@ export function ChatPage() {
                         ) : item.loading ? (
                           <LoadingBubble />
                         ) : null}
-                        <MessageActions
-                          content={item.rawContent}
-                          role="assistant"
-                          align="end"
-                          onRetry={
-                            !loading && item.key === messages.length - 1
-                              ? () => handleRetry(item.key as number)
-                              : undefined
-                          }
-                        />
+                        <div className="flex items-center justify-between">
+                          <span className="text-[11px] text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity select-none whitespace-nowrap">
+                            {formatRelativeTime(messageRow?.created_at, t)}
+                          </span>
+                          <MessageActions
+                            content={item.rawContent}
+                            role="assistant"
+                            align="end"
+                            onRetry={
+                              !loading && item.key === messages.length - 1
+                                ? () => handleRetry(item.key as number)
+                                : undefined
+                            }
+                          />
+                        </div>
                       </div>
                     );
                   }
@@ -684,7 +733,12 @@ export function ChatPage() {
                         <div className="rounded-2xl bg-muted px-4 py-2.5 text-[15px] leading-6 text-foreground">
                           {item.content}
                         </div>
-                        <MessageActions content={item.rawContent} role="user" align="end" />
+                        <div className="flex items-center justify-end gap-2">
+                          <span className="text-[11px] text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity select-none whitespace-nowrap">
+                            {formatRelativeTime(messageRow?.created_at, t)}
+                          </span>
+                          <MessageActions content={item.rawContent} role="user" align="end" />
+                        </div>
                       </div>
                       <Avatar size="small" icon={<UserOutlined />} className="shrink-0" />
                     </div>
@@ -700,10 +754,21 @@ export function ChatPage() {
             )}
           </div>
 
+          {showScrollBtn && (
+            <button
+              type="button"
+              onClick={() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })}
+              className="scroll-to-bottom-btn"
+              aria-label={t('chat.scrollToBottom')}
+            >
+              ↓
+            </button>
+          )}
           <div className="max-w-[800px] w-full mx-auto min-w-0 shrink-0">
             <ChatComposer
               input={input}
               loading={loading}
+              streaming={loading}
               onInputChange={setInput}
               onSend={send}
               onStop={handleStop}

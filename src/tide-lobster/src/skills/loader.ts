@@ -189,7 +189,7 @@ export function setSkillEnabled(name: string, enabled: boolean): boolean {
  * 直接修改技能文件的 frontmatter 字段（原地读写）。
  *
  * gray-matter stringify 会重新生成完整文件内容（frontmatter + 正文），
- * 适用于修改 display_name、description、invocation_policy 等元数据字段。
+ * 适用于修改 display_name、description、tags 等元数据字段。
  *
  * @returns false 表示技能不存在或写入失败
  */
@@ -220,10 +220,7 @@ export function startSkillFileWatcher(onReload: () => void): void {
   if (watchersStarted) return;
   watchersStarted = true;
 
-  const dirs = [
-    join(settings.projectRoot, 'SKILLS'),
-    join(settings.projectRoot, 'data', 'skills'),
-  ];
+  const dirs = [join(settings.projectRoot, 'SKILLS'), join(settings.projectRoot, 'data', 'skills')];
   const triggerReload = () => {
     if (reloadTimer) clearTimeout(reloadTimer);
     reloadTimer = setTimeout(() => {

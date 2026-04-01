@@ -37,13 +37,11 @@ type AssistantSkill = {
   display_name: string;
   description: string;
   version: string;
-  trigger: 'manual' | 'llm_call';
   enabled: boolean;
   tags: string[];
   prompt_template: string;
   file_path: string;
   source: 'builtin' | 'user';
-  invocation_policy: 'user_only' | 'llm_only' | 'both';
   parameters?: Record<
     string,
     {
@@ -69,10 +67,6 @@ type SkillLogEntry = {
   created_at: string;
 };
 
-function canManualExecute(skill: AssistantSkill): boolean {
-  return skill.invocation_policy === 'user_only' || skill.invocation_policy === 'both';
-}
-
 function formatRelativeTime(value: string, locale: string): string {
   const date = new Date(value);
   const diff = date.getTime() - Date.now();
@@ -87,17 +81,10 @@ function formatRelativeTime(value: string, locale: string): string {
   return rtf.format(Math.round(diff / 86400000), 'day');
 }
 
-function SkillPolicyTags({ skill }: { skill: AssistantSkill }) {
+function SkillSourceTag({ skill }: { skill: AssistantSkill }) {
   const { t } = useTranslation();
-
   return (
     <div className="mt-1 flex flex-wrap gap-1">
-      {(skill.invocation_policy === 'user_only' || skill.invocation_policy === 'both') && (
-        <Tag color="cyan">{t('skills.triggerManual')}</Tag>
-      )}
-      {(skill.invocation_policy === 'llm_only' || skill.invocation_policy === 'both') && (
-        <Tag color="purple">{t('skills.triggerLLM')}</Tag>
-      )}
       <Tag>{t(`skills.${skill.source === 'builtin' ? 'sourceBuiltin' : 'sourceUser'}`)}</Tag>
     </div>
   );
@@ -125,16 +112,6 @@ function SkillLogsTable({
       dataIndex: 'skill_name',
       key: 'skill_name',
       width: 180,
-    },
-    {
-      title: t('skills.trigger'),
-      key: 'trigger_type',
-      width: 110,
-      render: (_, record) => (
-        <Tag color={record.trigger_type === 'llm_call' ? 'purple' : 'cyan'}>
-          {record.trigger_type === 'llm_call' ? t('skills.triggerLLM') : t('skills.triggerManual')}
-        </Tag>
-      ),
     },
     {
       title: t('skills.invokedBy'),
@@ -461,7 +438,7 @@ function AssistantSkillsTab() {
           {record.description && (
             <div className="mt-0.5 text-sm text-muted-foreground">{record.description}</div>
           )}
-          <SkillPolicyTags skill={record} />
+          <SkillSourceTag skill={record} />
           {record.tags.length > 0 && (
             <div className="mt-1 flex flex-wrap gap-1">
               {record.tags.map((tag) => (
@@ -471,16 +448,6 @@ function AssistantSkillsTab() {
           )}
         </div>
       ),
-    },
-    {
-      title: t('skills.invocationPolicy'),
-      key: 'invocation_policy',
-      width: 120,
-      render: (_, record) => {
-        if (record.invocation_policy === 'both') return t('skills.policyBoth');
-        if (record.invocation_policy === 'llm_only') return t('skills.policyLlmOnly');
-        return t('skills.policyUserOnly');
-      },
     },
     {
       title: t('skills.enabled'),
@@ -508,16 +475,14 @@ function AssistantSkillsTab() {
           <Button size="small" onClick={() => openHistory(record)}>
             {t('skills.viewHistory')}
           </Button>
-          {canManualExecute(record) && (
-            <Button
-              type="primary"
-              size="small"
-              disabled={!record.enabled}
-              onClick={() => openExecute(record)}
-            >
-              {t('skills.executeSkill')}
-            </Button>
-          )}
+          <Button
+            type="primary"
+            size="small"
+            disabled={!record.enabled}
+            onClick={() => openExecute(record)}
+          >
+            {t('skills.executeSkill')}
+          </Button>
         </div>
       ),
     },

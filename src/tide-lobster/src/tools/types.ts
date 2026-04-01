@@ -2,6 +2,8 @@ export interface ToolParameter {
   type: 'string' | 'number' | 'boolean' | 'object' | 'array';
   description: string;
   enum?: string[];
+  /** JSON Schema 的 `items`；`type: array` 时发给 Gemini/OpenAI 工具 schema 必填，缺省由 registry 补 `{ type: 'string' }` */
+  items?: Record<string, unknown>;
   required?: boolean;
 }
 

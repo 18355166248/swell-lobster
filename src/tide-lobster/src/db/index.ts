@@ -324,6 +324,24 @@ const migrations: Array<{ version: number; up: (db: Database.Database) => void }
       `);
     },
   },
+  {
+    version: 14,
+    up: (db) => {
+      const execSafe = (sql: string) => {
+        try {
+          db.exec(sql);
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          if (!message.includes('duplicate column name')) throw error;
+        }
+      };
+      execSafe(`ALTER TABLE mcp_servers ADD COLUMN registry_id TEXT;`);
+      execSafe(`ALTER TABLE mcp_servers ADD COLUMN url TEXT;`);
+      execSafe(
+        `ALTER TABLE mcp_servers ADD COLUMN headers TEXT NOT NULL DEFAULT '{}';`
+      );
+    },
+  },
 ];
 
 function runMigrations(db: Database.Database): void {

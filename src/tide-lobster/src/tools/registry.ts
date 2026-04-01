@@ -11,6 +11,10 @@ function toJsonSchema(tool: ToolDef): OpenAITool['function']['parameters'] {
         ...(parameter.type === 'string' && parameter.enum?.length
           ? { enum: parameter.enum }
           : {}),
+        // Gemini：array 必须带 items，否则 400（如 MCP 的 include_domains/exclude_domains）
+        ...(parameter.type === 'array'
+          ? { items: parameter.items ?? { type: 'string' } }
+          : {}),
       },
     ])
   );

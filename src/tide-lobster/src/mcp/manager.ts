@@ -1,18 +1,21 @@
 /**
- * MCP 子进程生命周期：为每个已启用配置启动 stdio 客户端、拉取工具并注册到全局 ToolRegistry。
+ * MCP 生命周期：按配置启动 stdio / SSE / Streamable HTTP 客户端、拉取工具并注册到全局 ToolRegistry。
  * 关闭时断开连接并卸载对应 `mcp_<serverId>_*` 工具。
  */
 
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
+import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
+import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
+import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 import { mcpStore } from './store.js';
 import { mcpToolBridge } from './toolBridge.js';
 import type { MCPServerConfig, MCPToolInfo } from './types.js';
 
-/** 已连接的 MCP 客户端与其 stdio 传输（便于 close 时一并释放） */
+/** 已连接的 MCP 客户端与其传输（便于 close 时一并释放） */
 type ManagedClient = {
   client: Client;
-  transport: StdioClientTransport;
+  transport: Transport;
 };
 
 /** 合并进程环境与子进程专属 env，并去掉非 string 项（SDK 要求） */
@@ -24,18 +27,46 @@ function mergeEnv(extra: Record<string, string>): Record<string, string> {
   );
 }
 
+function buildRemoteRequestInit(headers: Record<string, string>): RequestInit | undefined {
+  if (!headers || Object.keys(headers).length === 0) return undefined;
+  return { headers: { ...headers } };
+}
+
+function createTransport(config: MCPServerConfig): Transport {
+  const t = config.type ?? 'stdio';
+  if (t === 'stdio') {
+    return new StdioClientTransport({
+      command: config.command,
+      args: config.args,
+      env: mergeEnv(config.env),
+    });
+  }
+  const rawUrl = config.url?.trim();
+  if (!rawUrl) {
+    throw new Error('url is required for sse/http MCP transport');
+  }
+  let parsedUrl: URL;
+  try {
+    parsedUrl = new URL(rawUrl);
+  } catch (e) {
+    throw new Error(`invalid MCP url: ${rawUrl}`);
+  }
+  const requestInit = buildRemoteRequestInit(config.headers ?? {});
+  const opts = requestInit ? { requestInit } : undefined;
+  if (t === 'sse') {
+    return new SSEClientTransport(parsedUrl, opts);
+  }
+  return new StreamableHTTPClientTransport(parsedUrl, opts);
+}
+
 export class MCPManager {
   private readonly clients = new Map<string, ManagedClient>();
 
-  /** 启动子进程并连接；先停旧实例，再注册工具并更新 store 状态 */
+  /** 启动并连接；先停旧实例，再注册工具并更新 store 状态 */
   async startServer(config: MCPServerConfig): Promise<void> {
     await this.stopServer(config.id);
     try {
-      const transport = new StdioClientTransport({
-        command: config.command,
-        args: config.args,
-        env: mergeEnv(config.env),
-      });
+      const transport = createTransport(config);
       const client = new Client({
         name: 'swell-lobster',
         version: '1.0.0',
@@ -104,7 +135,7 @@ export class MCPManager {
     }
   }
 
-  /** 优雅退出：停止全部 MCP 子进程 */
+  /** 优雅退出：停止全部 MCP 连接 */
   async cleanup(): Promise<void> {
     const ids = [...this.clients.keys()];
     await Promise.all(ids.map((id) => this.stopServer(id)));

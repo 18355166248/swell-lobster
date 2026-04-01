@@ -32,15 +32,19 @@ function toToolParameters(tool: MCPToolInfo): ToolDef['parameters'] {
       ) {
         description = `${description}\n允许取值: ${schema.enum.map(String).join(', ')}`.trim();
       }
-      return [
-        name,
-        {
-          type,
-          description,
-          ...(enumForSchema?.length ? { enum: enumForSchema } : {}),
-          ...(required.has(name) ? { required: true } : {}),
-        },
-      ];
+      const param: ToolDef['parameters'][string] = {
+        type,
+        description,
+        ...(enumForSchema?.length ? { enum: enumForSchema } : {}),
+        ...(required.has(name) ? { required: true } : {}),
+      };
+      if (type === 'array') {
+        const raw = schema.items;
+        if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+          param.items = raw as Record<string, unknown>;
+        }
+      }
+      return [name, param];
     })
   );
 }

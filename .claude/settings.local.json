@@ -73,7 +73,8 @@
       "Bash(done)",
       "Bash(xargs -I {} head -15 {})",
       "Bash(do echo:*)",
-      "Bash(git:*)"
+      "Bash(git:*)",
+      "Bash(xargs -I {} sh -c 'echo \"=== {} ===\" && head -100 \"{}\"')"
     ]
   }
 }

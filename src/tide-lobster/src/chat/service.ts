@@ -368,6 +368,12 @@ export class ChatService {
     const skillsPrompt = buildSkillsAutoRoutingPrompt();
     if (skillsPrompt) parts.push(skillsPrompt);
 
+    const now = new Date().toLocaleString('zh-CN', {
+      timeZone: 'Asia/Shanghai',
+      hour12: false,
+    });
+    parts.push(`当前时间：${now}（Asia/Shanghai）`);
+
     return parts.length > 0 ? parts.join('\n\n') : undefined;
   }
 

@@ -74,7 +74,8 @@
       "Bash(xargs -I {} head -15 {})",
       "Bash(do echo:*)",
       "Bash(git:*)",
-      "Bash(xargs -I {} sh -c 'echo \"=== {} ===\" && head -100 \"{}\"')"
+      "Bash(xargs -I {} sh -c 'echo \"=== {} ===\" && head -100 \"{}\"')",
+      "Bash(find F:FrontEndOtherCodeLobsterAI/src -type f \\\\\\(-name *.tsx -o -name *.ts -o -name *.jsx -o -name *.js \\\\\\))"
     ]
   }
 }

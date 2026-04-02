@@ -481,6 +481,12 @@ const createMarkdownComponents = () => {
         {children}
       </li>
     ),
+    /**
+     * @description 引用块
+     * @param children 子元素
+     * @param props 属性
+     * @returns 引用块
+     */
     blockquote: ({ children, ...props }: ComponentPropsWithoutRef<'blockquote'>) => (
       <blockquote
         className="border-l-4 border-claude-accent pl-4 py-1 my-2 dark:bg-claude-darkSurface/30 bg-claude-surfaceHover/30 rounded-r-lg dark:text-claude-darkText text-claude-text"

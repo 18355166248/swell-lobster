@@ -17,6 +17,7 @@ import type { ColumnsType } from 'antd/es/table';
 import ReactMarkdown from 'react-markdown';
 import { useTranslation } from 'react-i18next';
 import { apiGet, apiPatch, apiPost } from '../../api/base';
+import MarkdownContent from '../../components/MarkdownContent';
 
 const { Title, Text } = Typography;
 const { TextArea } = Input;
@@ -565,9 +566,9 @@ function AssistantSkillsTab() {
         destroyOnHidden
         width={640}
       >
-        <pre className="mt-2 max-h-[60vh] overflow-y-auto whitespace-pre-wrap break-words text-sm text-muted-foreground">
-          {promptModal?.prompt_template}
-        </pre>
+        <div className="mt-2 max-h-[60vh] overflow-y-auto rounded border border-border bg-muted/30 p-3 text-sm text-foreground [&_.markdown-content]:max-w-none">
+          <MarkdownContent content={promptModal?.prompt_template ?? ''} />
+        </div>
       </Modal>
 
       <Modal

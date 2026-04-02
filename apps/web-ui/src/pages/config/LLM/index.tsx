@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Button, Table, Alert, Space, Badge, Typography } from 'antd';
+import { EditOutlined } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
+import { TableActions } from '../../../components/TableActions';
 import { apiGet, apiPost } from '../../../api/base';
 import { AddEndpointDialog } from './AddEndpointDialog';
 import type { EndpointFormData, EndpointItem } from './types';
@@ -171,20 +173,23 @@ export function ConfigLLMPage() {
       render: (v: number) => v ?? 1,
     },
     {
-      title: t('common.edit'),
+      title: t('common.actions'),
       key: 'actions',
+      width: 80,
       render: (_: unknown, record: EndpointItem) => (
-        <Space>
-          <Button
-            size="small"
-            onClick={() => {
-              setEditingTarget(record);
-              setEditEndpointOpen(true);
-            }}
-          >
-            {t('common.edit')}
-          </Button>
-        </Space>
+        <TableActions
+          actions={[
+            {
+              key: 'edit',
+              icon: <EditOutlined />,
+              tooltip: t('common.edit'),
+              onClick: () => {
+                setEditingTarget(record);
+                setEditEndpointOpen(true);
+              },
+            },
+          ]}
+        />
       ),
     },
   ];

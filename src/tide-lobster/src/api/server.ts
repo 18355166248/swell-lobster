@@ -20,6 +20,7 @@ import { imRouter } from './routes/im.js';
 import { mcpRouter } from './routes/mcp.js';
 import { memoryRouter } from './routes/memory.js';
 import { schedulerRouter } from './routes/scheduler.js';
+import { filesRouter } from './routes/files.js';
 import { tokenStatsRouter } from './routes/tokenStats.js';
 
 export function createApp(): Hono {
@@ -54,6 +55,7 @@ export function createApp(): Hono {
   app.route('/', memoryRouter);
   app.route('/', schedulerRouter);
   app.route('/', tokenStatsRouter);
+  app.route('/', filesRouter);
 
   return app;
 }

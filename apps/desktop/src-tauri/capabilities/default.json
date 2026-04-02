@@ -1,0 +1,15 @@
+{
+  "$schema": "../node_modules/@tauri-apps/cli/schema/acl/capability.json",
+  "identifier": "default",
+  "description": "Default permissions for SwellLobster desktop",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "shell:allow-open",
+    "fs:read-all",
+    "fs:write-all",
+    "dialog:allow-open",
+    "dialog:allow-save",
+    "process:allow-exit"
+  ]
+}

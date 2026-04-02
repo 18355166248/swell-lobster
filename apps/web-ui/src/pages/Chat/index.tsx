@@ -142,7 +142,7 @@ function ToolInvocationPanel({
   t,
 }: {
   toolInvocations: ToolInvocation[];
-  t: (key: string) => string;
+  t: (key: string, options?: object) => string;
 }) {
   if (toolInvocations.length === 0) return null;
 
@@ -695,7 +695,10 @@ export function ChatPage() {
                           isHighlighted ? 'bg-amber-100/80 ring-1 ring-amber-300' : ''
                         }`}
                       >
-                        <ToolInvocationPanel toolInvocations={toolInvocations} t={t} />
+                        <ToolInvocationPanel
+                          toolInvocations={toolInvocations}
+                          t={t as (key: string, options?: object) => string}
+                        />
                         {item.rawContent ? (
                           <div className="w-full min-w-0 text-foreground [&_.markdown-content]:max-w-none">
                             {item.content}
@@ -705,7 +708,10 @@ export function ChatPage() {
                         ) : null}
                         <div className="flex items-center justify-between">
                           <span className="text-[11px] text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity select-none whitespace-nowrap">
-                            {formatRelativeTime(messageRow?.created_at, t)}
+                            {formatRelativeTime(
+                              messageRow?.created_at,
+                              t as (k: string, o?: object) => string
+                            )}
                           </span>
                           <MessageActions
                             content={item.rawContent}
@@ -735,7 +741,10 @@ export function ChatPage() {
                         </div>
                         <div className="flex items-center justify-end gap-2">
                           <span className="text-[11px] text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity select-none whitespace-nowrap">
-                            {formatRelativeTime(messageRow?.created_at, t)}
+                            {formatRelativeTime(
+                              messageRow?.created_at,
+                              t as (k: string, o?: object) => string
+                            )}
                           </span>
                           <MessageActions content={item.rawContent} role="user" align="end" />
                         </div>

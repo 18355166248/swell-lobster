@@ -70,7 +70,7 @@ export function McpCustomFormFields({ showRegistryAlert }: Props) {
         </>
       )}
 
-      <Divider orientation="left">{t('mcp.envKeyValueSection')}</Divider>
+      <Divider titlePlacement="left">{t('mcp.envKeyValueSection')}</Divider>
       <Text type="secondary" className="mb-3 block text-sm">
         {t('mcp.envKeyValueIntro')}
       </Text>

@@ -16,8 +16,16 @@ import {
   Typography,
   message,
 } from 'antd';
+import {
+  DeleteOutlined,
+  EditOutlined,
+  PauseCircleOutlined,
+  PlayCircleOutlined,
+  SettingOutlined,
+} from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
 import { apiGet, apiPost, apiPatch, apiDelete } from '../../api/base';
+import { TableActions } from '../../components/TableActions';
 
 const { Title, Text } = Typography;
 
@@ -405,44 +413,59 @@ export function IMPage() {
               {
                 title: t('common.actions'),
                 key: 'actions',
-                width: 220,
+                width: 130,
                 render: (_, record) => {
                   const busy = operating.has(record.id);
                   return (
-                    <Space size="small">
-                      {record.status === 'running' ? (
-                        <Button size="small" loading={busy} onClick={() => void handleStop(record)}>
-                          {t('im.stopChannel')}
-                        </Button>
-                      ) : (
-                        <Button
-                          type="primary"
-                          size="small"
-                          loading={busy}
-                          onClick={() => void handleStart(record)}
-                        >
-                          {t('im.startChannel')}
-                        </Button>
-                      )}
-                      <Button size="small" onClick={() => openEdit(record)}>
-                        {t('common.edit')}
-                      </Button>
-                      {record.channel_type === 'telegram' && (
-                        <Button size="small" onClick={() => void openPairing(record)}>
-                          {t('im.manage')}
-                        </Button>
-                      )}
-                      <Popconfirm
-                        title={t('im.deleteConfirm')}
-                        onConfirm={() => void handleDelete(record)}
-                        okText={t('common.confirm')}
-                        cancelText={t('common.cancel')}
-                      >
-                        <Button size="small" danger disabled={busy}>
-                          {t('common.delete')}
-                        </Button>
-                      </Popconfirm>
-                    </Space>
+                    <TableActions
+                      actions={[
+                        {
+                          key: 'toggle',
+                          icon:
+                            record.status === 'running' ? (
+                              <PauseCircleOutlined />
+                            ) : (
+                              <PlayCircleOutlined />
+                            ),
+                          tooltip:
+                            record.status === 'running'
+                              ? t('im.stopChannel')
+                              : t('im.startChannel'),
+                          type: record.status === 'running' ? 'text' : 'primary',
+                          loading: busy,
+                          onClick: () =>
+                            void (record.status === 'running'
+                              ? handleStop(record)
+                              : handleStart(record)),
+                        },
+                        {
+                          key: 'edit',
+                          icon: <EditOutlined />,
+                          tooltip: t('common.edit'),
+                          onClick: () => openEdit(record),
+                        },
+                        {
+                          key: 'manage',
+                          icon: <SettingOutlined />,
+                          tooltip: t('im.manage'),
+                          hidden: record.channel_type !== 'telegram',
+                          onClick: () => void openPairing(record),
+                        },
+                        {
+                          key: 'delete',
+                          icon: <DeleteOutlined />,
+                          tooltip: t('common.delete'),
+                          danger: true,
+                          disabled: busy,
+                          popconfirm: {
+                            title: t('im.deleteConfirm'),
+                            onConfirm: () => void handleDelete(record),
+                            okText: t('common.confirm'),
+                            cancelText: t('common.cancel'),
+                          },
+                        },
+                      ]}
+                    />
                   );
                 },
               },

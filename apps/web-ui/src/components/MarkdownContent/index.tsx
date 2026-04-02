@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo, useId } from 'react';
 import type { ComponentPropsWithoutRef } from 'react';
+import { FileCard } from '../FileCard';
 import ReactMarkdown from 'react-markdown';
 import type { Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -538,10 +539,14 @@ const createMarkdownComponents = () => {
       <hr className="my-5 dark:border-claude-darkBorder border-claude-border" {...props} />
     ),
     a: ({ href, children, ...props }: ComponentPropsWithoutRef<'a'>) => {
-      // Simplified anchor handling for web-ui, removed Electron-specific and local file logic
       const hrefValue = typeof href === 'string' ? href.trim() : '';
 
-      // Check if it's an external link (not starting with # for internal anchors)
+      // /api/files/ 开头 → 渲染为文件卡片（Web 下载 / Tauri 本地打开）
+      if (hrefValue.startsWith('/api/files/')) {
+        const filename = decodeURIComponent(hrefValue.split('/').pop() ?? '');
+        return <FileCard filename={filename} href={hrefValue} />;
+      }
+
       const isExternalLink =
         hrefValue && !hrefValue.startsWith('#') && !hrefValue.startsWith('mailto:');
 
@@ -559,7 +564,6 @@ const createMarkdownComponents = () => {
         );
       }
 
-      // For internal links or mailto, render as is
       return (
         <a
           href={hrefValue}

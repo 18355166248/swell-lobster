@@ -95,6 +95,11 @@ const zh = {
     timeHoursAgo: '{{n}} 小时前',
     timeDaysAgo: '{{n}} 天前',
     renameSessionFailed: '重命名失败',
+    runScriptRunning: '正在执行脚本...',
+    fileDownload: '下载',
+    fileOpen: '打开',
+    fileSaveAs: '另存为',
+    generatedFiles: '生成的文件',
   },
 
   // 人设

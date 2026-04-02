@@ -21,7 +21,7 @@ import type { ToolCall, ToolExecutionTrace } from '../tools/types.js';
 import { buildSkillsAutoRoutingPrompt } from '../skills/autoRouting.js';
 
 /** 单次用户提问内，模型最多可发起多少轮「助手带 tool_calls → 执行工具 → 再请求模型」；防止死循环。 */
-const MAX_TOOL_ROUNDS = 5;
+const MAX_TOOL_ROUNDS = 25;
 
 /** 流式对话推送给前端的统一事件：文本增量或工具执行状态。 */
 export type ChatStreamEvent =
@@ -411,7 +411,7 @@ export class ChatService {
         },
       });
 
-      console.log('result', JSON.stringify(result, null, 2));
+      console.log('src/tide-lobster/src/chat/service.ts result', JSON.stringify(result, null, 2));
 
       // 模型不再要工具：视为本轮对话的最终回复
       if (!result.tool_calls?.length) {
@@ -501,7 +501,7 @@ export class ChatService {
       return trace;
     }
 
-    const TOOL_RESULT_MAX_CHARS = 20_000;
+    const TOOL_RESULT_MAX_CHARS = 50_000;
     try {
       const rawResult = await tool.execute(toolCall.arguments, { sessionId });
       const truncated = rawResult.length > TOOL_RESULT_MAX_CHARS;

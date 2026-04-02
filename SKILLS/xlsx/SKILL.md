@@ -5,6 +5,36 @@ license: Proprietary. LICENSE.txt has complete terms
 official: true
 ---
 
+# XLSX creation, editing, and analysis
+
+## Execution Environment
+
+**Use the `run_script` tool to execute all scripts. Do NOT attempt direct bash/shell execution.**
+
+### Rules
+
+1. Use `run_script` with the absolute script path
+2. Script paths use `$SKILLS_ROOT` prefix: `$SKILLS_ROOT/xlsx/scripts/<file>.py`
+3. Output files MUST be written to `os.environ['OUTPUT_DIR']`
+4. `run_script` returns JSON — check `output_files` array for download URLs
+5. Include download links in your final reply:
+   `[filename.xlsx](/api/files/filename.xlsx)`
+
+### Python dependencies (declare inline for uv)
+
+```python
+# /// script
+# requires-python = ">=3.10"
+# dependencies = ["openpyxl"]
+# ///
+import openpyxl, os
+wb = openpyxl.Workbook()
+# ... build workbook ...
+wb.save(os.path.join(os.environ['OUTPUT_DIR'], 'report.xlsx'))
+```
+
+> **Tauri desktop**: Files are saved locally and opened with the system's default application.
+
 # Requirements for Outputs
 
 ## All Excel files

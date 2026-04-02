@@ -7,6 +7,34 @@ official: true
 
 # PPTX creation, editing, and analysis
 
+## Execution Environment
+
+**Use the `run_script` tool to execute all scripts. Do NOT attempt direct bash/shell execution.**
+
+### Rules
+
+1. Use `run_script` with the absolute script path
+2. Script paths use `$SKILLS_ROOT` prefix: `$SKILLS_ROOT/pptx/scripts/<file>`
+   - `.py` scripts → Python interpreter (auto-detected)
+   - `.js` scripts (e.g. `html2pptx.js`) → Node.js interpreter (`process.execPath`)
+3. Output files MUST be written to `os.environ['OUTPUT_DIR']` (Python) or `process.env.OUTPUT_DIR` (Node.js)
+4. `run_script` returns JSON — check `output_files` array for download URLs
+5. Include download links in your final reply using Markdown:
+   `[filename.pptx](/api/files/filename.pptx)`
+
+### Example
+
+```
+Call run_script:
+  script_path: "/abs/path/SKILLS/pptx/scripts/html2pptx.js"
+  args: ["--html", "/tmp/slides.html", "--output", "<OUTPUT_DIR>/deck_20240101.pptx"]
+
+Then reply:
+  "演示文稿已生成：[deck_20240101.pptx](/api/files/deck_20240101.pptx)"
+```
+
+> **Tauri desktop**: Files are saved to the user's local output directory and can be opened directly with the system's default application.
+
 ## Overview
 
 A user may ask you to create, edit, or analyze the contents of a .pptx file. A .pptx file is essentially a ZIP archive containing XML files and other resources that you can read or edit. You have different tools and workflows available for different tasks.

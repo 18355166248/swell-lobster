@@ -15,8 +15,10 @@ import {
   Typography,
   message,
 } from 'antd';
+import { DeleteOutlined, EditOutlined } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
 import { apiDelete, apiGet, apiPatch, apiPost } from '../../api/base';
+import { TableActions } from '../../components/TableActions';
 
 const { Title, Text } = Typography;
 const { Search } = Input;
@@ -287,22 +289,29 @@ export function MemoryPage() {
                 {
                   title: t('common.actions'),
                   key: 'actions',
-                  width: 160,
+                  width: 80,
                   render: (_, record) => (
-                    <Space>
-                      <Button size="small" onClick={() => openEditModal(record)}>
-                        {t('common.edit')}
-                      </Button>
-                      <Popconfirm
-                        title={t('common.delete')}
-                        description={t('memory.deleteConfirm')}
-                        onConfirm={() => void handleDelete(record.id)}
-                      >
-                        <Button danger size="small">
-                          {t('common.delete')}
-                        </Button>
-                      </Popconfirm>
-                    </Space>
+                    <TableActions
+                      actions={[
+                        {
+                          key: 'edit',
+                          icon: <EditOutlined />,
+                          tooltip: t('common.edit'),
+                          onClick: () => openEditModal(record),
+                        },
+                        {
+                          key: 'delete',
+                          icon: <DeleteOutlined />,
+                          tooltip: t('common.delete'),
+                          danger: true,
+                          popconfirm: {
+                            title: t('common.delete'),
+                            description: t('memory.deleteConfirm'),
+                            onConfirm: () => void handleDelete(record.id),
+                          },
+                        },
+                      ]}
+                    />
                   ),
                 },
               ]}

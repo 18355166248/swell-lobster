@@ -7,7 +7,6 @@ import {
   Empty,
   Form,
   Input,
-  Popconfirm,
   Row,
   Select,
   Space,
@@ -20,7 +19,8 @@ import {
   message,
 } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import { EditOutlined, ReloadOutlined } from '@ant-design/icons';
+import { DeleteOutlined, EditOutlined, ReloadOutlined } from '@ant-design/icons';
+import { TableActions } from '../../components/TableActions';
 import { useTranslation } from 'react-i18next';
 import { apiDelete, apiGet, apiPatch, apiPost } from '../../api/base';
 import { McpCustomFormFields } from './McpCustomFormFields';
@@ -388,21 +388,34 @@ export function MCPPage() {
     {
       title: t('common.actions'),
       key: 'actions',
-      width: 240,
+      width: 110,
       render: (_, record) => (
-        <Space wrap>
-          <Button size="small" icon={<EditOutlined />} onClick={() => openEditServer(record)}>
-            {t('common.edit')}
-          </Button>
-          <Button size="small" onClick={() => void fetchTools(record.id)}>
-            {t('mcp.reload')}
-          </Button>
-          <Popconfirm title={t('mcp.deleteConfirm')} onConfirm={() => void handleDelete(record.id)}>
-            <Button danger size="small">
-              {t('common.delete')}
-            </Button>
-          </Popconfirm>
-        </Space>
+        <TableActions
+          actions={[
+            {
+              key: 'edit',
+              icon: <EditOutlined />,
+              tooltip: t('common.edit'),
+              onClick: () => openEditServer(record),
+            },
+            {
+              key: 'reload',
+              icon: <ReloadOutlined />,
+              tooltip: t('mcp.reload'),
+              onClick: () => void fetchTools(record.id),
+            },
+            {
+              key: 'delete',
+              icon: <DeleteOutlined />,
+              tooltip: t('common.delete'),
+              danger: true,
+              popconfirm: {
+                title: t('mcp.deleteConfirm'),
+                onConfirm: () => void handleDelete(record.id),
+              },
+            },
+          ]}
+        />
       ),
     },
   ];

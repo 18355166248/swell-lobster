@@ -7,12 +7,34 @@
  */
 
 import { resolve, dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { existsSync } from 'node:fs';
 import { config as loadDotenv } from 'dotenv';
 
-const __filename = fileURLToPath(import.meta.url);
-// src/tide-lobster/src/config.ts → 向上 3 层到仓库根
-const REPO_ROOT = resolve(dirname(__filename), '..', '..', '..');
+function findRepoRoot(): string {
+  const envRoot = process.env.SWELL_PROJECT_ROOT ?? process.env.PROJECT_ROOT;
+  if (envRoot) return resolve(envRoot);
+
+  const candidates = [process.cwd(), dirname(process.execPath)];
+  for (const start of candidates) {
+    let current = resolve(start);
+    for (let depth = 0; depth < 8; depth += 1) {
+      if (
+        existsSync(resolve(current, 'identity')) &&
+        existsSync(resolve(current, 'src', 'tide-lobster'))
+      ) {
+        return current;
+      }
+
+      const parent = dirname(current);
+      if (parent === current) break;
+      current = parent;
+    }
+  }
+
+  return resolve(process.cwd());
+}
+
+const REPO_ROOT = findRepoRoot();
 
 // 先加载仓库根 .env（与 Python 的 env_file=".env" 一致）
 loadDotenv({ path: resolve(REPO_ROOT, '.env') });

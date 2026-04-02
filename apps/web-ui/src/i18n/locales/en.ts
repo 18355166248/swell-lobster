@@ -92,6 +92,11 @@ const en = {
     timeHoursAgo: '{{n}}h ago',
     timeDaysAgo: '{{n}}d ago',
     renameSessionFailed: 'Failed to rename',
+    runScriptRunning: 'Running script...',
+    fileDownload: 'Download',
+    fileOpen: 'Open',
+    fileSaveAs: 'Save As',
+    generatedFiles: 'Generated files',
   },
 
   persona: {

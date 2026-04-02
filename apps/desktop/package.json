@@ -1,0 +1,23 @@
+{
+  "name": "swell-lobster-desktop",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "predev": "node scripts/ensure-dev-sidecar-stubs.mjs",
+    "dev": "npx tauri dev",
+    "build": "npx tauri build",
+    "dev:frontend": "npm run dev --prefix ../web-ui",
+    "build:frontend": "npm run build --prefix ../web-ui",
+    "prepare:binaries": "node --use-system-ca scripts/prepare-binaries.mjs"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2",
+    "@tauri-apps/plugin-dialog": "^2",
+    "@tauri-apps/plugin-fs": "^2",
+    "@tauri-apps/plugin-process": "^2",
+    "@tauri-apps/plugin-shell": "^2"
+  }
+}

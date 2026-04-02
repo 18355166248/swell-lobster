@@ -25,47 +25,54 @@ if (proxyUrl) {
   setGlobalDispatcher(new ProxyAgent(proxyUrl));
 }
 
-const app = createApp();
-initializeBuiltinTools();
-startSkillFileWatcher(() => {
-  // auto-routing 在每次 chat 请求时动态构建，无需手动同步
-});
-// 启动时加载已启用的 MCP 子进程与 Cron 任务（失败项仅日志，不阻塞 HTTP）
-await mcpManager.loadAll();
-cronManager.loadAll();
-// 注入共享 ChatService，并对 imStore 中 enabled 的通道启动适配器（如 Telegram long polling）
-imManager.setChatService(chatService);
-await imManager.loadAll();
+async function main() {
+  const app = createApp();
+  initializeBuiltinTools();
+  startSkillFileWatcher(() => {
+    // auto-routing 在每次 chat 请求时动态构建，无需手动同步
+  });
+  // 启动时加载已启用的 MCP 子进程与 Cron 任务（失败项仅日志，不阻塞 HTTP）
+  await mcpManager.loadAll();
+  cronManager.loadAll();
+  // 注入共享 ChatService，并对 imStore 中 enabled 的通道启动适配器（如 Telegram long polling）
+  imManager.setChatService(chatService);
+  await imManager.loadAll();
 
-const cleanup = async () => {
-  cronManager.shutdown();
-  await mcpManager.cleanup();
-  // 停止所有 IM 通道
-  for (const ch of (await import('./im/store.js')).imStore.list()) {
-    await imManager.stopChannel(ch.id).catch(() => {});
-  }
-};
+  const cleanup = async () => {
+    cronManager.shutdown();
+    await mcpManager.cleanup();
+    // 停止所有 IM 通道
+    for (const ch of (await import('./im/store.js')).imStore.list()) {
+      await imManager.stopChannel(ch.id).catch(() => {});
+    }
+  };
 
-// exit 无法可靠 await 异步清理，仅停止 Cron；SIGINT/SIGTERM 走 cleanup 完整释放 MCP
-process.on('exit', () => {
-  cronManager.shutdown();
-});
-process.on('SIGINT', () => {
-  void cleanup().finally(() => process.exit(0));
-});
-process.on('SIGTERM', () => {
-  void cleanup().finally(() => process.exit(0));
-});
+  // exit 无法可靠 await 异步清理，仅停止 Cron；SIGINT/SIGTERM 走 cleanup 完整释放 MCP
+  process.on('exit', () => {
+    cronManager.shutdown();
+  });
+  process.on('SIGINT', () => {
+    void cleanup().finally(() => process.exit(0));
+  });
+  process.on('SIGTERM', () => {
+    void cleanup().finally(() => process.exit(0));
+  });
 
-serve(
-  {
-    fetch: app.fetch,
-    port: settings.port,
-    hostname: settings.host,
-  },
-  (info) => {
-    console.log(
-      `[tide-lobster] ${settings.agentName} running at http://${info.address}:${info.port}`
-    );
-  }
-);
+  serve(
+    {
+      fetch: app.fetch,
+      port: settings.port,
+      hostname: settings.host,
+    },
+    (info) => {
+      console.log(
+        `[tide-lobster] ${settings.agentName} running at http://${info.address}:${info.port}`
+      );
+    }
+  );
+}
+
+main().catch((err) => {
+  console.error('[tide-lobster] Fatal error during startup:', err);
+  process.exit(1);
+});

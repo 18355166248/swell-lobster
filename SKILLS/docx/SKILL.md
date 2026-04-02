@@ -7,6 +7,34 @@ official: true
 
 # DOCX creation, editing, and analysis
 
+## Execution Environment
+
+**Use the `run_script` tool to execute all scripts. Do NOT attempt direct bash/shell execution.**
+
+### Rules
+
+1. Use `run_script` with the absolute script path
+2. Script paths use `$SKILLS_ROOT` prefix: `$SKILLS_ROOT/docx/scripts/<file>.py`
+3. Output files MUST be written to `os.environ['OUTPUT_DIR']`
+4. `run_script` returns JSON — check `output_files` array for download URLs
+5. Include download links in your final reply:
+   `[filename.docx](/api/files/filename.docx)`
+
+### Python dependencies (declare inline for uv)
+
+```python
+# /// script
+# requires-python = ">=3.10"
+# dependencies = ["python-docx"]
+# ///
+import docx, os
+doc = docx.Document()
+# ... build document ...
+doc.save(os.path.join(os.environ['OUTPUT_DIR'], 'document.docx'))
+```
+
+> **Tauri desktop**: Files are saved locally and opened with the system's default application.
+
 ## Overview
 
 A user may ask you to create, edit, or analyze the contents of a .docx file. A .docx file is essentially a ZIP archive containing XML files and other resources that you can read or edit. You have different tools and workflows available for different tasks.

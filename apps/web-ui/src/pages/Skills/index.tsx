@@ -14,8 +14,10 @@ import {
   message,
 } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
+import { FileTextOutlined, HistoryOutlined, ThunderboltOutlined } from '@ant-design/icons';
 import ReactMarkdown from 'react-markdown';
 import { useTranslation } from 'react-i18next';
+import { TableActions } from '../../components/TableActions';
 import { apiGet, apiPatch, apiPost } from '../../api/base';
 import MarkdownContent from '../../components/MarkdownContent';
 
@@ -467,24 +469,32 @@ function AssistantSkillsTab() {
     {
       title: t('common.actions'),
       key: 'actions',
-      width: 190,
+      width: 110,
       render: (_, record) => (
-        <div className="flex gap-1">
-          <Button size="small" onClick={() => setPromptModal(record)}>
-            Prompt
-          </Button>
-          <Button size="small" onClick={() => openHistory(record)}>
-            {t('skills.viewHistory')}
-          </Button>
-          <Button
-            type="primary"
-            size="small"
-            disabled={!record.enabled}
-            onClick={() => openExecute(record)}
-          >
-            {t('skills.executeSkill')}
-          </Button>
-        </div>
+        <TableActions
+          actions={[
+            {
+              key: 'prompt',
+              icon: <FileTextOutlined />,
+              tooltip: 'Prompt',
+              onClick: () => setPromptModal(record),
+            },
+            {
+              key: 'history',
+              icon: <HistoryOutlined />,
+              tooltip: t('skills.viewHistory'),
+              onClick: () => openHistory(record),
+            },
+            {
+              key: 'execute',
+              icon: <ThunderboltOutlined />,
+              tooltip: t('skills.executeSkill'),
+              type: 'primary',
+              disabled: !record.enabled,
+              onClick: () => openExecute(record),
+            },
+          ]}
+        />
       ),
     },
   ];

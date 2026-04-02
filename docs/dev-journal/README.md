@@ -56,6 +56,3 @@ dev-journal/
 4. **敏感信息**：API Key、token、内网地址不要写入；用占位符说明配置项名称即可。
 
 在 `libraries/README.md` 与 `implementations/README.md` 中维护**简单索引表**（标题 + 一句话摘要 + 相对路径），便于快速跳转。
-
-/Users/xmly/Swell/other-code/LobsterAI
-/Users/xmly/Swell/other-code/openclaw

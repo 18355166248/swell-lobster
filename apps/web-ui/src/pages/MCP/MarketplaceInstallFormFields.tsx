@@ -48,7 +48,7 @@ export function MarketplaceInstallFormFields({ entry, isZh }: Props) {
         <Input />
       </Form.Item>
 
-      <Divider orientation="left">{t('mcp.transportType')}</Divider>
+      <Divider titlePlacement="left">{t('mcp.transportType')}</Divider>
       <Form.Item label={t('mcp.transportType')}>
         <Input
           readOnly
@@ -70,7 +70,7 @@ export function MarketplaceInstallFormFields({ entry, isZh }: Props) {
         <Input.TextArea readOnly rows={argsRows} value={argsLines} className="font-mono text-sm" />
       </Form.Item>
 
-      <Divider orientation="left">{t('mcp.envTemplateSection')}</Divider>
+      <Divider titlePlacement="left">{t('mcp.envTemplateSection')}</Divider>
       {required.length === 0 && optional.length === 0 ? (
         <Text type="secondary" className="mb-4 block">
           {t('mcp.noEnvTemplateKeys')}
@@ -105,7 +105,7 @@ export function MarketplaceInstallFormFields({ entry, isZh }: Props) {
         </Form.Item>
       ))}
 
-      <Divider orientation="left">{t('mcp.envExtraSection')}</Divider>
+      <Divider titlePlacement="left">{t('mcp.envExtraSection')}</Divider>
       <Text type="secondary" className="mb-3 block text-sm">
         {t('mcp.envExtraHint')}
       </Text>

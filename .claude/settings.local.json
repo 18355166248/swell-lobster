@@ -78,7 +78,9 @@
       "Bash(find F:FrontEndOtherCodeLobsterAI/src -type f \\\\\\(-name *.tsx -o -name *.ts -o -name *.jsx -o -name *.js \\\\\\))",
       "Bash(find F:/FrontEnd/Code/swell-lobster -iname *bqb* -o -iname *sticker*)",
       "Bash(sed 's/.*\"id\": \"//')",
-      "Bash(sed 's/\".*//')"
+      "Bash(sed 's/\".*//')",
+      "Bash(xargs ls:*)",
+      "Bash(xargs cat:*)"
     ]
   }
 }

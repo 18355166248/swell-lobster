@@ -7,7 +7,6 @@ import {
   Input,
   InputNumber,
   Modal,
-  Popconfirm,
   Select,
   Space,
   Spin,
@@ -18,7 +17,8 @@ import {
   message,
 } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import { PlayCircleOutlined } from '@ant-design/icons';
+import { DeleteOutlined, EditOutlined, PlayCircleOutlined } from '@ant-design/icons';
+import { TableActions } from '../../components/TableActions';
 import { useTranslation } from 'react-i18next';
 import { apiDelete, apiGet, apiPatch, apiPost } from '../../api/base';
 
@@ -389,29 +389,35 @@ export function SchedulerPage() {
     {
       title: t('common.actions'),
       key: 'actions',
-      width: 220,
+      width: 110,
       render: (_, record) => (
-        <Space wrap>
-          <Button size="small" onClick={() => openEdit(record)}>
-            {t('common.edit')}
-          </Button>
-          <Button
-            size="small"
-            icon={<PlayCircleOutlined />}
-            loading={runningIds.has(record.id)}
-            onClick={() => void handleRunNow(record.id)}
-          >
-            {t('scheduler.runNow')}
-          </Button>
-          <Popconfirm
-            title={t('scheduler.deleteConfirm')}
-            onConfirm={() => void handleDelete(record.id)}
-          >
-            <Button danger size="small">
-              {t('common.delete')}
-            </Button>
-          </Popconfirm>
-        </Space>
+        <TableActions
+          actions={[
+            {
+              key: 'edit',
+              icon: <EditOutlined />,
+              tooltip: t('common.edit'),
+              onClick: () => openEdit(record),
+            },
+            {
+              key: 'run',
+              icon: <PlayCircleOutlined />,
+              tooltip: t('scheduler.runNow'),
+              loading: runningIds.has(record.id),
+              onClick: () => void handleRunNow(record.id),
+            },
+            {
+              key: 'delete',
+              icon: <DeleteOutlined />,
+              tooltip: t('common.delete'),
+              danger: true,
+              popconfirm: {
+                title: t('scheduler.deleteConfirm'),
+                onConfirm: () => void handleDelete(record.id),
+              },
+            },
+          ]}
+        />
       ),
     },
   ];

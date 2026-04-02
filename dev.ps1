@@ -1,5 +1,16 @@
-# dev.ps1 — 一键启动前后端开发服务（Node 版本由 fnm/nvm/系统自行管理）
+# dev.ps1 — 一键启动 / 打包开发服务
 # 需 PowerShell 5.1+（建议 PowerShell 7+）
+#
+# 用法：
+#   .\dev.ps1              # 默认：web 模式（后端 + web-ui）
+#   .\dev.ps1 web          # 后端 + web-ui
+#   .\dev.ps1 desktop      # 后端 + Tauri 桌面端（Tauri 内部自动启动 web-ui）
+#   .\dev.ps1 build        # 打包桌面端（构建后端 SEA → 准备 binaries → tauri build）
+
+param(
+  [ValidateSet('web', 'desktop', 'build')]
+  [string]$Mode = 'web'
+)
 
 $ErrorActionPreference = 'Stop'
 
@@ -15,14 +26,10 @@ function Test-CommandAvailable {
 
 function Stop-DevProcessTree {
   param([System.Diagnostics.Process]$Proc)
-  if (-not $Proc -or $Proc.HasExited) {
-    return
-  }
-  $targetPid = $Proc.Id
-  # 结束 npm/node 子进程树（与 bash 里 kill 子进程意图一致）
-  $null = & taskkill.exe /PID $targetPid /T /F 2>$null
+  if (-not $Proc -or $Proc.HasExited) { return }
+  $null = & taskkill.exe /PID $Proc.Id /T /F 2>$null
   if (-not $?) {
-    Stop-Process -Id $targetPid -Force -ErrorAction SilentlyContinue
+    Stop-Process -Id $Proc.Id -Force -ErrorAction SilentlyContinue
   }
 }
 
@@ -33,37 +40,76 @@ if (-not (Test-CommandAvailable 'node') -or -not (Test-CommandAvailable 'npm')) 
 
 Write-Host "✅   Node $(node -v)  |  npm $(npm -v)" -ForegroundColor Green
 
-$backendDir = Join-Path $RepoRoot 'src\tide-lobster'
+$backendDir  = Join-Path $RepoRoot 'src\tide-lobster'
 $frontendDir = Join-Path $RepoRoot 'apps\web-ui'
-foreach ($d in @($backendDir, $frontendDir)) {
+$desktopDir  = Join-Path $RepoRoot 'apps\desktop'
+
+foreach ($d in @($backendDir, $frontendDir, $desktopDir)) {
   if (-not (Test-Path -LiteralPath $d)) {
     Write-Error "目录不存在：$d"
     exit 1
   }
 }
 
-# ── 启动后端 / 前端（同一控制台，Ctrl+C 时尽量结束子进程树） ─────────────
+# ── 打包模式（顺序执行） ──────────────────────────────────────────────────────
+if ($Mode -eq 'build') {
+  Write-Host ''
+  Write-Host '📦  [1/3] 构建后端 SEA 二进制  (src/tide-lobster) ...' -ForegroundColor Cyan
+  Push-Location $backendDir
+  try { npm run build:sea } finally { Pop-Location }
+
+  Write-Host ''
+  Write-Host '📦  [2/3] 准备 Tauri sidecar binaries  (apps/desktop) ...' -ForegroundColor Cyan
+  Push-Location $desktopDir
+  try { npm run prepare:binaries } finally { Pop-Location }
+
+  Write-Host ''
+  Write-Host '📦  [3/3] 打包桌面端  (apps/desktop) ...' -ForegroundColor Cyan
+  Push-Location $desktopDir
+  try { npm run build } finally { Pop-Location }
+
+  Write-Host ''
+  Write-Host '✅   桌面端打包完成' -ForegroundColor Green
+  exit 0
+}
+
+# ── 启动后端 ─────────────────────────────────────────────────────────────────
 Write-Host '🚀   启动后端  (src/tide-lobster) ...' -ForegroundColor Cyan
 $pBackend = Start-Process -FilePath 'cmd.exe' `
   -ArgumentList @('/c', 'npm run dev') `
   -WorkingDirectory $backendDir `
-  -PassThru `
-  -NoNewWindow
+  -PassThru -NoNewWindow
 
-Write-Host '🚀   启动前端  (apps/web-ui) ...' -ForegroundColor Cyan
-$pFrontend = Start-Process -FilePath 'cmd.exe' `
-  -ArgumentList @('/c', 'npm run dev') `
-  -WorkingDirectory $frontendDir `
-  -PassThru `
-  -NoNewWindow
+$script:DevChildren = @($pBackend)
 
-Write-Host ''
-Write-Host '🟢   服务已启动，按 Ctrl+C 退出' -ForegroundColor Green
-Write-Host '     前端  →  http://localhost:5173'
-Write-Host '     后端  →  http://127.0.0.1:18900'
-Write-Host ''
+# ── 根据模式启动前端或桌面端 ─────────────────────────────────────────────────
+if ($Mode -eq 'desktop') {
+  Write-Host '🚀   启动桌面端  (apps/desktop — Tauri) ...' -ForegroundColor Cyan
+  $pDesktop = Start-Process -FilePath 'cmd.exe' `
+    -ArgumentList @('/c', 'npm run dev') `
+    -WorkingDirectory $desktopDir `
+    -PassThru -NoNewWindow
+  $script:DevChildren += $pDesktop
 
-$script:DevChildren = @($pBackend, $pFrontend)
+  Write-Host ''
+  Write-Host '🟢   服务已启动，按 Ctrl+C 退出' -ForegroundColor Green
+  Write-Host '     后端    →  http://127.0.0.1:18900'
+  Write-Host '     桌面端  →  Tauri 窗口（内部自动启动 web-ui http://localhost:5173）'
+  Write-Host ''
+} else {
+  Write-Host '🚀   启动前端  (apps/web-ui) ...' -ForegroundColor Cyan
+  $pFrontend = Start-Process -FilePath 'cmd.exe' `
+    -ArgumentList @('/c', 'npm run dev') `
+    -WorkingDirectory $frontendDir `
+    -PassThru -NoNewWindow
+  $script:DevChildren += $pFrontend
+
+  Write-Host ''
+  Write-Host '🟢   服务已启动，按 Ctrl+C 退出' -ForegroundColor Green
+  Write-Host '     前端  →  http://localhost:5173'
+  Write-Host '     后端  →  http://127.0.0.1:18900'
+  Write-Host ''
+}
 
 function Stop-AllDev {
   Write-Host ''
@@ -74,7 +120,6 @@ function Stop-AllDev {
   Write-Host '👋   已退出' -ForegroundColor Green
 }
 
-# Console Ctrl+C（PowerShell 中需通过反射挂接 CancelKeyPress）
 [Console]::TreatControlCAsInput = $false
 $cancelHandler = [ConsoleCancelEventHandler] {
   param($sender, $e)
@@ -91,7 +136,5 @@ try {
   $cancelRemove = [Console].GetEvent('CancelKeyPress').GetRemoveMethod($true)
   $null = $cancelRemove.Invoke($null, @($cancelHandler))
   $stillRunning = $script:DevChildren | Where-Object { $_ -and -not $_.HasExited }
-  if ($stillRunning) {
-    Stop-AllDev
-  }
+  if ($stillRunning) { Stop-AllDev }
 }

@@ -83,6 +83,9 @@ apps/**/node_modules/
 apps/**/dist/
 apps/**/.vite/
 apps/**/src-tauri/target/
+# Desktop sidecar 二进制（体积大，勿提交；本地/CI 执行 npm run prepare:binaries）
+apps/desktop/src-tauri/binaries/*
+!apps/desktop/src-tauri/binaries/.gitkeep
 apps/**/tsconfig.tsbuildinfo
 # Tauri resources - 构建产物，不应提交（保留 .gitkeep 使空目录入库）
 apps/setup-center/src-tauri/resources/swell-lobster-server/*

@@ -15,11 +15,15 @@
     "lint": "npm run lint --prefix apps/web-ui",
     "lint:fix": "npm run lint:fix --prefix apps/web-ui",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,css,md,mdx}\"",
-    "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,css,md,mdx}\""
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,css,md,mdx}\"",
+    "dev:web": "concurrently -n backend,web -c blue,green \"npm run dev -w tide-lobster\" \"npm run dev -w swell-lobster\"",
+    "dev:desktop": "concurrently -n backend,desktop -c blue,magenta \"npm run dev -w tide-lobster\" \"npm run dev -w swell-lobster-desktop\"",
+    "build:desktop": "npm run build:sea -w tide-lobster && npm run prepare:binaries -w swell-lobster-desktop && npm run build -w swell-lobster-desktop"
   },
   "devDependencies": {
     "@commitlint/cli": "^19.6.0",
     "@commitlint/config-conventional": "^19.6.0",
+    "concurrently": "^9.2.1",
     "husky": "^9.1.7",
     "lint-staged": "^15.4.3",
     "prettier": "^3.4.2"

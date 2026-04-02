@@ -7,6 +7,30 @@ official: true
 
 # PDF Processing Guide
 
+## Execution Environment
+
+**Use the `run_script` tool to execute all scripts. Do NOT attempt direct bash/shell execution.**
+
+### Rules
+
+1. Use `run_script` with the absolute script path
+2. Script paths use `$SKILLS_ROOT` prefix: `$SKILLS_ROOT/pdf/scripts/<file>.py`
+3. Output files MUST be written to `os.environ['OUTPUT_DIR']`
+4. `run_script` returns JSON — check `output_files` array for download URLs
+5. Include download links in your final reply:
+   `[filename.pdf](/api/files/filename.pdf)`
+
+### Python dependencies (declare inline for uv)
+
+```python
+# /// script
+# requires-python = ">=3.10"
+# dependencies = ["pypdf", "reportlab"]
+# ///
+```
+
+> **Tauri desktop**: Files are saved locally and opened with the system's default application.
+
 ## Overview
 
 This guide covers essential PDF processing operations using Python libraries and command-line tools. For advanced features, JavaScript libraries, and detailed examples, see reference.md. If you need to fill out a PDF form, read forms.md and follow its instructions.

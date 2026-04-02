@@ -266,35 +266,37 @@ LLM 阅读 SKILL.md 指令，按指令生成回复
 
 ## 验证清单
 
+> **完成情况（截至 2026-04-02）**：下列能力已在代码中落地，并在开发自测中通过。发版或大版本合并前仍建议按小节做一次端到端回归。
+
 ### Auto-routing 基本功能
 
-- [ ] 启动后端，发送与已启用技能描述匹配的消息（如「帮我翻译 Hello World 为中文」）
-- [ ] 观察 ChatService 日志出现 `tool_calls: [{ name: "read_skill" }]`
-- [ ] 确认 `read_skill` 返回 SKILL.md 内容，LLM 按技能指令回复
-- [ ] 发送无关消息，确认 LLM 直接回答（不调用 `read_skill`）
+- [x] 启动后端，发送与已启用技能描述匹配的消息（如「帮我翻译 Hello World 为中文」）
+- [x] 观察 ChatService 日志出现 `tool_calls: [{ name: "read_skill" }]`
+- [x] 确认 `read_skill` 返回 SKILL.md 内容，LLM 按技能指令回复
+- [x] 发送无关消息，确认 LLM 直接回答（不调用 `read_skill`）
 
 ### 路径安全
 
-- [ ] 尝试传入 `read_skill` 非法路径（如 `/etc/passwd`），确认返回 `Error: path is outside the allowed skills directories.`
-- [ ] 确认符号链接场景不能绕过目录限制
+- [x] 尝试传入 `read_skill` 非法路径（如 `/etc/passwd`），确认返回 `Error: path is outside the allowed skills directories.`
+- [x] 确认符号链接场景不能绕过目录限制（`read_skill` 使用 `realpathSync` 与白名单根目录校验）
 
 ### 启用/禁用即时生效
 
-- [ ] 禁用 translate 技能后发送翻译请求，确认 `<available_skills>` 中不再包含该技能，LLM 直接回答
-- [ ] 重新启用后，下一轮对话立即恢复
+- [x] 禁用 translate 技能后发送翻译请求，确认 `<available_skills>` 中不再包含该技能，LLM 直接回答
+- [x] 重新启用后，下一轮对话立即恢复
 
 ### 文件热重载
 
-- [ ] 修改 `SKILLS/translate/SKILL.md` 并保存，无需重启
-- [ ] 下次对话中 LLM 按新版 SKILL.md 内容执行
+- [x] 修改 `SKILLS/translate/SKILL.md` 并保存，无需重启
+- [x] 下次对话中 LLM 按新版 SKILL.md 内容执行（`loader` 监听 + 每轮动态构建 auto-routing）
 
 ### 手动执行（UI）
 
-- [ ] Skills 页面手动执行技能，`executeSkill` 正常调用 LLM 并返回结果
-- [ ] `skill_invocation_logs` 表写入 `trigger_type='manual'` 记录（执行日志由前一阶段保留）
+- [x] Skills 页面手动执行技能，`executeSkill` 正常调用 LLM 并返回结果
+- [x] `skill_invocation_logs` 表写入 `trigger_type='manual'` 记录（执行日志由前一阶段保留）
 
 ### 回归
 
-- [ ] 现有内置工具（`get_datetime` 等）不受影响
-- [ ] Telegram 收发消息、配对码流程正常
-- [ ] 前端 Skills 页面原有功能（列表展示、启用/禁用开关、手动执行）无变化
+- [x] 内置记忆工具（`read_memory` / `write_memory` / `delete_memory`）与 `read_skill` 行为正常（**说明**：`get_datetime` 等已随阶段 5.2 从 builtins 移除，不再作为本阶段回归项）
+- [x] Telegram 收发消息、配对码流程正常
+- [x] 前端 Skills 页面原有功能（列表展示、启用/禁用开关、手动执行）无变化

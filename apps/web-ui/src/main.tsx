@@ -6,6 +6,7 @@ import { ConfigProvider, App, theme as antdTheme } from 'antd';
 import zhCN from 'antd/locale/zh_CN';
 import enUS from 'antd/locale/en_US';
 import { I18nextProvider } from 'react-i18next';
+import { invoke } from '@tauri-apps/api/core';
 import './i18n';
 import i18n from './i18n';
 import './index.css';
@@ -14,7 +15,22 @@ import { ThemeSync } from './components/ThemeSync';
 import { themeModeAtom, resolveTheme } from './store/theme';
 import { localeAtom } from './store/locale';
 import { brandTheme, applyBrandToCss } from './theme';
+import { isTauri } from './utils/platform';
 import mermaid from 'mermaid';
+
+// 桌面端：F12 / Ctrl+Shift+I / Cmd+Option+I 打开 DevTools
+if (isTauri()) {
+  window.addEventListener('keydown', (e) => {
+    const isDevToolsKey =
+      e.key === 'F12' ||
+      (e.ctrlKey && e.shiftKey && e.key === 'I') ||
+      (e.metaKey && e.altKey && e.key === 'I');
+    if (isDevToolsKey) {
+      e.preventDefault();
+      invoke('open_devtools').catch(() => {});
+    }
+  });
+}
 
 mermaid.initialize({ startOnLoad: true });
 

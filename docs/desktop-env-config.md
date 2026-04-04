@@ -14,10 +14,15 @@
 
 **数据目录路径**
 
-| 系统    | 路径                                                  |
-| ------- | ----------------------------------------------------- |
-| Windows | `C:\Users\{用户名}\AppData\Roaming\ai.swell.lobster\` |
-| macOS   | `~/Library/Application Support/ai.swell.lobster/`     |
+Windows 下两个位置均支持，优先读取 `AppData\Local`：
+
+| 系统    | 路径（任选其一）                                            |
+| ------- | ----------------------------------------------------------- |
+| Windows | `C:\Users\{用户名}\AppData\Local\ai.swell.lobster\`（优先） |
+| Windows | `C:\Users\{用户名}\AppData\Roaming\ai.swell.lobster\`       |
+| macOS   | `~/Library/Application Support/ai.swell.lobster/`           |
+
+不确定哪个路径实际生效时，查看日志文件（见文末"验证是否生效"），日志里会打印出实际扫描的路径。
 
 **操作步骤**
 

@@ -39,10 +39,25 @@ const REPO_ROOT = findRepoRoot();
 // 先加载仓库根 .env（与 Python 的 env_file=".env" 一致）
 loadDotenv({ path: resolve(REPO_ROOT, '.env') });
 
-// 桌面打包版：追加加载 SWELL_DATA_DIR/.env，允许用户在数据目录覆盖配置（如代理设置）
-const dataEnvPath = process.env.SWELL_DATA_DIR
-  ? resolve(process.env.SWELL_DATA_DIR, '.env')
-  : null;
+// 桌面打包版：追加加载用户数据目录的 .env（Local 优先，回退到 Roaming）
+// Windows: AppData\Local\ai.swell.lobster 或 AppData\Roaming\ai.swell.lobster
+// macOS:   ~/Library/Application Support/ai.swell.lobster
+const localDataDir = process.env.SWELL_LOCAL_DATA_DIR;
+const roamingDataDir = process.env.SWELL_DATA_DIR;
+const dataEnvPath = (() => {
+  if (localDataDir) {
+    const p = resolve(localDataDir, '.env');
+    if (existsSync(p)) return p;
+  }
+  if (roamingDataDir) {
+    const p = resolve(roamingDataDir, '.env');
+    if (existsSync(p)) return p;
+  }
+  return null;
+})();
+console.log('[config] SWELL_LOCAL_DATA_DIR =', localDataDir ?? '(not set)');
+console.log('[config] SWELL_DATA_DIR =', roamingDataDir ?? '(not set)');
+console.log('[config] data .env =', dataEnvPath ?? 'NOT FOUND (tried both Local and Roaming)');
 if (dataEnvPath) {
   loadDotenv({ path: dataEnvPath, override: true });
 }

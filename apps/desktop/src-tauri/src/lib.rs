@@ -25,6 +25,12 @@ fn get_log_path(app: AppHandle) -> String {
     resolve_log_path(&app).to_string_lossy().to_string()
 }
 
+/// 打开 WebView 开发者工具（仅 devtools feature 启用时有效）。
+#[tauri::command]
+fn open_devtools(window: tauri::WebviewWindow) {
+    window.open_devtools();
+}
+
 fn resolve_output_dir(app: &AppHandle) -> PathBuf {
     if let Ok(custom) = std::env::var("SWELL_OUTPUT_DIR") {
         return PathBuf::from(custom);
@@ -69,6 +75,12 @@ fn start_tide_lobster(app: &AppHandle) -> Result<CommandChild, String> {
         .unwrap_or_else(|_| resource_dir.join("data"));
     std::fs::create_dir_all(&data_dir).ok();
 
+    // 同时创建 LocalAppData 目录，方便用户在两个位置都能放 .env（Local 优先）
+    let local_data_dir = app.path().app_local_data_dir().ok();
+    if let Some(ref d) = local_data_dir {
+        std::fs::create_dir_all(d).ok();
+    }
+
     // 透传系统代理环境变量，使 tide-lobster 的 fetchDispatcher 能正确走代理
     let proxy_vars = ["HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "NO_PROXY",
                       "http_proxy", "https_proxy", "all_proxy", "no_proxy"];
@@ -78,6 +90,7 @@ fn start_tide_lobster(app: &AppHandle) -> Result<CommandChild, String> {
         .command(&binary_path)
         .env("SWELL_PROJECT_ROOT", resource_dir.to_string_lossy().as_ref())
         .env("SWELL_DATA_DIR", data_dir.to_string_lossy().as_ref())
+        .env("SWELL_LOCAL_DATA_DIR", local_data_dir.as_ref().map(|p| p.to_string_lossy().into_owned()).unwrap_or_default())
         .env("SWELL_OUTPUT_DIR", output_dir.to_string_lossy().as_ref())
         .env("API_HOST", "127.0.0.1")
         .env("API_PORT", "18900")
@@ -216,7 +229,7 @@ pub fn run() {
                 };
             }
         })
-        .invoke_handler(tauri::generate_handler![open_file, get_output_dir, get_log_path])
+        .invoke_handler(tauri::generate_handler![open_file, get_output_dir, get_log_path, open_devtools])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

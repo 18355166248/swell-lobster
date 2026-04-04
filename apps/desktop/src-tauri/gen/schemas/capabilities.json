@@ -7,6 +7,10 @@
     "permissions": [
       "core:default",
       "shell:allow-open",
+      {
+        "identifier": "shell:allow-execute",
+        "allow": [{ "args": true, "name": "binaries/tide-lobster", "sidecar": true }]
+      },
       "fs:read-all",
       "fs:write-all",
       "dialog:allow-open",

@@ -8,7 +8,7 @@
 现在按顺序测试：
 
 Step 1：重新构建，把二进制输出到正确位置
-npm run build:sea -w tide-lobster
+npm run build:pkg -w tide-lobster
 
 Step 2：准备 Tauri 所需二进制（会检查 uv 和 tide-lobster 是否存在）
 npm run prepare:binaries -w swell-lobster-desktop
@@ -127,3 +127,20 @@ Step 3：lib.rs 启动 tide-lobster 时注入 uv 路径
 然后 run_script.ts 读 process.env.SWELL_UV_BIN 优先用内置 uv。
 
 ---
+
+# 打包流程
+
+## sea
+
+npm run build:sea -w tide-lobster # 产物输出到 src-tauri/ 根
+npm run prepare:binaries -w swell-lobster-desktop
+npm run build -w swell-lobster-desktop # tauri build
+
+## pkg
+
+npm run build:pkg -w tide-lobster # esbuild → CJS bundle → pkg binary
+npm run prepare:binaries -w swell-lobster-desktop
+npm run build -w swell-lobster-desktop # tauri build
+
+一步到位
+npm run build:desktop

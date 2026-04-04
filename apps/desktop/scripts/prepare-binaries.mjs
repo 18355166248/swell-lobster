@@ -19,11 +19,21 @@ import { createWriteStream, existsSync, mkdirSync, chmodSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { pipeline } from 'node:stream/promises';
-import https from 'node:https';
+import { ProxyAgent, fetch as undiciFetch } from 'undici';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 // 与 tauri.conf.json 中 externalBin（相对 src-tauri/）一致
 const BINARIES_DIR = join(__dirname, '..', 'src-tauri', 'binaries');
+
+// 代理：优先读环境变量，fallback 到本地 7897
+const proxyUrl =
+  process.env.HTTPS_PROXY ??
+  process.env.https_proxy ??
+  process.env.HTTP_PROXY ??
+  process.env.http_proxy ??
+  'http://127.0.0.1:7897';
+const dispatcher = new ProxyAgent(proxyUrl);
+console.log(`[prepare-binaries] Using proxy: ${proxyUrl}`);
 
 mkdirSync(BINARIES_DIR, { recursive: true });
 
@@ -69,7 +79,7 @@ const uvDest = join(BINARIES_DIR, `uv-${targetTriple}${exeSuffix}`);
 // ─────────────────────────────────────────────────────────────────────────────
 // tide-lobster SEA 构建说明
 // ─────────────────────────────────────────────────────────────────────────────
-// tide-lobster 需要先通过 Node.js SEA 打包（见 src/tide-lobster/scripts/build-sea.mjs）
+// tide-lobster 需要先通过 @yao-pkg/pkg 打包（见 src/tide-lobster/scripts/build-pkg.mjs）
 // 产物命名：tide-lobster-{target-triple}[.exe]
 // 自动构建逻辑预留，目前仅检查文件是否存在。
 
@@ -82,18 +92,11 @@ console.log(`[prepare-binaries] Binaries dir: ${BINARIES_DIR}`);
 // 下载辅助函数
 // ─────────────────────────────────────────────────────────────────────────────
 function download(url, destPath) {
-  return new Promise((resolve, reject) => {
-    console.log(`[prepare-binaries] Downloading: ${url}`);
-    https.get(url, (res) => {
-      if (res.statusCode === 302 || res.statusCode === 301) {
-        return download(res.headers.location, destPath).then(resolve).catch(reject);
-      }
-      if (res.statusCode !== 200) {
-        return reject(new Error(`HTTP ${res.statusCode} for ${url}`));
-      }
-      const file = createWriteStream(destPath);
-      pipeline(res, file).then(resolve).catch(reject);
-    });
+  console.log(`[prepare-binaries] Downloading: ${url}`);
+  return undiciFetch(url, { dispatcher }).then(async (res) => {
+    if (!res.ok) throw new Error(`HTTP ${res.status} for ${url}`);
+    const file = createWriteStream(destPath);
+    await pipeline(res.body, file);
   });
 }
 
@@ -123,7 +126,7 @@ async function main() {
   } else {
     console.warn(
       `[prepare-binaries] tide-lobster binary not found: ${tidelobsterDest}\n` +
-        `  Build it first: cd src/tide-lobster && npm run build:sea`
+        `  Build it first: cd src/tide-lobster && npm run build:pkg`
     );
   }
 }

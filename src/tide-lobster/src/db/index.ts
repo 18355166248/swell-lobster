@@ -3,8 +3,8 @@ import { join } from 'node:path';
 import Database from 'better-sqlite3';
 import { settings } from '../config.js';
 
-const dbPath = join(settings.projectRoot, 'data', 'tide-lobster.db');
-mkdirSync(join(settings.projectRoot, 'data'), { recursive: true });
+const dbPath = join(settings.dataDir, 'tide-lobster.db');
+mkdirSync(settings.dataDir, { recursive: true });
 
 const db = new Database(dbPath);
 

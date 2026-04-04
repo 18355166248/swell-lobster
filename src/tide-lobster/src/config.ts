@@ -39,6 +39,14 @@ const REPO_ROOT = findRepoRoot();
 // 先加载仓库根 .env（与 Python 的 env_file=".env" 一致）
 loadDotenv({ path: resolve(REPO_ROOT, '.env') });
 
+// 桌面打包版：追加加载 SWELL_DATA_DIR/.env，允许用户在数据目录覆盖配置（如代理设置）
+const dataEnvPath = process.env.SWELL_DATA_DIR
+  ? resolve(process.env.SWELL_DATA_DIR, '.env')
+  : null;
+if (dataEnvPath) {
+  loadDotenv({ path: dataEnvPath, override: true });
+}
+
 function env(swellKey: string, fallback: string): string {
   return process.env[`SWELL_${swellKey}`] ?? process.env[swellKey] ?? fallback;
 }
@@ -46,6 +54,7 @@ function env(swellKey: string, fallback: string): string {
 export const settings = {
   identityDir: env('IDENTITY_DIR', resolve(REPO_ROOT, 'identity')),
   projectRoot: env('PROJECT_ROOT', REPO_ROOT),
+  dataDir: env('DATA_DIR', resolve(REPO_ROOT, 'data')),
   agentName: env('AGENT_NAME', 'Swell-Lobster'),
   port: parseInt(process.env.API_PORT ?? '18900', 10),
   host: process.env.API_HOST ?? '127.0.0.1',

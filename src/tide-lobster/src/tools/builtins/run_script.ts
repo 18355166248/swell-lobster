@@ -31,7 +31,7 @@ const MAX_OUTPUT_BYTES = 512 * 1024; // 512 KB
 function getAllowedRoots(): string[] {
   const roots = [
     join(settings.projectRoot, 'SKILLS'),
-    join(settings.projectRoot, 'data', 'skills'),
+    join(settings.dataDir, 'skills'),
   ];
   return roots.map((r) => {
     try {

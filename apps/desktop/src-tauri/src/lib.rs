@@ -53,15 +53,54 @@ fn start_tide_lobster(app: &AppHandle) -> Result<CommandChild, String> {
         std::fs::create_dir_all(parent).ok();
     }
 
-    let (mut rx, child) = app
+    // Tauri NSIS 安装后 externalBin 产物位于 resource_dir 根目录，且不含 target triple 后缀
+    // （sidecar("binaries/tide-lobster") 会拼接 triple 导致 os error 2，故手动 resolve）
+    let ext = if cfg!(windows) { ".exe" } else { "" };
+    let resource_dir = app
+        .path()
+        .resource_dir()
+        .map_err(|e| format!("Cannot resolve resource_dir: {e}"))?;
+    let binary_path = resource_dir.join(format!("tide-lobster{ext}"));
+    let sqlite_binding = resource_dir.join("binaries").join("better_sqlite3.node");
+
+    let data_dir = app
+        .path()
+        .app_data_dir()
+        .unwrap_or_else(|_| resource_dir.join("data"));
+    std::fs::create_dir_all(&data_dir).ok();
+
+    // 透传系统代理环境变量，使 tide-lobster 的 fetchDispatcher 能正确走代理
+    let proxy_vars = ["HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "NO_PROXY",
+                      "http_proxy", "https_proxy", "all_proxy", "no_proxy"];
+
+    let mut cmd = app
         .shell()
-        .sidecar("binaries/tide-lobster")
-        .map_err(|e| format!("Failed to create sidecar command: {e}"))?
+        .command(&binary_path)
+        .env("SWELL_PROJECT_ROOT", resource_dir.to_string_lossy().as_ref())
+        .env("SWELL_DATA_DIR", data_dir.to_string_lossy().as_ref())
         .env("SWELL_OUTPUT_DIR", output_dir.to_string_lossy().as_ref())
         .env("API_HOST", "127.0.0.1")
         .env("API_PORT", "18900")
+        .env("BETTER_SQLITE3_BINDING", sqlite_binding.to_string_lossy().as_ref());
+
+    for var in &proxy_vars {
+        if let Ok(val) = std::env::var(var) {
+            cmd = cmd.env(var, val);
+        }
+    }
+
+    let (mut rx, child) = cmd
         .spawn()
-        .map_err(|e| format!("Failed to start tide-lobster: {e}"))?;
+        .map_err(|e| {
+            if let Ok(mut f) = std::fs::OpenOptions::new()
+                .create(true).append(true).open(&log_path)
+            {
+                let _ = writeln!(f, "[diag] binary_path: {}", binary_path.display());
+                let _ = writeln!(f, "[diag] binary_exists: {}", binary_path.exists());
+                let _ = writeln!(f, "[diag] spawn error: {e}");
+            }
+            format!("Failed to start tide-lobster: {e}")
+        })?;
 
     // 消费 stdout/stderr 并写入日志文件，防止管道缓冲区填满阻塞进程
     tauri::async_runtime::spawn(async move {

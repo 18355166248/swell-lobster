@@ -8,7 +8,7 @@
     "build": "npx tauri build",
     "dev:frontend": "npm run dev --prefix ../web-ui",
     "build:frontend": "npm run build --prefix ../web-ui",
-    "prepare:binaries": "node --use-system-ca scripts/prepare-binaries.mjs"
+    "prepare:binaries": "node scripts/prepare-binaries.mjs"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2"

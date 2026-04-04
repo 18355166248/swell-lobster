@@ -6,7 +6,7 @@ import type { ToolDef } from '../types.js';
 function getAllowedRoots(): string[] {
   const roots = [
     join(settings.projectRoot, 'SKILLS'),
-    join(settings.projectRoot, 'data', 'skills'),
+    join(settings.dataDir, 'skills'),
   ];
   return roots.map((r) => {
     try {

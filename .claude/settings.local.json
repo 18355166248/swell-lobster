@@ -80,7 +80,12 @@
       "Bash(sed 's/.*\"id\": \"//')",
       "Bash(sed 's/\".*//')",
       "Bash(xargs ls:*)",
-      "Bash(xargs cat:*)"
+      "Bash(xargs cat:*)",
+      "WebFetch(domain:tauri.app)",
+      "Bash(powershell:*)",
+      "Bash(node:*)",
+      "Bash(ls \"F:/FrontEnd/Code/swell-lobster/apps/desktop/src-tauri/target/release/bundle/msi/\"*.wxs)",
+      "Bash(npx tauri:*)"
     ]
   }
 }

@@ -129,6 +129,7 @@ const en = {
     saveFailed: 'Save failed',
     applyFailed: 'Apply failed',
     writeKeyFailed: 'Failed to write API Key',
+    deleteConfirm: 'Delete this endpoint?',
   },
 
   addEndpoint: {

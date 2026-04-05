@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Button, Table, Alert, Space, Badge, Typography } from 'antd';
-import { EditOutlined } from '@ant-design/icons';
+import { DeleteOutlined, EditOutlined } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
 import { TableActions } from '../../../components/TableActions';
 import { apiGet, apiPost } from '../../../api/base';
@@ -150,6 +150,10 @@ export function ConfigLLMPage() {
     [editingTarget, t]
   );
 
+  const handleDeleteEndpoint = useCallback((name: string) => {
+    setEndpoints((prev) => prev.filter((item) => String(item.name ?? '') !== name));
+  }, []);
+
   const columns = [
     {
       title: t('llm.colEndpoint'),
@@ -175,7 +179,7 @@ export function ConfigLLMPage() {
     {
       title: t('common.actions'),
       key: 'actions',
-      width: 80,
+      width: 100,
       render: (_: unknown, record: EndpointItem) => (
         <TableActions
           actions={[
@@ -186,6 +190,18 @@ export function ConfigLLMPage() {
               onClick: () => {
                 setEditingTarget(record);
                 setEditEndpointOpen(true);
+              },
+            },
+            {
+              key: 'delete',
+              icon: <DeleteOutlined />,
+              tooltip: t('common.delete'),
+              danger: true,
+              popconfirm: {
+                title: t('llm.deleteConfirm'),
+                onConfirm: () => handleDeleteEndpoint(String(record.name ?? '')),
+                okText: t('common.confirm'),
+                cancelText: t('common.cancel'),
               },
             },
           ]}

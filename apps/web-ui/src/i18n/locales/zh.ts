@@ -133,6 +133,7 @@ const zh = {
     saveFailed: '保存失败',
     applyFailed: '应用失败',
     writeKeyFailed: '写入 API Key 失败',
+    deleteConfirm: '确定删除该端点？',
   },
 
   // 添加端点弹窗

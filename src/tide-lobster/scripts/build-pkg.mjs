@@ -85,6 +85,33 @@ const nodeSqliteStubPlugin = {
   },
 };
 
+/**
+ * 将 node-fetch 替换为 native fetch globals，解决 pkg snapshot 中
+ * bundled node-fetch 的 AbortSignal instanceof 校验与 native AbortSignal 不匹配的问题。
+ * Node.js 20 原生提供 fetch / Request / Response / Headers，无需 polyfill。
+ */
+const nodeFetchShimPlugin = {
+  name: 'node-fetch-shim',
+  setup(build) {
+    build.onResolve({ filter: /^node-fetch$/ }, () => ({
+      path: 'node-fetch-shim',
+      namespace: 'shim',
+    }));
+    build.onLoad({ filter: /.*/, namespace: 'shim' }, () => ({
+      contents: `
+module.exports = function fetch(url, opts) { return globalThis.fetch(url, opts); };
+module.exports.default = module.exports;
+module.exports.Request  = globalThis.Request;
+module.exports.Response = globalThis.Response;
+module.exports.Headers  = globalThis.Headers;
+module.exports.FormData = globalThis.FormData;
+module.exports.AbortController = globalThis.AbortController;
+`,
+      loader: 'js',
+    }));
+  },
+};
+
 /** better-sqlite3 用 bindings / node-gyp-build 定位 .node 文件，
  *  在 pkg snapshot 中这些路径不存在。
  *  替换为从 BETTER_SQLITE3_BINDING 环境变量读取路径，用 process.dlopen 直接加载。 */
@@ -116,7 +143,7 @@ await esbuild({
   platform: 'node',
   format: 'cjs',
   outfile: join(ROOT, 'dist', 'bundle.cjs'),
-  plugins: [nativeModulePlugin, nodeSqliteStubPlugin],
+  plugins: [nativeModulePlugin, nodeSqliteStubPlugin, nodeFetchShimPlugin],
   tsconfig: join(ROOT, 'tsconfig.json'),
   logLevel: 'warning',
 });

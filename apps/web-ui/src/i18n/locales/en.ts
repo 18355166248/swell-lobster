@@ -237,6 +237,8 @@ const en = {
     subtitle: 'Service status, endpoint health, IM online status',
     serviceStatus: 'Service status: ',
     loadFailed: 'Load failed',
+    viewLog: 'View Backend Log',
+    openLogFailed: 'Failed to open log',
   },
 
   im: {

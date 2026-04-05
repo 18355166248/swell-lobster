@@ -5,7 +5,7 @@
  * 「省略 dispatcher」仍会走全局代理，NO_PROXY 对某主机应直连时无法生效，易出现 TLS ECONNRESET。
  */
 
-import { Agent, ProxyAgent } from 'undici';
+import { Agent, ProxyAgent, setGlobalDispatcher } from 'undici';
 import type { Dispatcher } from 'undici';
 
 function shouldBypassProxy(hostname: string, noProxyRaw: string): boolean {
@@ -60,4 +60,19 @@ export function getFetchDispatcherForUrl(url: string): Dispatcher {
   cachedProxyAgent = new ProxyAgent(proxyUrl);
   cachedProxyUrl = proxyUrl;
   return cachedProxyAgent;
+}
+
+/**
+ * 设置全局 undici dispatcher，使所有 native fetch 调用（包括 grammy 等三方库）自动走代理。
+ * 仅当 HTTPS_PROXY / HTTP_PROXY 等变量存在时生效；不影响已显式传入 dispatcher 的调用。
+ */
+export function setupGlobalProxy(): void {
+  const proxyUrl =
+    process.env.HTTPS_PROXY ??
+    process.env.https_proxy ??
+    process.env.HTTP_PROXY ??
+    process.env.http_proxy;
+  if (!proxyUrl?.trim()) return;
+  setGlobalDispatcher(new ProxyAgent(proxyUrl.trim()));
+  console.log('[proxy] global dispatcher set:', proxyUrl.trim());
 }

@@ -5,6 +5,7 @@
  * `im_session:<externalKey>` 在 `key_value_store` 与 `chat_sessions` 间建立稳定映射，
  * 使同一 Telegram 用户始终落在同一会话 id 上。
  */
+import { randomUUID } from 'node:crypto';
 import { ChannelAdapter } from './base.js';
 import { TelegramChannel } from './channels/telegram/index.js';
 import { imStore } from './store.js';
@@ -142,7 +143,6 @@ async function getOrCreateSession(
 
   // 创建新会话（与 Web UI 一致：无显式人格时落库默认助手人格，便于侧栏与系统提示一致）
   const personaPath = new IdentityService().getDefaultAssistantPersonaPath();
-  const { randomUUID } = await import('node:crypto');
   const sessionId = `chat_${randomUUID().replace(/-/g, '').slice(0, 10)}`;
   const now = new Date().toISOString();
   db.prepare(

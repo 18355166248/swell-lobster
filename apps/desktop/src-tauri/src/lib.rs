@@ -7,6 +7,47 @@ use tauri_plugin_shell::{process::CommandChild, process::CommandEvent, ShellExt}
 /// 全局持有 tide-lobster sidecar 进程句柄，用于应用退出时清理。
 struct SidecarState(Mutex<Option<CommandChild>>);
 
+/// 从 Windows 注册表读取系统代理地址（Clash 等工具写入）。
+/// 仅当 ProxyEnable=1 且 ProxyServer 不为空时返回 `http://<server>`。
+#[cfg(windows)]
+fn detect_windows_system_proxy() -> Option<String> {
+    let key = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings";
+
+    let enabled = std::process::Command::new("reg")
+        .args(["query", key, "/v", "ProxyEnable"])
+        .output()
+        .ok()
+        .and_then(|o| String::from_utf8(o.stdout).ok())
+        .and_then(|s| {
+            s.lines()
+                .find(|l| l.contains("ProxyEnable"))
+                .and_then(|l| l.split_whitespace().last().map(|v| v != "0x0"))
+        })
+        .unwrap_or(false);
+
+    if !enabled {
+        return None;
+    }
+
+    std::process::Command::new("reg")
+        .args(["query", key, "/v", "ProxyServer"])
+        .output()
+        .ok()
+        .and_then(|o| String::from_utf8(o.stdout).ok())
+        .and_then(|s| {
+            s.lines()
+                .find(|l| l.contains("ProxyServer"))
+                .and_then(|l| l.split_whitespace().last().map(|v| v.to_string()))
+        })
+        .map(|server| {
+            if server.starts_with("http") {
+                server
+            } else {
+                format!("http://{server}")
+            }
+        })
+}
+
 /// 打开文件（用系统默认程序）。
 #[tauri::command]
 fn open_file(path: String) -> Result<(), String> {
@@ -99,6 +140,22 @@ fn start_tide_lobster(app: &AppHandle) -> Result<CommandChild, String> {
     for var in &proxy_vars {
         if let Ok(val) = std::env::var(var) {
             cmd = cmd.env(var, val);
+        }
+    }
+
+    // 若 env 里没有 proxy 变量，尝试读取 Windows 系统代理（Clash 等代理工具会写注册表）
+    #[cfg(windows)]
+    {
+        let has_proxy = ["HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "https_proxy"]
+            .iter()
+            .any(|v| std::env::var(v).is_ok());
+        if !has_proxy {
+            if let Some(proxy_url) = detect_windows_system_proxy() {
+                if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&log_path) {
+                    let _ = writeln!(f, "[diag] auto-detected windows proxy: {proxy_url}");
+                }
+                cmd = cmd.env("HTTPS_PROXY", &proxy_url).env("HTTP_PROXY", &proxy_url);
+            }
         }
     }
 

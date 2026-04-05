@@ -7,7 +7,7 @@
 // 须最先加载，保证 .env 中的 HTTP(S)_PROXY 等在任意路由/bridge 执行前已注入 process.env
 import { settings } from './config.js';
 import { serve } from '@hono/node-server';
-import { setGlobalDispatcher, ProxyAgent } from 'undici';
+import { setupGlobalProxy } from './net/fetchDispatcher.js';
 import { createApp } from './api/server.js';
 import { mcpManager } from './mcp/manager.js';
 import { cronManager } from './scheduler/cronManager.js';
@@ -16,14 +16,7 @@ import { imManager } from './im/manager.js';
 import { chatService } from './chat/index.js';
 import { startSkillFileWatcher } from './skills/loader.js';
 
-const proxyUrl =
-  process.env.HTTPS_PROXY ??
-  process.env.https_proxy ??
-  process.env.HTTP_PROXY ??
-  process.env.http_proxy;
-if (proxyUrl) {
-  setGlobalDispatcher(new ProxyAgent(proxyUrl));
-}
+setupGlobalProxy();
 
 async function main() {
   const app = createApp();

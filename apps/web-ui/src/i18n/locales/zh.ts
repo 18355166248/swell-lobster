@@ -244,6 +244,8 @@ const zh = {
     subtitle: '服务状态、端点健康、IM 在线状态',
     serviceStatus: '服务状态：',
     loadFailed: '加载失败',
+    viewLog: '查看后端日志',
+    openLogFailed: '打开日志失败',
   },
 
   // IM 通道

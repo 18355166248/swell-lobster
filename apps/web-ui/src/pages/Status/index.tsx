@@ -1,15 +1,25 @@
 import { useEffect, useState } from 'react';
-import { Badge, Alert, Spin, Typography } from 'antd';
+import { Badge, Alert, Spin, Typography, Button, message } from 'antd';
+import { FileTextOutlined } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
 import { apiGet } from '../../api/base';
 
 const { Title, Text } = Typography;
+
+const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
+
+async function openLog(): Promise<void> {
+  const { invoke } = await import('@tauri-apps/api/core');
+  const path = await invoke<string>('get_log_path');
+  await invoke('open_file', { path });
+}
 
 export function StatusPage() {
   const { t } = useTranslation();
   const [health, setHealth] = useState<{ status?: string } | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [openingLog, setOpeningLog] = useState(false);
 
   useEffect(() => {
     apiGet<{ status?: string }>('/api/health')
@@ -17,6 +27,17 @@ export function StatusPage() {
       .catch((e) => setError(e instanceof Error ? e.message : t('status.loadFailed')))
       .finally(() => setLoading(false));
   }, [t]);
+
+  const handleViewLog = async () => {
+    setOpeningLog(true);
+    try {
+      await openLog();
+    } catch (e) {
+      message.error(t('status.openLogFailed'));
+    } finally {
+      setOpeningLog(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -42,6 +63,14 @@ export function StatusPage() {
             status={health.status === 'healthy' ? 'success' : 'default'}
             text={`${t('status.serviceStatus')}${health.status ?? 'unknown'}`}
           />
+        </div>
+      )}
+
+      {isTauri && (
+        <div className="mt-6">
+          <Button icon={<FileTextOutlined />} loading={openingLog} onClick={handleViewLog}>
+            {t('status.viewLog')}
+          </Button>
         </div>
       )}
     </div>

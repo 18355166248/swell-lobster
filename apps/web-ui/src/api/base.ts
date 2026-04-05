@@ -1,11 +1,13 @@
-/**
- * API 基础地址，供前端请求后端（swell-lobster serve）。
- * 开发时默认 http://127.0.0.1:18900
- */
+import { trackGlobalLoading } from '../store/globalLoading';
+
 const API_BASE =
   (typeof import.meta !== 'undefined' &&
     (import.meta as { env?: Record<string, string> }).env?.VITE_API_BASE) ||
   'http://127.0.0.1:18900';
+
+type RequestOptions = {
+  trackLoading?: boolean;
+};
 
 export function getApiBase(): string {
   return API_BASE.replace(/\/$/, '');
@@ -22,36 +24,66 @@ async function parseApiError(path: string, res: Response): Promise<never> {
   throw new Error(detail ? `API ${path}: ${detail}` : `API ${path}: ${res.status}`);
 }
 
-export async function apiGet<T = unknown>(path: string): Promise<T> {
-  const res = await fetch(`${getApiBase()}${path}`);
-  if (!res.ok) return parseApiError(path, res);
-  return res.json() as Promise<T>;
+export async function apiGet<T = unknown>(path: string, options?: RequestOptions): Promise<T> {
+  return requestJson<T>(path, { method: 'GET' }, options);
 }
 
-export async function apiPost<T = unknown>(path: string, body: unknown): Promise<T> {
-  const res = await fetch(`${getApiBase()}${path}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-  if (!res.ok) return parseApiError(path, res);
-  return res.json() as Promise<T>;
+export async function apiPost<T = unknown>(
+  path: string,
+  body: unknown,
+  options?: RequestOptions
+): Promise<T> {
+  return requestJson<T>(
+    path,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    },
+    options
+  );
 }
 
-export async function apiPatch<T = unknown>(path: string, body: unknown): Promise<T> {
-  const res = await fetch(`${getApiBase()}${path}`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-  if (!res.ok) return parseApiError(path, res);
-  return res.json() as Promise<T>;
+export async function apiPatch<T = unknown>(
+  path: string,
+  body: unknown,
+  options?: RequestOptions
+): Promise<T> {
+  return requestJson<T>(
+    path,
+    {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    },
+    options
+  );
 }
 
-export async function apiDelete<T = unknown>(path: string): Promise<T> {
-  const res = await fetch(`${getApiBase()}${path}`, {
-    method: 'DELETE',
-  });
-  if (!res.ok) return parseApiError(path, res);
-  return res.json() as Promise<T>;
+export async function apiDelete<T = unknown>(path: string, options?: RequestOptions): Promise<T> {
+  return requestJson<T>(
+    path,
+    {
+      method: 'DELETE',
+    },
+    options
+  );
+}
+
+async function requestJson<T = unknown>(
+  path: string,
+  init: RequestInit,
+  options?: RequestOptions
+): Promise<T> {
+  const runFetch = async () => {
+    const res = await fetch(`${getApiBase()}${path}`, init);
+    if (!res.ok) return parseApiError(path, res);
+    return res.json() as Promise<T>;
+  };
+
+  if (options?.trackLoading === false) {
+    return runFetch();
+  }
+
+  return trackGlobalLoading(runFetch());
 }

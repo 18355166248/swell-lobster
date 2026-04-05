@@ -97,7 +97,17 @@
       "Bash(python -m json.tool)",
       "Read(//c/Users/lang/**)",
       "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); mcp=d.get\\('mcpServers',{}\\); [print\\(k, list\\(v.keys\\(\\)\\)\\) for k,v in mcp.items\\(\\)]\")",
-      "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(json.dumps\\(d.get\\('mcpServers',{}\\), indent=2, ensure_ascii=False\\)\\)\")"
+      "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(json.dumps\\(d.get\\('mcpServers',{}\\), indent=2, ensure_ascii=False\\)\\)\")",
+      "Read(//mnt/**)",
+      "Bash(ls /mnt/)",
+      "Bash(uv run:*)",
+      "Bash(uv --version)",
+      "Bash(/c/Users/lang/AppData/Local/Microsoft/WindowsApps/python3 --version)",
+      "Bash(where python3:*)",
+      "Bash(echo \"exit: $?\")",
+      "Bash(/c/Users/lang/AppData/Local/Programs/Python/Python311/python.exe --version)",
+      "Bash(uv pip:*)",
+      "Bash(where python:*)"
     ]
   }
 }

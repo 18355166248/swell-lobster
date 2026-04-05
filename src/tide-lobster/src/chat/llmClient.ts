@@ -427,7 +427,11 @@ async function requestOpenAI(
     };
   }
 
-  throw new Error('chat completion response has no readable content');
+  // content 为 null 且无 tool_calls：模型已无话可说（常见于工具调用后的第二轮回复）
+  return {
+    content: '',
+    usage: parseOpenAIUsage(data.usage) ?? estimateUsage({ messages, content: '', systemPrompt }),
+  };
 }
 
 async function requestAnthropic(

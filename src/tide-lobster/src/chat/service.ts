@@ -421,10 +421,11 @@ export class ChatService {
             await args.onEvent?.({ type: 'delta', delta });
           });
         } else {
-          lastContent = result.content;
+          // 不用空字符串覆盖已有内容（模型工具调用后第二轮可能返回空）
+          lastContent = result.content || lastContent;
         }
         return {
-          content: result.content,
+          content: lastContent,
           usage: result.usage,
           toolInvocations,
         };

@@ -2,9 +2,8 @@
  * MCP 内置市场目录：JSON 位于同目录；可选 SWELL_MCP_MARKETPLACE_URL 拉取远程覆盖。
  */
 
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
-import { settings } from '../config.js';
+import bundledCatalog from './marketplace.json' with { type: 'json' };
+import { getFetchDispatcherForUrl } from '../net/fetchDispatcher.js';
 
 export type MarketplaceCategory = {
   id: string;
@@ -30,11 +29,6 @@ export type MarketplaceCatalog = {
   servers: MarketplaceServerEntry[];
 };
 
-const BUNDLED_PATH = join(
-  settings.projectRoot,
-  'src/tide-lobster/src/mcp/marketplace.json'
-);
-
 function parseCatalog(raw: unknown): MarketplaceCatalog {
   if (!raw || typeof raw !== 'object') throw new Error('invalid marketplace: not an object');
   const o = raw as Record<string, unknown>;
@@ -47,8 +41,7 @@ function parseCatalog(raw: unknown): MarketplaceCatalog {
 }
 
 function loadBundled(): MarketplaceCatalog {
-  const text = readFileSync(BUNDLED_PATH, 'utf8');
-  return parseCatalog(JSON.parse(text) as unknown);
+  return parseCatalog(bundledCatalog as unknown);
 }
 
 let remoteCache: { catalog: MarketplaceCatalog; fetchedAt: number } | null = null;
@@ -58,7 +51,10 @@ async function fetchRemote(url: string): Promise<MarketplaceCatalog> {
   const controller = new AbortController();
   const t = setTimeout(() => controller.abort(), 15_000);
   try {
-    const res = await fetch(url, { signal: controller.signal });
+    const res = await fetch(url, {
+      signal: controller.signal,
+      dispatcher: getFetchDispatcherForUrl(url),
+    } as RequestInit & { dispatcher: unknown });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const json = (await res.json()) as unknown;
     return parseCatalog(json);

@@ -39,7 +39,12 @@
     "resources": {
       "binaries/*": "binaries/",
       "../../../registries/providers.json": "registries/providers.json",
-      "../../../SKILLS/**/*": "SKILLS/",
+      "../../../SKILLS/docx/SKILL.md": "SKILLS/docx/SKILL.md",
+      "../../../SKILLS/emoji-expression/SKILL.md": "SKILLS/emoji-expression/SKILL.md",
+      "../../../SKILLS/pdf/SKILL.md": "SKILLS/pdf/SKILL.md",
+      "../../../SKILLS/pptx/SKILL.md": "SKILLS/pptx/SKILL.md",
+      "../../../SKILLS/skill-creator/SKILL.md": "SKILLS/skill-creator/SKILL.md",
+      "../../../SKILLS/xlsx/SKILL.md": "SKILLS/xlsx/SKILL.md",
       "../../../identity/**/*": "identity/"
     },
     "externalBin": ["binaries/tide-lobster"]

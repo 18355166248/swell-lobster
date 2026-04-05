@@ -85,7 +85,16 @@
       "Bash(powershell:*)",
       "Bash(node:*)",
       "Bash(ls \"F:/FrontEnd/Code/swell-lobster/apps/desktop/src-tauri/target/release/bundle/msi/\"*.wxs)",
-      "Bash(npx tauri:*)"
+      "Bash(npx tauri:*)",
+      "Read(//mnt/f/FrontEnd/Code/**)",
+      "Bash(cmd.exe /c \"dir F:\\\\FrontEnd\\\\Code\\\\swell-lobster\")",
+      "Bash(cmd.exe:*)",
+      "Bash(curl:*)",
+      "Read(//c/Users/lang/AppData/Local/SwellLobster/**)",
+      "Read(//c/Users/lang/AppData/Local/SwellLobster/SKILLS/**)",
+      "WebSearch",
+      "Bash(npx tsx:*)",
+      "Bash(python -m json.tool)"
     ]
   }
 }

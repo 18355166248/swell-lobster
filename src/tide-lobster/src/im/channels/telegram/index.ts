@@ -10,9 +10,11 @@
  * - `allowlist`：仅 `allowed_user_ids` 中的用户可交互，完全无配对码流程。
  */
 import { Bot, type Context } from 'grammy';
+import HttpsProxyAgentPkg from 'https-proxy-agent';
 import { ChannelAdapter } from '../../base.js';
 import type { ChannelStatus, SendOptions, UnifiedMessage } from '../../types.js';
 import { isApprovedUser, upsertPendingRequest } from './pairing.js';
+import { getFetchDispatcherForUrl } from '../../../net/fetchDispatcher.js';
 
 /** 持久化在 `im_channels.config` 中的结构（由前端表单序列化） */
 export interface TelegramConfig {
@@ -38,6 +40,20 @@ export class TelegramChannel extends ChannelAdapter {
   }
 
   /**
+   * 返回 node-fetch 兼容的代理 agent 配置。
+   * grammy 内部使用 node-fetch，undici dispatcher 无效，需用 https-proxy-agent。
+   */
+  private buildFetchConfig(): Record<string, unknown> {
+    const proxyUrl =
+      process.env.HTTPS_PROXY ||
+      process.env.https_proxy ||
+      process.env.HTTP_PROXY ||
+      process.env.http_proxy;
+    if (!proxyUrl) return {};
+    return { agent: HttpsProxyAgentPkg(proxyUrl) };
+  }
+
+  /**
    * 创建 Bot、注册 text/photo 处理器并启动 long polling。
    * `bot.start()` 在后台运行；若抛错则异步将状态置为 `error`。
    */
@@ -45,12 +61,35 @@ export class TelegramChannel extends ChannelAdapter {
     const token = process.env[this.cfg.bot_token_env];
     if (!token) throw new Error(`环境变量 ${this.cfg.bot_token_env} 未设置`);
 
-    this.bot = new Bot(token);
+    this.bot = new Bot(token, {
+      client: {
+        baseFetchConfig: this.buildFetchConfig(),
+      },
+    });
+
+    // 验证 token + 代理连通性
+    this.bot.api.getMe().then((me) => {
+      console.log('[telegram] connected as:', me.username);
+    }).catch((err) => {
+      console.error('[telegram] getMe() failed:', err);
+    });
+
+    // 拦截所有 update，确认轮询是否收到数据
+    this.bot.use((ctx, next) => {
+      console.log('[telegram] update received:', ctx.update.update_id);
+      return next();
+    });
+
     this.bot.on('message:text', (ctx) => void this.handleText(ctx));
     this.bot.on('message:photo', (ctx) => void this.handlePhoto(ctx));
 
+    this.bot.catch((err) => {
+      console.error('[telegram] polling error:', err);
+    });
+
     // start() 是非阻塞的（内部启动 long polling 协程），不需要 await
-    this.bot.start().catch((_err: unknown) => {
+    this.bot.start().catch((err: unknown) => {
+      console.error('[telegram] bot.start() error:', err);
       this._status = 'error';
     });
 
@@ -172,7 +211,9 @@ export class TelegramChannel extends ChannelAdapter {
     try {
       const file = await ctx.api.getFile(photo.file_id);
       const fileUrl = `https://api.telegram.org/file/bot${token}/${file.file_path}`;
-      const buffer = await fetch(fileUrl).then((r) => r.arrayBuffer());
+      const buffer = await fetch(fileUrl, {
+        dispatcher: getFetchDispatcherForUrl(fileUrl),
+      } as RequestInit & { dispatcher: unknown }).then((r) => r.arrayBuffer());
       base64 = Buffer.from(buffer).toString('base64');
     } catch {
       await ctx.reply('抱歉，图片下载失败。');

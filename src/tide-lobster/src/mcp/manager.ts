@@ -11,6 +11,7 @@ import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 import { mcpStore } from './store.js';
 import { mcpToolBridge } from './toolBridge.js';
 import type { MCPServerConfig, MCPToolInfo } from './types.js';
+import { getFetchDispatcherForUrl } from '../net/fetchDispatcher.js';
 
 /** 已连接的 MCP 客户端与其传输（便于 close 时一并释放） */
 type ManagedClient = {
@@ -27,9 +28,14 @@ function mergeEnv(extra: Record<string, string>): Record<string, string> {
   );
 }
 
-function buildRemoteRequestInit(headers: Record<string, string>): RequestInit | undefined {
-  if (!headers || Object.keys(headers).length === 0) return undefined;
-  return { headers: { ...headers } };
+function buildRemoteRequestInit(
+  url: string,
+  headers: Record<string, string>,
+): RequestInit & { dispatcher: unknown } {
+  return {
+    ...(Object.keys(headers).length > 0 ? { headers: { ...headers } } : {}),
+    dispatcher: getFetchDispatcherForUrl(url),
+  } as RequestInit & { dispatcher: unknown };
 }
 
 function createTransport(config: MCPServerConfig): Transport {
@@ -51,8 +57,8 @@ function createTransport(config: MCPServerConfig): Transport {
   } catch (e) {
     throw new Error(`invalid MCP url: ${rawUrl}`);
   }
-  const requestInit = buildRemoteRequestInit(config.headers ?? {});
-  const opts = requestInit ? { requestInit } : undefined;
+  const requestInit = buildRemoteRequestInit(rawUrl, config.headers ?? {});
+  const opts = { requestInit };
   if (t === 'sse') {
     return new SSEClientTransport(parsedUrl, opts);
   }

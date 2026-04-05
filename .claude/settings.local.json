@@ -94,7 +94,10 @@
       "Read(//c/Users/lang/AppData/Local/SwellLobster/SKILLS/**)",
       "WebSearch",
       "Bash(npx tsx:*)",
-      "Bash(python -m json.tool)"
+      "Bash(python -m json.tool)",
+      "Read(//c/Users/lang/**)",
+      "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); mcp=d.get\\('mcpServers',{}\\); [print\\(k, list\\(v.keys\\(\\)\\)\\) for k,v in mcp.items\\(\\)]\")",
+      "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(json.dumps\\(d.get\\('mcpServers',{}\\), indent=2, ensure_ascii=False\\)\\)\")"
     ]
   }
 }

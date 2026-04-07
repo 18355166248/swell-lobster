@@ -15,10 +15,35 @@ import { initializeBuiltinTools } from './tools/index.js';
 import { imManager } from './im/manager.js';
 import { chatService } from './chat/index.js';
 import { startSkillFileWatcher } from './skills/loader.js';
+import { existsSync, readdirSync, copyFileSync } from 'node:fs';
+import { join, basename } from 'node:path';
+
+/**
+ * 将 identity/ 根目录下的 .example 文件复制为对应 .md（如果 .md 不存在）。
+ * 例如：SOUL.example → SOUL.md，AGENT.example → AGENT.md
+ */
+function initIdentityFiles(): void {
+  const dir = settings.identityDir;
+  if (!existsSync(dir)) return;
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    if (!entry.isFile() || !entry.name.endsWith('.example')) continue;
+    const mdName = basename(entry.name, '.example') + '.md';
+    const mdPath = join(dir, mdName);
+    if (!existsSync(mdPath)) {
+      try {
+        copyFileSync(join(dir, entry.name), mdPath);
+        console.log(`[identity] initialized ${mdName} from ${entry.name}`);
+      } catch (e) {
+        console.warn(`[identity] failed to init ${mdName}:`, e);
+      }
+    }
+  }
+}
 
 setupGlobalProxy();
 
 async function main() {
+  initIdentityFiles();
   const app = createApp();
   initializeBuiltinTools();
   startSkillFileWatcher(() => {

@@ -18,10 +18,9 @@ function findRepoRoot(): string {
   for (const start of candidates) {
     let current = resolve(start);
     for (let depth = 0; depth < 8; depth += 1) {
-      if (
-        existsSync(resolve(current, 'identity')) &&
-        existsSync(resolve(current, 'src', 'tide-lobster'))
-      ) {
+      // 打包版：只有 identity 目录（无 src/tide-lobster）
+      // 开发版：同时有 identity 和 src/tide-lobster
+      if (existsSync(resolve(current, 'identity'))) {
         return current;
       }
 
@@ -35,6 +34,9 @@ function findRepoRoot(): string {
 }
 
 const REPO_ROOT = findRepoRoot();
+console.log('[config] REPO_ROOT =', REPO_ROOT);
+console.log('[config] identityDir candidate =', resolve(REPO_ROOT, 'identity'));
+console.log('[config] identity exists =', existsSync(resolve(REPO_ROOT, 'identity')));
 
 // 先加载仓库根 .env（与 Python 的 env_file=".env" 一致）
 loadDotenv({ path: resolve(REPO_ROOT, '.env') });

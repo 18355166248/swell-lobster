@@ -13,7 +13,6 @@ import { TokenStatsPage } from './pages/TokenStats';
 import { ConfigLLMPage } from './pages/config/LLM';
 import { ConfigIMPage } from './pages/config/IM';
 import { ConfigToolsPage } from './pages/config/Tools';
-import { ConfigSoulPage } from './pages/config/Soul';
 import { ConfigIdentityPage } from './pages/config/Identity';
 import { ConfigAdvancedPage } from './pages/config/Advanced';
 import { ROUTES } from './routes';
@@ -36,7 +35,6 @@ export const router = createBrowserRouter([
       { path: 'config/llm', element: <ConfigLLMPage /> },
       { path: 'config/im', element: <ConfigIMPage /> },
       { path: 'config/tools', element: <ConfigToolsPage /> },
-      { path: 'config/soul', element: <ConfigSoulPage /> },
       { path: 'config/identity', element: <ConfigIdentityPage /> },
       { path: 'config/advanced', element: <ConfigAdvancedPage /> },
       { path: ROUTES.NOT_FOUND, element: <NotFoundPage /> },

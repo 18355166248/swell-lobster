@@ -12,7 +12,6 @@ export const ROUTES = {
   CONFIG_LLM: '/config/llm',
   CONFIG_IM: '/config/im',
   CONFIG_TOOLS: '/config/tools',
-  CONFIG_SOUL: '/config/soul',
   CONFIG_IDENTITY: '/config/identity',
   CONFIG_ADVANCED: '/config/advanced',
   NOT_FOUND: '*',

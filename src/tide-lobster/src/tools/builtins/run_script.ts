@@ -78,9 +78,10 @@ async function detectPython(): Promise<{ bin: string; prefix: string[] } | null>
     }
   }
 
-  // 尝试 uv run（uv 自带 Python，无需系统安装）
-  if (await isExecutable('uv')) {
-    return { bin: 'uv', prefix: ['run'] };
+  // 优先使用 SWELL_UV_BIN（打包版 uv sidecar 路径），其次检测系统 PATH 里的 uv
+  const uvBin = process.env['SWELL_UV_BIN'] ?? 'uv';
+  if (await isExecutable(uvBin)) {
+    return { bin: uvBin, prefix: ['run'] };
   }
 
   return null;

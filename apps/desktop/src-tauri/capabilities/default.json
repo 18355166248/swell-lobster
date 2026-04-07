@@ -16,6 +16,10 @@
       "identifier": "shell:allow-execute",
       "allow": [{ "args": true, "name": "binaries/tide-lobster", "sidecar": true }]
     },
+    {
+      "identifier": "shell:allow-execute",
+      "allow": [{ "args": true, "name": "binaries/uv", "sidecar": true }]
+    },
     "fs:read-all",
     "fs:write-all",
     "dialog:allow-open",

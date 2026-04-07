@@ -403,7 +403,21 @@ curl http://localhost:18900/api/files/../../etc/passwd
 
 ## 完成情况
 
-- [x] Phase 7a：run_script 工具 + 文件路由
-- [x] Phase 7b：SKILL.md 更新
-- [x] Phase 7c：Tauri 桌面脚手架
-- [x] Phase 7d：前端 FileCard + 双模式适配
+| 阶段     | 内容                       | 状态      |
+| -------- | -------------------------- | --------- |
+| Phase 7a | run_script 工具 + 文件路由 | ✅ 已完成 |
+| Phase 7b | SKILL.md 更新              | ✅ 已完成 |
+| Phase 7c | Tauri 桌面脚手架           | ✅ 已完成 |
+| Phase 7d | 前端 FileCard + 双模式适配 | ✅ 已完成 |
+
+## 补齐记录
+
+| 内容                                                       | 状态      |
+| ---------------------------------------------------------- | --------- |
+| run_script：`SWELL_UV_BIN` 优先检测（打包版 uv 不在 PATH） | ✅ 已完成 |
+| lib.rs：启动 sidecar 时注入 `SWELL_UV_BIN`                 | ✅ 已完成 |
+| tauri.conf.json：uv 加入 `externalBin`                     | ✅ 已完成 |
+| capabilities：uv sidecar 执行权限                          | ✅ 已完成 |
+| identity 初始化：启动时将 `.example` 复制为 `.md`          | ✅ 已完成 |
+| `withGlobalTauri: true`：修复 `isTauri()` 打包版返回 false | ✅ 已完成 |
+| `data-tauri-drag-region`：替换无效的 `WebkitAppRegion`     | ✅ 已完成 |

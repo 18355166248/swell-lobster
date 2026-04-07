@@ -50,6 +50,6 @@
       "../../../identity/*": "identity/",
       "../../../identity/**/*": "identity/"
     },
-    "externalBin": ["binaries/tide-lobster"]
+    "externalBin": ["binaries/tide-lobster", "binaries/uv"]
   }
 }

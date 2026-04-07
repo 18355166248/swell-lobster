@@ -109,6 +109,7 @@ fn start_tide_lobster(app: &AppHandle) -> Result<CommandChild, String> {
         .map_err(|e| format!("Cannot resolve resource_dir: {e}"))?;
     let binary_path = resource_dir.join(format!("tide-lobster{ext}"));
     let sqlite_binding = resource_dir.join("binaries").join("better_sqlite3.node");
+    let uv_path = resource_dir.join("binaries").join(format!("uv{ext}"));
 
     let data_dir = app
         .path()
@@ -135,7 +136,8 @@ fn start_tide_lobster(app: &AppHandle) -> Result<CommandChild, String> {
         .env("SWELL_OUTPUT_DIR", output_dir.to_string_lossy().as_ref())
         .env("API_HOST", "127.0.0.1")
         .env("API_PORT", "18900")
-        .env("BETTER_SQLITE3_BINDING", sqlite_binding.to_string_lossy().as_ref());
+        .env("BETTER_SQLITE3_BINDING", sqlite_binding.to_string_lossy().as_ref())
+        .env("SWELL_UV_BIN", uv_path.to_string_lossy().as_ref());
 
     for var in &proxy_vars {
         if let Ok(val) = std::env::var(var) {

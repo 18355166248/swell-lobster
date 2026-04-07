@@ -39,6 +39,12 @@ export function createApp(): Hono {
   // 健康检查
   app.get('/api/health', (c) => c.json({ status: 'healthy', service: 'tide-lobster' }));
 
+  // 优雅关闭（由桌面端在退出前调用）
+  app.post('/api/shutdown', (c) => {
+    setTimeout(() => process.kill(process.pid, 'SIGTERM'), 50);
+    return c.json({ ok: true });
+  });
+
   // Config 路由组
   app.route('/', configRouter);
   app.route('/', configEndpointsRouter);

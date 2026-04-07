@@ -5,7 +5,9 @@ import { useTranslation } from 'react-i18next';
 import { useAtomValue, useSetAtom } from 'jotai';
 import { getApiBase, apiGet } from '../api/base';
 import { ThemeToggle } from './ThemeToggle';
+import { WindowControls } from './WindowControls';
 import { localeAtom, applyLocale, type Locale } from '../store/locale';
+import { isTauri } from '../utils/platform';
 
 type HealthStatus = 'unknown' | 'healthy' | 'error';
 
@@ -56,7 +58,10 @@ export function Topbar() {
   };
 
   return (
-    <header className="flex items-center justify-between px-4 h-11 border-b border-border bg-background/95 backdrop-blur flex-shrink-0">
+    <header
+      className="flex items-center justify-between px-4 h-11 border-b border-border bg-background/95 backdrop-blur flex-shrink-0"
+      {...(isTauri() ? { 'data-tauri-drag-region': true } : {})}
+    >
       <Space size={8}>
         <span className="text-sm text-muted-foreground">{t('topbar.default')}</span>
         <Badge status={statusBadgeMap[status]} text={statusLabel} />
@@ -101,6 +106,8 @@ export function Topbar() {
           </Button>
         </Tooltip>
       </Space>
+
+      <WindowControls />
     </header>
   );
 }

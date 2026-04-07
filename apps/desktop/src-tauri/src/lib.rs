@@ -279,11 +279,25 @@ pub fn run() {
             Ok(())
         })
         .on_window_event(|window, event| {
-            if let tauri::WindowEvent::Destroyed = event {
-                let state = window.app_handle().state::<SidecarState>();
-                if let Some(child) = state.0.lock().unwrap().take() {
-                    let _ = child.kill();
-                };
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                api.prevent_close();
+                let app = window.app_handle().clone();
+                let win = window.clone();
+                tauri::async_runtime::spawn(async move {
+                    // 先尝试优雅关闭 sidecar（最多等 3 秒）
+                    let client = reqwest::Client::new();
+                    let _ = tokio::time::timeout(
+                        std::time::Duration::from_secs(3),
+                        client.post("http://127.0.0.1:18900/api/shutdown").send(),
+                    )
+                    .await;
+                    // 无论结果如何，强制 kill 残留进程
+                    let state = app.state::<SidecarState>();
+                    if let Some(child) = state.0.lock().unwrap().take() {
+                        let _ = child.kill();
+                    }
+                    let _ = win.destroy();
+                });
             }
         })
         .invoke_handler(tauri::generate_handler![open_file, get_output_dir, get_log_path, open_devtools])

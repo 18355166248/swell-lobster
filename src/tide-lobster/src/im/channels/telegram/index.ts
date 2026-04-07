@@ -10,6 +10,7 @@
  * - `allowlist`：仅 `allowed_user_ids` 中的用户可交互，完全无配对码流程。
  */
 import { Bot, type Context } from 'grammy';
+import { HttpsProxyAgent } from 'https-proxy-agent';
 import { ChannelAdapter } from '../../base.js';
 import type { ChannelStatus, SendOptions, UnifiedMessage } from '../../types.js';
 import { isApprovedUser, upsertPendingRequest } from './pairing.js';
@@ -38,33 +39,24 @@ export class TelegramChannel extends ChannelAdapter {
     return this.config as unknown as TelegramConfig;
   }
 
-  /**
-   * 返回 node-fetch 兼容的代理 agent 配置。
-   * grammy 内部使用 node-fetch，undici dispatcher 无效，需用 https-proxy-agent。
-   */
-  private buildFetchConfig(): Record<string, unknown> {
+  private buildBotConfig(): ConstructorParameters<typeof Bot>[1] {
     const proxyUrl =
       process.env.HTTPS_PROXY ||
       process.env.https_proxy ||
       process.env.HTTP_PROXY ||
       process.env.http_proxy;
     console.log('[telegram] proxy url:', proxyUrl ?? '(none)');
-    return {};
+    if (!proxyUrl) return {};
+    return { client: { baseFetchConfig: { agent: new HttpsProxyAgent(proxyUrl) } } };
   }
 
-  /**
-   * 创建 Bot、注册 text/photo 处理器并启动 long polling。
-   * 代理由 setupGlobalProxy() 在启动时统一注入 undici 全局 dispatcher，
-   * grammy 使用 native fetch，会自动走全局代理，无需 baseFetchConfig。
-   */
   async start(): Promise<void> {
     const token = process.env[this.cfg.bot_token_env];
     if (!token) throw new Error(`环境变量 ${this.cfg.bot_token_env} 未设置`);
 
     console.log('[telegram] starting channel, bot_token_env:', this.cfg.bot_token_env);
-    this.buildFetchConfig(); // 仅打印代理信息
 
-    this.bot = new Bot(token);
+    this.bot = new Bot(token, this.buildBotConfig());
 
     // 验证 token + 代理连通性
     this.bot.api.getMe().then((me) => {

@@ -107,7 +107,10 @@
       "Bash(echo \"exit: $?\")",
       "Bash(/c/Users/lang/AppData/Local/Programs/Python/Python311/python.exe --version)",
       "Bash(uv pip:*)",
-      "Bash(where python:*)"
+      "Bash(where python:*)",
+      "Bash(npx --yes tsc --version)",
+      "Bash(cargo check:*)",
+      "mcp__plugin_playwright_playwright__browser_snapshot"
     ]
   }
 }

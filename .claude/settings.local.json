@@ -110,7 +110,10 @@
       "Bash(where python:*)",
       "Bash(npx --yes tsc --version)",
       "Bash(cargo check:*)",
-      "mcp__plugin_playwright_playwright__browser_snapshot"
+      "mcp__plugin_playwright_playwright__browser_snapshot",
+      "Bash(wmic computersystem:*)",
+      "Bash(wmic cpu:*)",
+      "Bash(wmic path:*)"
     ]
   }
 }

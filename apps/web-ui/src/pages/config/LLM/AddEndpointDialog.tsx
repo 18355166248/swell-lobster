@@ -613,6 +613,12 @@ export function AddEndpointDialog({
             {models.length > 0 ? (
               <Select
                 allowClear
+                showSearch
+                filterOption={(input, option) =>
+                  String(option?.label ?? '')
+                    .toLowerCase()
+                    .includes(input.toLowerCase())
+                }
                 options={models.map((m) => ({ value: m.id, label: m.name || m.id }))}
                 placeholder={t('addEndpoint.modelPlaceholder')}
                 onChange={(value) => applyModelCapabilities(value ?? '')}

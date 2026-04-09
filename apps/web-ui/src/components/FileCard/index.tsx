@@ -1,4 +1,9 @@
-import { DownloadOutlined, FolderOpenOutlined, LoadingOutlined } from '@ant-design/icons';
+import {
+  DownloadOutlined,
+  FolderOpenOutlined,
+  LoadingOutlined,
+  WarningOutlined,
+} from '@ant-design/icons';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { getApiBase } from '../../api/base';
@@ -45,12 +50,14 @@ function getFileTypeInfo(filename: string): FileTypeInfo {
 export function FileCard({ filename, href }: FileCardProps) {
   const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(false);
   const typeInfo = getFileTypeInfo(filename);
   const inTauri = isTauri();
 
   const handleOpen = async () => {
     if (loading) return;
     setLoading(true);
+    setError(false);
     try {
       if (inTauri) {
         // Tauri 模式：通过 Rust command 用系统默认程序打开文件
@@ -61,13 +68,20 @@ export function FileCard({ filename, href }: FileCardProps) {
           outputDir.replace(/[/\\]$/, '') + (outputDir.includes('\\') ? '\\' : '/') + filename;
         await invoke('open_file', { path: localPath });
       } else {
-        // Web 模式：触发 HTTP 下载
+        // Web 模式：先 HEAD 验证文件存在，再触发下载
         const url = `${getApiBase()}${href}`;
+        const check = await fetch(url, { method: 'HEAD' });
+        if (!check.ok) {
+          setError(true);
+          return;
+        }
         const a = document.createElement('a');
         a.href = url;
         a.download = filename;
         a.click();
       }
+    } catch {
+      setError(true);
     } finally {
       setLoading(false);
     }
@@ -111,9 +125,16 @@ export function FileCard({ filename, href }: FileCardProps) {
         >
           {filename}
         </p>
-        <p className="text-xs dark:text-claude-darkTextSecondary text-claude-textSecondary mt-0.5">
-          {typeInfo.label}
-        </p>
+        {error ? (
+          <p className="text-xs text-red-500 mt-0.5 flex items-center gap-1">
+            <WarningOutlined />
+            {t('chat.fileNotFound')}
+          </p>
+        ) : (
+          <p className="text-xs dark:text-claude-darkTextSecondary text-claude-textSecondary mt-0.5">
+            {typeInfo.label}
+          </p>
+        )}
       </div>
 
       {/* 操作按钮 */}

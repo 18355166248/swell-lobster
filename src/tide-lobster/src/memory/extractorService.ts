@@ -134,6 +134,10 @@ ${fullText}
       let raw = result.content.trim();
       if (!raw) return;
 
+      // 去除 <think>...</think> 思维链（部分模型在回复前输出推理过程）
+      raw = raw.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
+      if (!raw) return;
+
       // 模型有时会用 ```json ... ``` 包裹，需先去掉代码块标记
       const fenceMatch = raw.match(/```(?:json)?\s*([\s\S]*?)```/);
       if (fenceMatch) raw = fenceMatch[1].trim();

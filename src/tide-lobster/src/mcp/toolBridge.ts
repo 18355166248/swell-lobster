@@ -1,12 +1,20 @@
 /**
  * 将 MCP 工具桥接到应用内 `ToolDef`：名称形如 `mcp_<serverId>_<toolName>`，
  * 执行时转发 `callTool`，并把 content 块拼成字符串返回给 LLM。
+ *
+ * 工具名会经过 sanitize：将非 `[a-zA-Z0-9_]` 字符（UUID 里的 `-`、工具名里的 `.` 等）
+ * 替换为 `_`，兼容 Huawei ModelArts / Gemini 等对 function name 有严格限制的服务商。
  */
 
 import type { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { globalToolRegistry } from '../tools/registry.js';
 import type { ToolDef, ToolParameter } from '../tools/types.js';
 import type { MCPToolInfo } from './types.js';
+
+/** 将任意字符串转为合法 function name：只保留字母、数字、下划线。 */
+function sanitizeToolName(raw: string): string {
+  return raw.replace(/[^a-zA-Z0-9_]/g, '_');
+}
 
 /** MCP JSON Schema 子集 → 内置 tools 模块可识别的 parameters 描述 */
 function toToolParameters(tool: MCPToolInfo): ToolDef['parameters'] {
@@ -63,8 +71,8 @@ export class MCPToolBridge {
    * 其它类型序列化为 JSON；空块过滤后按换行拼接，作为工具输出交给上层（最终进入 LLM 上下文）。
    */
   registerMCPTool(serverId: string, mcpTool: MCPToolInfo, client: Client): void {
-    // 对外暴露给 LLM/注册表的唯一名称（含 server 前缀，unregister 时按前缀批量清理）
-    const toolName = `mcp_${serverId}_${mcpTool.name}`;
+    // sanitize 后的对外名称：UUID 里的 `-` 及工具名里的 `.`/`-` 等统一替换为 `_`
+    const toolName = sanitizeToolName(`mcp_${serverId}_${mcpTool.name}`);
     const toolDef: ToolDef = {
       name: toolName,
       // 前缀 [MCP] 便于在工具列表里识别来源；缺省时用工具名兜底
@@ -93,10 +101,11 @@ export class MCPToolBridge {
 
   /** 移除该 server 前缀下的全部桥接工具（停止或重载前调用） */
   unregisterMCPTools(serverId: string): void {
-    const prefix = `mcp_${serverId}_`;
+    const prefixSanitized = sanitizeToolName(`mcp_${serverId}_`);
+    const prefixRaw = `mcp_${serverId}_`;
     globalToolRegistry
       .listAll()
-      .filter((tool) => tool.name.startsWith(prefix))
+      .filter((tool) => tool.name.startsWith(prefixSanitized) || tool.name.startsWith(prefixRaw))
       .forEach((tool) => globalToolRegistry.unregister(tool.name));
   }
 }

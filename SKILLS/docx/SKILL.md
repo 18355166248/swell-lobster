@@ -19,6 +19,28 @@ official: true
 4. `run_script` returns JSON — check `output_files` array for download URLs
 5. Include download links in your final reply:
    `[filename.docx](/api/files/filename.docx)`
+6. **For dynamically generated scripts**: use `script_content` parameter to provide the script source inline — the tool will create the file automatically before running it
+
+### Output filename convention
+
+**NEVER use generic names** like `test.docx`, `document.docx`, or `output.docx`.
+
+- Derive the name from the task content (2–4 English words, snake_case)
+- Append a 6-character random suffix to prevent overwrites
+- Example: `stock_report_a3f9k2.docx`, `meeting_notes_x7q1p5.docx`
+
+```js
+// JavaScript
+const rand = Math.random().toString(36).slice(2, 8);
+const filename = `stock_report_${rand}.docx`;
+```
+
+```python
+# Python
+import random, string
+rand = ''.join(random.choices(string.ascii_lowercase + string.digits, k=6))
+filename = f'stock_report_{rand}.docx'
+```
 
 ### Python dependencies (declare inline for uv)
 
@@ -27,10 +49,40 @@ official: true
 # requires-python = ">=3.10"
 # dependencies = ["python-docx"]
 # ///
-import docx, os
+import docx, os, random, string
+rand = ''.join(random.choices(string.ascii_lowercase + string.digits, k=6))
+filename = f'document_{rand}.docx'
 doc = docx.Document()
 # ... build document ...
-doc.save(os.path.join(os.environ['OUTPUT_DIR'], 'document.docx'))
+doc.save(os.path.join(os.environ['OUTPUT_DIR'], filename))
+```
+
+### JavaScript (Node.js) — `docx` npm package is pre-installed
+
+The `docx` npm package is already installed in the project. JS/MJS scripts can import it directly.
+Output files MUST be written to `process.env.OUTPUT_DIR`.
+
+```js
+import { Document, Packer, Paragraph, TextRun } from 'docx';
+import fs from 'fs';
+import path from 'path';
+
+const doc = new Document({
+  sections: [{ children: [new Paragraph({ children: [new TextRun('Hello World')] })] }],
+});
+const buffer = await Packer.toBuffer(doc);
+const rand = Math.random().toString(36).slice(2, 8);
+fs.writeFileSync(path.join(process.env.OUTPUT_DIR, `document_${rand}.docx`), buffer);
+console.log('done');
+```
+
+**Example `run_script` call with inline content:**
+
+```json
+{
+  "script_path": "/abs/path/to/SKILLS/docx/scripts/create_doc.mjs",
+  "script_content": "import { Document, Packer, Paragraph, TextRun } from 'docx';\nimport fs from 'fs';\nimport path from 'path';\nconst rand = Math.random().toString(36).slice(2, 8);\nconst filename = `hello_world_${rand}.docx`;\nconst doc = new Document({ sections: [{ children: [new Paragraph({ children: [new TextRun('Hello World')] })] }] });\nconst buf = await Packer.toBuffer(doc);\nfs.writeFileSync(path.join(process.env.OUTPUT_DIR, filename), buf);\nconsole.log('created:', filename);\n"
+}
 ```
 
 > **Tauri desktop**: Files are saved locally and opened with the system's default application.

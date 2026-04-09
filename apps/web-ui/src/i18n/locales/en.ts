@@ -96,6 +96,7 @@ const en = {
     fileDownload: 'Download',
     fileOpen: 'Open',
     fileSaveAs: 'Save As',
+    fileNotFound: 'File not found or not yet generated',
     generatedFiles: 'Generated files',
   },
 

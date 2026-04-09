@@ -113,7 +113,8 @@
       "mcp__plugin_playwright_playwright__browser_snapshot",
       "Bash(wmic computersystem:*)",
       "Bash(wmic cpu:*)",
-      "Bash(wmic path:*)"
+      "Bash(wmic path:*)",
+      "Bash(python3 -c \"import sys,json; p=json.load\\(sys.stdin\\); print\\(list\\(p.get\\('dependencies',{}\\).keys\\(\\)\\)\\)\")"
     ]
   }
 }

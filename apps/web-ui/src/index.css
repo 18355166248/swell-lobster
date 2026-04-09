@@ -221,6 +221,35 @@ code {
   }
 }
 
+/* === 工具调用 running 扫光效果 === */
+@keyframes tool-shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(250%);
+  }
+}
+
+.tool-title-shimmer {
+  position: relative;
+  overflow: hidden;
+}
+
+.tool-title-shimmer::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.18) 50%,
+    transparent 100%
+  );
+  animation: tool-shimmer 1.6s ease-in-out infinite;
+  pointer-events: none;
+}
+
 /* === 滚动到底部浮动按钮 === */
 .scroll-to-bottom-btn {
   position: absolute;

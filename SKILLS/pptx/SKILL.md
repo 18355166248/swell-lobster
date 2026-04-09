@@ -21,6 +21,21 @@ official: true
 4. `run_script` returns JSON — check `output_files` array for download URLs
 5. Include download links in your final reply using Markdown:
    `[filename.pptx](/api/files/filename.pptx)`
+6. **For dynamically generated scripts**: use `script_content` parameter to provide the script source inline — the tool will create the file automatically before running it
+
+### Output filename convention
+
+**NEVER use generic names** like `test.pptx`, `slides.pptx`, or `output.pptx`.
+
+- Derive the name from the task content (2–4 English words, snake_case)
+- Append a 6-character random suffix to prevent overwrites
+- Example: `quarterly_review_a3f9k2.pptx`, `product_demo_x7q1p5.pptx`
+
+```python
+import random, string
+rand = ''.join(random.choices(string.ascii_lowercase + string.digits, k=6))
+filename = f'presentation_{rand}.pptx'
+```
 
 ### Example
 

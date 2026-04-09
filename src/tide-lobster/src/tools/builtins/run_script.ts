@@ -17,8 +17,8 @@
  * 返回 JSON 字符串：
  *   { exit_code, stdout, stderr, output_files: [{filename, url}], timed_out }
  */
-import { existsSync, mkdirSync, readdirSync, realpathSync } from 'node:fs';
-import { basename, extname, join, resolve, sep } from 'node:path';
+import { existsSync, mkdirSync, readdirSync, realpathSync, statSync, writeFileSync } from 'node:fs';
+import { basename, dirname, extname, join, resolve, sep } from 'node:path';
 import { spawn } from 'node:child_process';
 import { settings } from '../../config.js';
 import type { ToolDef } from '../types.js';
@@ -58,12 +58,20 @@ function getOutputDir(): string {
   return dir;
 }
 
-/** 执行前对输出目录做文件名快照，用于执行后比对新增文件。 */
-function snapshotOutputDir(outputDir: string): Set<string> {
+/** 执行前对输出目录做快照：记录 文件名 → mtime(ms)，用于执行后比对新增或被修改的文件。 */
+function snapshotOutputDir(outputDir: string): Map<string, number> {
   try {
-    return new Set(readdirSync(outputDir));
+    const map = new Map<string, number>();
+    for (const name of readdirSync(outputDir)) {
+      try {
+        map.set(name, statSync(join(outputDir, name)).mtimeMs);
+      } catch {
+        // 忽略单个文件的 stat 失败
+      }
+    }
+    return map;
   } catch {
-    return new Set();
+    return new Map();
   }
 }
 
@@ -73,14 +81,14 @@ async function detectPython(): Promise<{ bin: string; prefix: string[] } | null>
   const candidates = customBin ? [customBin] : ['python3', 'python'];
 
   for (const bin of candidates) {
-    if (await isExecutable(bin)) {
+    if (await isExecutable(bin) && await isPythonRunnable(bin, [])) {
       return { bin, prefix: [] };
     }
   }
 
   // 优先使用 SWELL_UV_BIN（打包版 uv sidecar 路径），其次检测系统 PATH 里的 uv
   const uvBin = process.env['SWELL_UV_BIN'] ?? 'uv';
-  if (await isExecutable(uvBin)) {
+  if (await isExecutable(uvBin) && await isPythonRunnable(uvBin, ['run'])) {
     return { bin: uvBin, prefix: ['run'] };
   }
 
@@ -94,6 +102,19 @@ function isExecutable(cmd: string): Promise<boolean> {
       stdio: 'ignore',
       windowsHide: true,
     });
+    check.on('close', (code) => resolve(code === 0));
+    check.on('error', () => resolve(false));
+  });
+}
+
+/**
+ * 验证 Python 命令真正可用（Windows Store stub 存在但运行会失败，
+ * isExecutable 只检查 where，需额外运行 --version 确认）。
+ */
+function isPythonRunnable(bin: string, prefix: string[]): Promise<boolean> {
+  return new Promise((resolve) => {
+    const args = [...prefix, '--version'];
+    const check = spawn(bin, args, { stdio: 'ignore', windowsHide: true });
     check.on('close', (code) => resolve(code === 0));
     check.on('error', () => resolve(false));
   });
@@ -195,6 +216,12 @@ export const runScriptTool: ToolDef = {
         'Absolute path to the script. Must be inside SKILLS/ or data/skills/. Use $SKILLS_ROOT env var as prefix.',
       required: true,
     },
+    script_content: {
+      type: 'string',
+      description:
+        'Inline script content. If provided and the file does not exist, it will be written to script_path before execution. Useful for dynamically generated scripts.',
+      required: false,
+    },
     args: {
       type: 'array',
       description: 'Command-line arguments to pass to the script.',
@@ -213,19 +240,11 @@ export const runScriptTool: ToolDef = {
     },
   },
 
-  async execute({ script_path, args, input_data, timeout_seconds }) {
+  async execute({ script_path, script_content, args, input_data, timeout_seconds }) {
     const scriptPath = String(script_path ?? '').trim();
     if (!scriptPath) return JSON.stringify({ error: 'script_path is required.' });
 
-    // 1. 路径安全校验
-    const roots = getAllowedRoots();
-    if (!isPathAllowed(scriptPath, roots)) {
-      return JSON.stringify({
-        error: 'script_path is outside the allowed skills directories.',
-      });
-    }
-
-    // 2. 扩展名白名单
+    // 1. 扩展名白名单（早期校验，与文件是否存在无关）
     const ext = extname(scriptPath).toLowerCase();
     if (!ALLOWED_EXTENSIONS.has(ext)) {
       return JSON.stringify({
@@ -233,17 +252,37 @@ export const runScriptTool: ToolDef = {
       });
     }
 
-    // 3. 文件存在性检查
+    // 2. 如果提供了内联脚本内容且文件不存在，先在允许目录内创建文件
+    if (script_content && !existsSync(scriptPath)) {
+      const resolvedPath = resolve(scriptPath);
+      const roots = getAllowedRoots();
+      const allowed = roots.some((r) => resolvedPath === r || resolvedPath.startsWith(r + sep));
+      if (!allowed) {
+        return JSON.stringify({ error: 'script_path is outside the allowed skills directories.' });
+      }
+      mkdirSync(dirname(resolvedPath), { recursive: true });
+      writeFileSync(resolvedPath, String(script_content), 'utf-8');
+    }
+
+    // 3. 文件存在性检查（在路径安全校验之前，给出更清晰的错误消息）
     if (!existsSync(scriptPath)) {
       return JSON.stringify({ error: `Script not found: ${scriptPath}` });
     }
 
-    // 4. 确定输出目录
+    // 4. 路径安全校验
+    const roots = getAllowedRoots();
+    if (!isPathAllowed(scriptPath, roots)) {
+      return JSON.stringify({
+        error: 'script_path is outside the allowed skills directories.',
+      });
+    }
+
+    // 5. 确定输出目录
     const outputDir = getOutputDir();
     console.log("🚀 ~ outputDir:", outputDir)
     const beforeSnapshot = snapshotOutputDir(outputDir);
 
-    // 5. 解析解释器
+    // 6. 解析解释器
     let bin: string;
     let interpreterPrefix: string[] = [];
 
@@ -262,18 +301,18 @@ export const runScriptTool: ToolDef = {
       bin = process.execPath;
     }
 
-    // 6. 构建命令参数
+    // 7. 构建命令参数
     const scriptArgs = Array.isArray(args) ? args.map(String) : [];
     const cmdArgs = [...interpreterPrefix, scriptPath, ...scriptArgs];
 
-    // 7. 构建环境变量
+    // 8. 构建环境变量
     const env: NodeJS.ProcessEnv = {
       ...process.env,
       SKILLS_ROOT: join(settings.projectRoot, 'SKILLS'),
       OUTPUT_DIR: outputDir,
     };
 
-    // 8. 执行
+    // 9. 执行
     const timeoutMs =
       Math.min(
         typeof timeout_seconds === 'number' && timeout_seconds > 0
@@ -289,11 +328,12 @@ export const runScriptTool: ToolDef = {
       timeoutMs,
     });
 
-    // 9. 检测新生成的输出文件
-    const afterFiles = snapshotOutputDir(outputDir);
+    // 10. 检测新生成或被修改的输出文件
+    const afterSnapshot = snapshotOutputDir(outputDir);
     const newFiles: { filename: string; url: string }[] = [];
-    for (const name of afterFiles) {
-      if (!beforeSnapshot.has(name)) {
+    for (const [name, mtime] of afterSnapshot) {
+      const prev = beforeSnapshot.get(name);
+      if (prev === undefined || mtime > prev) {
         newFiles.push({ filename: name, url: `/api/files/${encodeURIComponent(name)}` });
       }
     }

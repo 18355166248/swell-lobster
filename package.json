@@ -36,5 +36,8 @@
     "*.{json,md,mdx}": [
       "prettier --write"
     ]
+  },
+  "dependencies": {
+    "docx": "^9.6.1"
   }
 }

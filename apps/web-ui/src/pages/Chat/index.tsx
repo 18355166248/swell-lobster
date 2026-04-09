@@ -137,6 +137,28 @@ function formatRelativeTime(
   return t('chat.timeDaysAgo', { n: Math.floor(diff / 86400) });
 }
 
+/**
+ * 从工具参数里提取最有价值的一个摘要字符串。
+ * 优先取路径/查询等关键参数，路径只保留文件名部分。
+ */
+function getToolArgSummary(args: Record<string, unknown>): string | null {
+  const priorityKeys = ['script_path', 'path', 'url', 'query', 'pattern', 'memory_type', 'content'];
+  const allKeys = [...priorityKeys, ...Object.keys(args).filter((k) => !priorityKeys.includes(k))];
+
+  for (const key of allKeys) {
+    const val = args[key];
+    if (typeof val !== 'string' || !val.trim()) continue;
+    // 路径只取最后一段文件名
+    const display =
+      val.includes('/') || val.includes('\\')
+        ? (val.replace(/\\/g, '/').split('/').pop() ?? val)
+        : val;
+    const trimmed = display.trim();
+    return trimmed.length > 40 ? trimmed.slice(0, 38) + '…' : trimmed;
+  }
+  return null;
+}
+
 function ToolInvocationPanel({
   toolInvocations,
   t,
@@ -154,9 +176,17 @@ function ToolInvocationPanel({
           className="rounded-xl border border-border bg-muted/35 px-3 py-2 text-sm text-foreground"
         >
           <summary className="cursor-pointer list-none">
-            <div className="flex items-center gap-2">
-              <div className={`tool-status-dot ${item.status}`} />
-              <span className="font-medium flex-1 min-w-0 truncate">{item.name}</span>
+            <div
+              className={`flex items-center gap-2 min-w-0 rounded-lg${item.status === 'running' ? ' tool-title-shimmer' : ''}`}
+            >
+              <div className={`tool-status-dot ${item.status} shrink-0`} />
+              <span className="font-medium shrink-0">{item.name}</span>
+              {(() => {
+                const summary = getToolArgSummary(item.arguments);
+                return summary ? (
+                  <span className="text-muted-foreground truncate min-w-0">· {summary}</span>
+                ) : null;
+              })()}
             </div>
           </summary>
           <div className="mt-2 max-h-64 overflow-y-auto space-y-2">
@@ -364,6 +394,7 @@ export function ChatPage() {
     if (sessionId === activeSessionId) return;
     setError(null);
     setSessionLoading(true);
+    setShowScrollBtn(false);
     try {
       pendingScrollTargetIdRef.current = null;
       clearMessageHighlight();

@@ -19,6 +19,21 @@ official: true
 4. `run_script` returns JSON — check `output_files` array for download URLs
 5. Include download links in your final reply:
    `[filename.pdf](/api/files/filename.pdf)`
+6. **For dynamically generated scripts**: use `script_content` parameter to provide the script source inline — the tool will create the file automatically before running it
+
+### Output filename convention
+
+**NEVER use generic names** like `test.pdf`, `document.pdf`, or `output.pdf`.
+
+- Derive the name from the task content (2–4 English words, snake_case)
+- Append a 6-character random suffix to prevent overwrites
+- Example: `annual_report_a3f9k2.pdf`, `invoice_x7q1p5.pdf`
+
+```python
+import random, string
+rand = ''.join(random.choices(string.ascii_lowercase + string.digits, k=6))
+filename = f'document_{rand}.pdf'
+```
 
 ### Python dependencies (declare inline for uv)
 

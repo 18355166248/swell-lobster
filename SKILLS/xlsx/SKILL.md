@@ -19,6 +19,21 @@ official: true
 4. `run_script` returns JSON — check `output_files` array for download URLs
 5. Include download links in your final reply:
    `[filename.xlsx](/api/files/filename.xlsx)`
+6. **For dynamically generated scripts**: use `script_content` parameter to provide the script source inline — the tool will create the file automatically before running it
+
+### Output filename convention
+
+**NEVER use generic names** like `test.xlsx`, `report.xlsx`, or `output.xlsx`.
+
+- Derive the name from the task content (2–4 English words, snake_case)
+- Append a 6-character random suffix to prevent overwrites
+- Example: `sales_data_a3f9k2.xlsx`, `budget_summary_x7q1p5.xlsx`
+
+```python
+import random, string
+rand = ''.join(random.choices(string.ascii_lowercase + string.digits, k=6))
+filename = f'sales_data_{rand}.xlsx'
+```
 
 ### Python dependencies (declare inline for uv)
 

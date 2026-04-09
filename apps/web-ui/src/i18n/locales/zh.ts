@@ -99,6 +99,7 @@ const zh = {
     fileDownload: '下载',
     fileOpen: '打开',
     fileSaveAs: '另存为',
+    fileNotFound: '文件不存在或尚未生成',
     generatedFiles: '生成的文件',
   },
 

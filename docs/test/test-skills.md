@@ -21,7 +21,7 @@
 ---
 
 docx
-帮我创建一个 Word 文档，内容是"Hello World"，保存为 test.docx
+帮我创建一个 Word 文档，内容是"Hello World"，保存为 docx
 
 pdf
 帮我把这段文字生成一个 PDF 文件：这是一份测试文档

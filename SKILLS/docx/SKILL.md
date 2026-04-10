@@ -19,7 +19,7 @@ official: true
 4. `run_script` returns JSON — check `output_files` array for download URLs
 5. Include download links in your final reply:
    `[filename.docx](/api/files/filename.docx)`
-6. **For dynamically generated scripts**: use `script_content` parameter to provide the script source inline — the tool will create the file automatically before running it
+6. **For dynamically generated scripts**: use `script_content` parameter to provide the script source inline — the tool will create the file automatically before running it. **CRITICAL: Use `$SKILLS_ROOT/docx/scripts/tmp/<file>` as the path for dynamically generated scripts** (never `$SKILLS_ROOT/docx/scripts/<file>` directly) to keep generated files out of version control.
 
 ### Output filename convention
 
@@ -80,7 +80,7 @@ console.log('done');
 
 ```json
 {
-  "script_path": "/abs/path/to/SKILLS/docx/scripts/create_doc.mjs",
+  "script_path": "/abs/path/to/SKILLS/docx/scripts/tmp/create_doc.mjs",
   "script_content": "import { Document, Packer, Paragraph, TextRun } from 'docx';\nimport fs from 'fs';\nimport path from 'path';\nconst rand = Math.random().toString(36).slice(2, 8);\nconst filename = `hello_world_${rand}.docx`;\nconst doc = new Document({ sections: [{ children: [new Paragraph({ children: [new TextRun('Hello World')] })] }] });\nconst buf = await Packer.toBuffer(doc);\nfs.writeFileSync(path.join(process.env.OUTPUT_DIR, filename), buf);\nconsole.log('created:', filename);\n"
 }
 ```

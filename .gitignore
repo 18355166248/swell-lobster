@@ -109,6 +109,9 @@ identity/runtime/user.summary.md
 identity/runtime/persona.custom.md
 
 # skills/ 目录全部是内置技能，需要被 git 完整跟踪。
+# 动态生成的临时脚本放入 tmp/ 子目录，不入库。
+SKILLS/docx/scripts/tmp/*
+!SKILLS/docx/scripts/tmp/.gitkeep
 # 用户通过技能市场安装的技能存放在 ~/.swell-lobster/workspaces/default/skills/，
 # 不在仓库目录内，无需 ignore。
 

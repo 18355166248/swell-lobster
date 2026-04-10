@@ -167,7 +167,7 @@ export function FileCard({ filename, href }: FileCardProps) {
     : null;
 
   return (
-    <div className="inline-flex items-center gap-3 my-2 px-4 py-3 rounded-xl border dark:border-claude-darkBorder border-claude-border dark:bg-claude-darkSurface bg-claude-surfaceHover max-w-sm w-full">
+    <div className="inline-flex items-center gap-3 my-2 px-4 py-3 rounded-xl border border-border bg-muted max-w-sm w-full">
       {/* 文件图标 */}
       <span className="text-2xl leading-none flex-shrink-0" role="img" aria-label={typeInfo.label}>
         {typeInfo.emoji}
@@ -175,10 +175,7 @@ export function FileCard({ filename, href }: FileCardProps) {
 
       {/* 文件信息 */}
       <div className="flex-1 min-w-0">
-        <p
-          className="text-sm font-medium dark:text-claude-darkText text-claude-text truncate"
-          title={filename}
-        >
+        <p className="text-sm font-medium text-foreground truncate" title={filename}>
           {filename}
         </p>
         {error ? (
@@ -188,15 +185,13 @@ export function FileCard({ filename, href }: FileCardProps) {
           </p>
         ) : pathLabel ? (
           <p
-            className="text-xs dark:text-claude-darkTextSecondary text-claude-textSecondary mt-0.5 truncate font-mono"
+            className="text-xs text-muted-foreground mt-0.5 truncate font-mono"
             title={localPath ?? undefined}
           >
             {pathLabel}
           </p>
         ) : (
-          <p className="text-xs dark:text-claude-darkTextSecondary text-claude-textSecondary mt-0.5">
-            {typeInfo.label}
-          </p>
+          <p className="text-xs text-muted-foreground mt-0.5">{typeInfo.label}</p>
         )}
       </div>
 
@@ -207,7 +202,7 @@ export function FileCard({ filename, href }: FileCardProps) {
             <button
               onClick={handleTauriOpen}
               disabled={loading}
-              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors dark:bg-claude-darkSurfaceMuted dark:hover:bg-claude-darkSurfaceHover bg-white hover:bg-claude-surface dark:text-claude-darkText text-claude-text border dark:border-claude-darkBorder border-claude-border disabled:opacity-50"
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors bg-background hover:bg-muted text-foreground border border-border disabled:opacity-50"
               title={t('chat.fileOpen')}
             >
               {loading ? <LoadingOutlined /> : <FolderOpenOutlined />}
@@ -216,7 +211,7 @@ export function FileCard({ filename, href }: FileCardProps) {
             <button
               onClick={handleTauriSaveAs}
               disabled={loading}
-              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors dark:bg-claude-darkSurfaceMuted dark:hover:bg-claude-darkSurfaceHover bg-white hover:bg-claude-surface dark:text-claude-darkText text-claude-text border dark:border-claude-darkBorder border-claude-border disabled:opacity-50"
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors bg-background hover:bg-muted text-foreground border border-border disabled:opacity-50"
               title={t('chat.fileSaveAs')}
             >
               <DownloadOutlined />
@@ -230,7 +225,7 @@ export function FileCard({ filename, href }: FileCardProps) {
               <button
                 onClick={handleWebOpen}
                 disabled={loading}
-                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors dark:bg-claude-darkSurfaceMuted dark:hover:bg-claude-darkSurfaceHover bg-white hover:bg-claude-surface dark:text-claude-darkText text-claude-text border dark:border-claude-darkBorder border-claude-border disabled:opacity-50"
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors bg-background hover:bg-muted text-foreground border border-border disabled:opacity-50"
                 title={t('chat.fileOpen')}
               >
                 {loading ? <LoadingOutlined /> : <FolderOpenOutlined />}
@@ -241,7 +236,7 @@ export function FileCard({ filename, href }: FileCardProps) {
             <button
               onClick={handleWebDownload}
               disabled={loading}
-              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors dark:bg-claude-darkSurfaceMuted dark:hover:bg-claude-darkSurfaceHover bg-white hover:bg-claude-surface dark:text-claude-darkText text-claude-text border dark:border-claude-darkBorder border-claude-border disabled:opacity-50"
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors bg-background hover:bg-muted text-foreground border border-border disabled:opacity-50"
               title={t('chat.fileDownload')}
             >
               {loading ? <LoadingOutlined /> : <DownloadOutlined />}

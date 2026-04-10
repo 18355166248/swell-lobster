@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, useCallback, memo } from 'react';
 import { Alert, Avatar, Button, Select, Skeleton } from 'antd';
 import { PlusOutlined, RobotOutlined, UserOutlined } from '@ant-design/icons';
-import { useAtom, useSetAtom } from 'jotai';
+import { useAtom } from 'jotai';
 import { atomWithStorage } from 'jotai/utils';
 import { chatGeneratingAtom } from '../../store/chatGenerating';
 
@@ -223,7 +223,7 @@ export function ChatPage() {
   );
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
-  const setChatGenerating = useSetAtom(chatGeneratingAtom);
+  const [chatGeneratingSessions, setChatGenerating] = useAtom(chatGeneratingAtom);
 
   // 当前展示的消息（由 activeSessionId 派生，不是独立 state）
   const messages = sessionMessagesMap.get(activeSessionId) ?? [];
@@ -413,14 +413,21 @@ export function ChatPage() {
   const handleSelectSession = async (sessionId: string) => {
     if (sessionId === activeSessionId) return;
     setError(null);
-    setSessionLoading(true);
     setShowScrollBtn(false);
+    pendingScrollTargetIdRef.current = null;
+    clearMessageHighlight();
+    shouldScrollToBottomRef.current = true;
+    userIsAtBottomRef.current = true;
+    scrollBehaviorRef.current = 'instant';
+
+    // 目标会话正在生成中：消息已在 map 里实时更新，直接切换 ID 即可，不能重新从 API 加载
+    if (chatGeneratingSessions.has(sessionId)) {
+      setActiveSessionId(sessionId);
+      return;
+    }
+
+    setSessionLoading(true);
     try {
-      pendingScrollTargetIdRef.current = null;
-      clearMessageHighlight();
-      shouldScrollToBottomRef.current = true;
-      userIsAtBottomRef.current = true;
-      scrollBehaviorRef.current = 'instant';
       await loadSession(sessionId);
     } catch (e) {
       shouldScrollToBottomRef.current = false;

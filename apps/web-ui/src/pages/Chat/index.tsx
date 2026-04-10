@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState, useCallback, memo } from 'react';
 import { Alert, Avatar, Button, Select, Skeleton } from 'antd';
 import { PlusOutlined, RobotOutlined, UserOutlined } from '@ant-design/icons';
-import { useAtom } from 'jotai';
+import { useAtom, useSetAtom } from 'jotai';
 import { atomWithStorage } from 'jotai/utils';
+import { chatGeneratingAtom } from '../../store/chatGenerating';
 
 import MarkdownContent from '../../components/MarkdownContent';
 import { useTranslation } from 'react-i18next';
@@ -216,9 +217,28 @@ export function ChatPage() {
   const [endpoints, setEndpoints] = useState<EndpointItem[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string>('');
   const [activePersonaPath, setActivePersonaPath] = useState<string | null>(null);
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  // 每个会话独立缓存消息，切换会话时不丢失正在生成的内容
+  const [sessionMessagesMap, setSessionMessagesMap] = useState<Map<string, ChatMessage[]>>(
+    () => new Map()
+  );
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const setChatGenerating = useSetAtom(chatGeneratingAtom);
+
+  // 当前展示的消息（由 activeSessionId 派生，不是独立 state）
+  const messages = sessionMessagesMap.get(activeSessionId) ?? [];
+
+  // 更新指定会话的消息
+  const updateSessionMessages = useCallback(
+    (sessionId: string, updater: ChatMessage[] | ((prev: ChatMessage[]) => ChatMessage[])) => {
+      setSessionMessagesMap((prev) => {
+        const current = prev.get(sessionId) ?? [];
+        const next = typeof updater === 'function' ? updater(current) : updater;
+        return new Map(prev).set(sessionId, next);
+      });
+    },
+    []
+  );
   const [bootLoading, setBootLoading] = useState(true);
   const [sessionLoading, setSessionLoading] = useState(false);
   const [creating, setCreating] = useState(false);
@@ -325,7 +345,7 @@ export function ChatPage() {
     const detail = await fetchSessionDetail(sessionId);
     setActiveSessionId(detail.id);
     setActivePersonaPath(detail.persona_path ?? null);
-    setMessages(detail.messages || []);
+    updateSessionMessages(detail.id, detail.messages || []);
     setSessions((prev) => upsertSessionSummary(prev, detail));
   };
 
@@ -352,7 +372,7 @@ export function ChatPage() {
             },
           ];
           shouldScrollToBottomRef.current = false;
-          setMessages(created.messages);
+          updateSessionMessages(created.id, created.messages);
           setActiveSessionId(created.id);
           setActivePersonaPath(created.persona_path ?? null);
         } else {
@@ -382,7 +402,7 @@ export function ChatPage() {
       setActiveSessionId(session.id);
       setActivePersonaPath(session.persona_path ?? null);
       shouldScrollToBottomRef.current = false;
-      setMessages(session.messages);
+      updateSessionMessages(session.id, session.messages);
     } catch (e) {
       setError(e instanceof Error ? e.message : t('chat.createSessionFailed'));
     } finally {
@@ -446,7 +466,7 @@ export function ChatPage() {
           setActiveSessionId(created.id);
           setActivePersonaPath(created.persona_path ?? null);
           shouldScrollToBottomRef.current = false;
-          setMessages(created.messages);
+          updateSessionMessages(created.id, created.messages);
         }
       }
     } catch (e) {
@@ -484,11 +504,13 @@ export function ChatPage() {
   const handleRetry = useCallback(
     async (msgIndex: number) => {
       if (loading) return;
-      // Find the last user message at or before msgIndex
+      const genSessionId = activeSessionId;
+      const currentMessages = sessionMessagesMap.get(genSessionId) ?? [];
+
       let userContent = '';
       for (let i = msgIndex - 1; i >= 0; i--) {
-        if (messages[i].role === 'user') {
-          userContent = messages[i].content;
+        if (currentMessages[i].role === 'user') {
+          userContent = currentMessages[i].content;
           break;
         }
       }
@@ -497,37 +519,58 @@ export function ChatPage() {
       const controller = new AbortController();
       abortRef.current = controller;
 
-      setMessages((prev) => [...prev, { role: 'assistant', content: '', tool_invocations: [] }]);
+      updateSessionMessages(genSessionId, (prev) => [
+        ...prev,
+        { role: 'assistant', content: '', tool_invocations: [] },
+      ]);
       shouldScrollToBottomRef.current = true;
       userIsAtBottomRef.current = true;
+      if (genSessionId) {
+        setChatGenerating((prev) => new Set(prev).add(genSessionId));
+      }
       setLoading(true);
       setError(null);
 
       try {
         const res = await sendMessageStream(
           {
-            conversation_id: activeSessionId,
+            conversation_id: genSessionId,
             message: userContent,
             endpoint_name: selectedEndpointName,
           },
           (event) => {
-            setMessages((prev) => applyStreamEvent(prev, event));
+            updateSessionMessages(genSessionId, (prev) => applyStreamEvent(prev, event));
           },
           controller.signal
         );
-        setMessages(res.session.messages || []);
+        updateSessionMessages(genSessionId, res.session.messages || []);
         setSessions((prev) => upsertSessionSummary(prev, res.session));
       } catch (e) {
         if (!(e instanceof Error && e.name === 'AbortError')) {
-          setMessages((prev) => prev.slice(0, -1));
+          updateSessionMessages(genSessionId, (prev) => prev.slice(0, -1));
           setError(e instanceof Error ? e.message : t('chat.sendFailed'));
         }
       } finally {
         abortRef.current = null;
         setLoading(false);
+        if (genSessionId) {
+          setChatGenerating((prev) => {
+            const next = new Set(prev);
+            next.delete(genSessionId);
+            return next;
+          });
+        }
       }
     },
-    [loading, messages, activeSessionId, selectedEndpointName, t]
+    [
+      loading,
+      sessionMessagesMap,
+      activeSessionId,
+      selectedEndpointName,
+      updateSessionMessages,
+      setChatGenerating,
+      t,
+    ]
   );
 
   const ChatMarkdown = memo(({ text }: { text: string }) => {
@@ -538,51 +581,70 @@ export function ChatPage() {
     const text = input.trim();
     if (!text || loading) return;
 
+    // 在 async 前捕获当前 session ID（新会话时可能为空字符串）
+    const genSessionId = activeSessionId;
     const controller = new AbortController();
     abortRef.current = controller;
 
     const localUserMessage: ChatMessage = { role: 'user', content: text };
-    // 在本地先插入一个 assistant 占位，工具事件与文本增量都挂到这条消息上。
     setInput('');
-    setMessages((prev) => [
+    updateSessionMessages(genSessionId, (prev) => [
       ...prev,
       localUserMessage,
       { role: 'assistant', content: '', tool_invocations: [] },
     ]);
     shouldScrollToBottomRef.current = true;
     userIsAtBottomRef.current = true;
+    if (genSessionId) {
+      setChatGenerating((prev) => new Set(prev).add(genSessionId));
+    }
     setLoading(true);
     setError(null);
 
     try {
       const res = await sendMessageStream(
         {
-          conversation_id: activeSessionId,
+          conversation_id: genSessionId,
           message: text,
           endpoint_name: selectedEndpointName,
         },
         (event) => {
-          setMessages((prev) => applyStreamEvent(prev, event));
+          updateSessionMessages(genSessionId, (prev) => applyStreamEvent(prev, event));
         },
         controller.signal
       );
+      // 新会话：session ID 在完成后才拿到
+      if (res.conversation_id !== genSessionId) {
+        setSessionMessagesMap((prev) => {
+          const next = new Map(prev);
+          next.delete(genSessionId);
+          return next;
+        });
+      }
       setActiveSessionId(res.conversation_id);
-      setMessages(res.session.messages || []);
+      updateSessionMessages(res.conversation_id, res.session.messages || []);
       setSessions((prev) => upsertSessionSummary(prev, res.session));
     } catch (e) {
       if (e instanceof Error && e.name === 'AbortError') {
         // 用户主动停止：移除空的 assistant 占位，保留已流出的内容
-        setMessages((prev) => {
+        updateSessionMessages(genSessionId, (prev) => {
           const last = prev[prev.length - 1];
           return last?.role === 'assistant' && !last.content ? prev.slice(0, -1) : prev;
         });
       } else {
-        setMessages((prev) => prev.slice(0, Math.max(0, prev.length - 2)));
+        updateSessionMessages(genSessionId, (prev) => prev.slice(0, Math.max(0, prev.length - 2)));
         setError(e instanceof Error ? e.message : t('chat.sendFailed'));
       }
     } finally {
       abortRef.current = null;
       setLoading(false);
+      if (genSessionId) {
+        setChatGenerating((prev) => {
+          const next = new Set(prev);
+          next.delete(genSessionId);
+          return next;
+        });
+      }
     }
   };
 
@@ -599,7 +661,8 @@ export function ChatPage() {
           streaming: isLastAssistant && m.content !== '',
         };
       }),
-    [messages, loading]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [sessionMessagesMap, activeSessionId, loading]
   );
 
   return (

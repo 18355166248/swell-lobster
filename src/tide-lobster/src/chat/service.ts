@@ -261,36 +261,57 @@ export class ChatService {
 
     const systemPrompt = this.buildSystemPrompt(sessionAfterUser, userMessage);
     const baseMessages = trimMessages(toLLMMessages(sessionAfterUser.messages));
-    const assistant = await this.runCompletion({
-      endpoint,
-      apiKey,
-      sessionId: session.id,
-      messages: baseMessages,
-      systemPrompt,
-      onEvent,
-      signal,
-    });
 
-    // 将拼接后的完整助手回复写入会话
-    const appended = this.store.appendAssistantMessageWithMeta({
-      sessionId: session.id,
-      assistantContent: assistant.content,
-      endpointName: endpoint.name,
-    });
+    // 用 tracking wrapper 跟踪已推送给前端的文本，abort 时可落盘
+    let accumulated = '';
+    const trackingOnEvent = async (event: ChatStreamEvent) => {
+      if (event.type === 'delta') accumulated += event.delta;
+      await onEvent(event);
+    };
 
-    if (!appended) throw new Error('failed to persist chat session');
+    try {
+      const assistant = await this.runCompletion({
+        endpoint,
+        apiKey,
+        sessionId: session.id,
+        messages: baseMessages,
+        systemPrompt,
+        onEvent: trackingOnEvent,
+        signal,
+      });
 
-    this.recordUsage({
-      messageId: appended.messageId,
-      endpointName: endpoint.name,
-      endpoint,
-      usage: assistant.usage,
-    });
+      // 将拼接后的完整助手回复写入会话
+      const appended = this.store.appendAssistantMessageWithMeta({
+        sessionId: session.id,
+        assistantContent: assistant.content,
+        endpointName: endpoint.name,
+      });
 
-    this.attachToolInvocations(appended.session, assistant.toolInvocations);
-    this.triggerMemoryExtraction(session.id, endpoint, apiKey);
+      if (!appended) throw new Error('failed to persist chat session');
 
-    return { session: appended.session, message: assistant.content };
+      this.recordUsage({
+        messageId: appended.messageId,
+        endpointName: endpoint.name,
+        endpoint,
+        usage: assistant.usage,
+      });
+
+      this.attachToolInvocations(appended.session, assistant.toolInvocations);
+      this.triggerMemoryExtraction(session.id, endpoint, apiKey);
+
+      return { session: appended.session, message: assistant.content };
+    } catch (e) {
+      const isAbort = (e instanceof Error && e.name === 'AbortError') || signal?.aborted;
+      if (isAbort && accumulated.trim()) {
+        // 将前端实际收到的部分内容落盘，刷新后仍可见
+        this.store.appendAssistantMessageWithMeta({
+          sessionId: session.id,
+          assistantContent: accumulated,
+          endpointName: endpoint.name,
+        });
+      }
+      throw e;
+    }
   }
 
   listEndpoints(): Array<Record<string, unknown>> {
@@ -395,6 +416,7 @@ export class ChatService {
 
     for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
       // anthropic / openai 两套 tools schema 由 registry 分别序列化
+      if (args.signal?.aborted) throw new DOMException('Aborted', 'AbortError');
       const result = await requestWithFallback({
         endpoint: args.endpoint,
         apiKey: args.apiKey,
@@ -409,6 +431,7 @@ export class ChatService {
           const apiKey = this.getApiKeyValue(endpoint.api_key_env);
           return apiKey || 'local';
         },
+        signal: args.signal,
       });
 
       console.log('src/tide-lobster/src/chat/service.ts result', JSON.stringify(result, null, 2));

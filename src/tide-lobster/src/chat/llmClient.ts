@@ -204,8 +204,9 @@ export async function requestChatCompletion(args: {
   messages: LLMRequestMessage[];
   systemPrompt?: string;
   tools?: OpenAITool[] | AnthropicTool[];
+  signal?: AbortSignal;
 }): Promise<ChatCompletionResult> {
-  const { endpoint, apiKey, messages, systemPrompt, tools } = args;
+  const { endpoint, apiKey, messages, systemPrompt, tools, signal } = args;
   if (!endpoint.model) throw new Error('endpoint model is empty');
 
   const apiType = (endpoint.api_type || 'openai').toLowerCase();
@@ -217,10 +218,11 @@ export async function requestChatCompletion(args: {
       apiKey,
       messages,
       systemPrompt,
-      tools as AnthropicTool[] | undefined
+      tools as AnthropicTool[] | undefined,
+      signal
     );
   }
-  return requestOpenAI(endpoint, apiKey, messages, systemPrompt, tools as OpenAITool[] | undefined);
+  return requestOpenAI(endpoint, apiKey, messages, systemPrompt, tools as OpenAITool[] | undefined, signal);
 }
 
 /**
@@ -241,6 +243,7 @@ export async function requestWithFallback(args: {
   tools?: OpenAITool[] | AnthropicTool[];
   resolveFallback?: (endpointId: string) => EndpointConfig | undefined;
   resolveApiKey?: (endpoint: EndpointConfig) => string;
+  signal?: AbortSignal;
 }): Promise<ChatCompletionResult> {
   try {
     return await requestChatCompletion(args);
@@ -263,6 +266,7 @@ export async function requestWithFallback(args: {
       messages: args.messages,
       systemPrompt: args.systemPrompt,
       tools: args.tools,
+      signal: args.signal,
     });
   }
 }
@@ -353,7 +357,8 @@ async function requestOpenAI(
   apiKey: string,
   messages: LLMRequestMessage[],
   systemPrompt?: string,
-  tools?: OpenAITool[]
+  tools?: OpenAITool[],
+  signal?: AbortSignal
 ): Promise<ChatCompletionResult> {
   const body: Record<string, unknown> = {
     model: endpoint.model,
@@ -373,7 +378,8 @@ async function requestOpenAI(
       },
       body: JSON.stringify(body),
     },
-    endpoint.timeout
+    endpoint.timeout,
+    signal
   );
 
   if (!res.ok) {
@@ -439,7 +445,8 @@ async function requestAnthropic(
   apiKey: string,
   messages: LLMRequestMessage[],
   systemPrompt?: string,
-  tools?: AnthropicTool[]
+  tools?: AnthropicTool[],
+  signal?: AbortSignal
 ): Promise<ChatCompletionResult> {
   const body: Record<string, unknown> = {
     model: endpoint.model,
@@ -461,7 +468,8 @@ async function requestAnthropic(
       },
       body: JSON.stringify(body),
     },
-    endpoint.timeout
+    endpoint.timeout,
+    signal
   );
 
   if (!res.ok) {

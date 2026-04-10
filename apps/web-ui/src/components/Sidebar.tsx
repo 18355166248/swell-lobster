@@ -17,17 +17,25 @@ import {
   UserOutlined,
   SettingOutlined,
   BulbOutlined,
+  LoadingOutlined,
 } from '@ant-design/icons';
+import { useAtomValue } from 'jotai';
 import { ROUTES } from '../routes';
 import { isTauri } from '../utils/platform';
+import { chatGeneratingAtom } from '../store/chatGenerating';
 
 export function Sidebar() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { pathname } = useLocation();
+  const chatGenerating = useAtomValue(chatGeneratingAtom).size > 0;
 
   const items: MenuProps['items'] = [
-    { key: ROUTES.CHAT, icon: <MessageOutlined />, label: t('sidebar.chat') },
+    {
+      key: ROUTES.CHAT,
+      icon: chatGenerating ? <LoadingOutlined /> : <MessageOutlined />,
+      label: t('sidebar.chat'),
+    },
     { key: ROUTES.IM, icon: <WifiOutlined />, label: t('sidebar.im') },
     { key: ROUTES.SKILLS, icon: <ThunderboltOutlined />, label: t('sidebar.skills') },
     { key: ROUTES.MCP, icon: <AppstoreOutlined />, label: t('sidebar.mcp') },

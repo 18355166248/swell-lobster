@@ -24,7 +24,7 @@ export const router = createBrowserRouter([
     element: <RootLayout />,
     children: [
       { index: true, element: <HomePage /> },
-      { path: 'chat', element: <ChatPage /> },
+      { path: 'chat', element: <></> },
       { path: 'im', element: <IMPage /> },
       { path: 'skills', element: <SkillsPage /> },
       { path: 'mcp', element: <MCPPage /> },

@@ -2,9 +2,11 @@ import { useEffect, useRef, useState } from 'react';
 import { DeleteOutlined, SearchOutlined } from '@ant-design/icons';
 import { App, Empty, Input, Spin } from 'antd';
 import { useTranslation } from 'react-i18next';
+import { useAtomValue } from 'jotai';
 
 import { searchSessions } from '../api';
 import type { SessionSearchResult, SessionSummary } from '../types';
+import { chatGeneratingAtom } from '../../../store/chatGenerating';
 
 type SessionListProps = {
   sessions: SessionSummary[];
@@ -30,6 +32,7 @@ export function SessionList({
 }: SessionListProps) {
   const { t } = useTranslation();
   const { modal } = App.useApp();
+  const chatGenerating = useAtomValue(chatGeneratingAtom);
   const [keyword, setKeyword] = useState('');
   const [results, setResults] = useState<SessionSearchResult[]>([]);
   // 上次请求结束时的 trimmed 词；与当前输入比较得到加载态，避免在 effect 里同步 setState。
@@ -188,8 +191,14 @@ export function SessionList({
                   onClick={(e) => e.stopPropagation()}
                 />
               ) : (
-                <span className="flex-1 truncate" onDoubleClick={(e) => startRename(session, e)}>
-                  {session.title || t('chat.newSession')}
+                <span
+                  className="flex-1 min-w-0 flex items-center gap-1.5"
+                  onDoubleClick={(e) => startRename(session, e)}
+                >
+                  {chatGenerating.has(session.id) && (
+                    <span className="w-1.5 h-1.5 rounded-full bg-current flex-shrink-0 animate-pulse" />
+                  )}
+                  <span className="truncate">{session.title || t('chat.newSession')}</span>
                 </span>
               )}
               <button

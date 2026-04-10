@@ -138,6 +138,11 @@ ${fullText}
       raw = raw.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
       if (!raw) return;
 
+      // 去除 <tool_call>...</tool_call> XML 工具调用（DeepSeek / Qwen 等模型可能返回此格式）
+      raw = raw.replace(/<tool_call>[\s\S]*?<\/tool_call>/g, '').trim();
+      // 剩余内容仍以 < 开头说明是其他 XML/HTML，非期望的 JSON，放弃解析
+      if (!raw || raw.startsWith('<')) return;
+
       // 模型有时会用 ```json ... ``` 包裹，需先去掉代码块标记
       const fenceMatch = raw.match(/```(?:json)?\s*([\s\S]*?)```/);
       if (fenceMatch) raw = fenceMatch[1].trim();

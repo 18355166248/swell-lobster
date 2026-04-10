@@ -10,10 +10,12 @@ import 'katex/dist/katex.min.css';
 import 'katex/contrib/mhchem';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
-import { CopyOutlined, CheckOutlined, ExpandOutlined } from '@ant-design/icons';
+import { CopyOutlined, CheckOutlined, ExpandOutlined, FolderOpenOutlined } from '@ant-design/icons';
 import { Modal } from 'antd';
 import { useTranslation } from 'react-i18next'; // Using useTranslation instead of i18nService
 import mermaid from 'mermaid';
+import { getApiBase } from '../../api/base';
+import { isTauri } from '../../utils/platform';
 
 const CODE_BLOCK_LINE_LIMIT = 200;
 const CODE_BLOCK_CHAR_LIMIT = 20000;
@@ -264,6 +266,58 @@ const normalizeDisplayMath = (content: string): string => {
   });
 };
 
+/** 判断字符串是否是绝对文件路径（Windows 或 Unix），且带扩展名 */
+function looksLikeFilePath(text: string): boolean {
+  // Windows: C:\... 或 C:/...
+  if (/^[A-Za-z]:[/\\]/.test(text) && /\.[a-zA-Z0-9]{2,8}$/.test(text)) return true;
+  // Unix: /foo/bar.ext（排除 // 开头的协议 URL）
+  if (/^\/(?!\/)/.test(text) && /\.[a-zA-Z0-9]{2,8}$/.test(text) && text.includes('/')) return true;
+  return false;
+}
+
+/** inline 文件路径：显示路径 + 快捷打开按钮 */
+const InlineFilePath: React.FC<{ path: string }> = ({ path }) => {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(false);
+
+  const handleOpen = async () => {
+    if (loading) return;
+    setLoading(true);
+    setError(false);
+    try {
+      if (isTauri()) {
+        const { invoke } = await import(/* @vite-ignore */ '@tauri-apps/api/core');
+        await invoke('open_file', { path });
+      } else {
+        const url = `${getApiBase()}/api/shell/open?path=${encodeURIComponent(path)}`;
+        const res = await fetch(url);
+        if (!res.ok) setError(true);
+      }
+    } catch {
+      setError(true);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <span className="inline-flex items-center gap-1">
+      <code className="inline bg-transparent px-0.5 text-[0.92em] font-mono font-medium dark:text-claude-darkText text-claude-text">
+        {path}
+      </code>
+      <button
+        type="button"
+        onClick={handleOpen}
+        disabled={loading}
+        className="inline-flex items-center px-1 py-0.5 text-xs rounded hover:bg-muted transition-colors text-muted-foreground hover:text-foreground disabled:opacity-50"
+        title="在系统中打开"
+      >
+        {error ? '✗' : <FolderOpenOutlined />}
+      </button>
+    </span>
+  );
+};
+
 const safeUrlTransform = (url: string): string => {
   const trimmed = url.trim();
   if (!trimmed) return trimmed;
@@ -417,6 +471,11 @@ const CodeBlock: Components['code'] = ({ node, className, children, ...props }) 
     .filter(Boolean)
     .join(' ');
 
+  // 绝对文件路径：渲染为可点击打开的 inline 路径组件
+  if (looksLikeFilePath(codeText)) {
+    return <InlineFilePath path={codeText} />;
+  }
+
   return (
     <code className={inlineClassName} {...props}>
       {children}
@@ -543,7 +602,8 @@ const createMarkdownComponents = () => {
 
       // /api/files/ 开头 → 渲染为文件卡片（Web 下载 / Tauri 本地打开）
       if (hrefValue.startsWith('/api/files/')) {
-        const filename = decodeURIComponent(hrefValue.split('/').pop() ?? '');
+        const pathPart = hrefValue.split('/').pop() ?? '';
+        const filename = decodeURIComponent(pathPart.split('?')[0]);
         return <FileCard filename={filename} href={hrefValue} />;
       }
 

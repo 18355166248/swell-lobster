@@ -1,11 +1,14 @@
 /**
- * 文件下载路由：GET /api/files/:filename
+ * 文件路由
  *
- * 从 OUTPUT_DIR（默认 data/outputs/）提供生成文件的下载。
- * 安全：basename() 剥离路径前缀，防止目录穿越（../../etc/passwd 等）。
+ * GET /api/files/:filename  — 下载文件（从 OUTPUT_DIR）
+ * GET /api/shell/open       — 用系统默认程序打开文件（仅限 OUTPUT_DIR 内）
+ *
+ * 安全：basename() + resolve() 双重校验，防止目录穿越。
  */
 import { Hono } from 'hono';
 import { createReadStream, existsSync, statSync } from 'node:fs';
+import { spawn } from 'node:child_process';
 import { basename, join, resolve, sep } from 'node:path';
 import { Readable } from 'node:stream';
 import { settings } from '../../config.js';
@@ -32,9 +35,12 @@ const MIME_TYPES: Record<string, string> = {
 };
 
 function getOutputDir(): string {
-  return process.env['SWELL_OUTPUT_DIR'] ?? join(settings.projectRoot, 'data', 'outputs');
+  return resolve(
+    process.env['SWELL_OUTPUT_DIR'] ?? join(settings.projectRoot, 'data', 'outputs')
+  );
 }
 
+/** 下载文件 */
 filesRouter.get('/api/files/:filename', (c) => {
   const raw = c.req.param('filename');
   // basename 剥离所有路径分隔符，防止穿越
@@ -65,4 +71,39 @@ filesRouter.get('/api/files/:filename', (c) => {
   const nodeStream = createReadStream(filePath);
   const webStream = Readable.toWeb(nodeStream) as ReadableStream;
   return new Response(webStream, { status: 200 });
+});
+
+/** 用系统默认程序打开文件 */
+filesRouter.get('/api/shell/open', async (c) => {
+  const rawPath = c.req.query('path') ?? '';
+  if (!rawPath) return c.json({ detail: 'path required' }, 400);
+
+  const target = resolve(decodeURIComponent(rawPath));
+  if (!existsSync(target)) return c.json({ detail: 'not found' }, 404);
+
+  // 使用 spawn 数组参数，不经 shell 解析，避免路径中特殊字符注入
+  let bin: string;
+  let cmdArgs: string[];
+  if (process.platform === 'win32') {
+    bin = 'cmd';
+    cmdArgs = ['/c', 'start', '', target];
+  } else if (process.platform === 'darwin') {
+    bin = 'open';
+    cmdArgs = [target];
+  } else {
+    bin = 'xdg-open';
+    cmdArgs = [target];
+  }
+
+  try {
+    await new Promise<void>((res, rej) => {
+      const child = spawn(bin, cmdArgs, { detached: true, stdio: 'ignore', shell: false });
+      child.unref();
+      child.on('error', rej);
+      child.on('spawn', res);
+    });
+    return c.json({ ok: true });
+  } catch (err) {
+    return c.json({ detail: (err as Error).message }, 500);
+  }
 });

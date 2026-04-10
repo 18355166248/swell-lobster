@@ -416,10 +416,13 @@ export class ChatService {
       // 模型不再要工具：视为本轮对话的最终回复
       if (!result.tool_calls?.length) {
         if (args.onEvent && result.content) {
+          // 用独立变量累积最终内容，避免和中间轮 content 拼接
+          let finalAccumulated = '';
           await emitTextAsChunks(result.content, async (delta) => {
-            lastContent += delta;
+            finalAccumulated += delta;
             await args.onEvent?.({ type: 'delta', delta });
           });
+          lastContent = finalAccumulated;
         } else {
           // 不用空字符串覆盖已有内容（模型工具调用后第二轮可能返回空）
           lastContent = result.content || lastContent;

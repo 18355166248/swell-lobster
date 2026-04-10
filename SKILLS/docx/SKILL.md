@@ -15,11 +15,10 @@ official: true
 
 1. Use `run_script` with the absolute script path
 2. Script paths use `$SKILLS_ROOT` prefix: `$SKILLS_ROOT/docx/scripts/<file>.py`
-3. Output files MUST be written to `os.environ['OUTPUT_DIR']`
-4. `run_script` returns JSON — check `output_files` array for download URLs
-5. Include download links in your final reply:
-   `[filename.docx](/api/files/filename.docx)`
-6. **For dynamically generated scripts**: use `script_content` parameter to provide the script source inline — the tool will create the file automatically before running it. **CRITICAL: Use `$SKILLS_ROOT/docx/scripts/tmp/<file>` as the path for dynamically generated scripts** (never `$SKILLS_ROOT/docx/scripts/<file>` directly) to keep generated files out of version control.
+3. Output files MUST be written to `os.environ['OUTPUT_DIR']` — **never hardcode any other path** (e.g. `docs/`, `outputs/`, `process.cwd()`). Files written outside OUTPUT_DIR will NOT appear in `output_files` and the file card will be broken.
+4. `run_script` returns JSON — `output_files[].url` is the file card link; `output_files[].path` is the real filesystem path
+5. In your reply, use the `url` field to render the file card: `[filename.docx](output_files[].url)` — always use `output_files[].url` as-is; never hand-write or truncate the URL (it contains a required `?localPath=` parameter)
+6. **For dynamically generated scripts**: use `script_content` parameter to provide the script source inline — the tool will create the file automatically before running it. **CRITICAL: Use `$DATA_SKILLS_DIR/tmp/<file>` as the path for dynamically generated scripts** (never inside `SKILLS/` which is read-only) to keep generated files out of version control.
 
 ### Output filename convention
 
@@ -29,20 +28,20 @@ official: true
 - Append a 6-character random suffix to prevent overwrites
 - Example: `stock_report_a3f9k2.docx`, `meeting_notes_x7q1p5.docx`
 
-```js
-// JavaScript
-const rand = Math.random().toString(36).slice(2, 8);
-const filename = `stock_report_${rand}.docx`;
-```
-
 ```python
-# Python
+# Python (preferred)
 import random, string
 rand = ''.join(random.choices(string.ascii_lowercase + string.digits, k=6))
 filename = f'stock_report_{rand}.docx'
 ```
 
-### Python dependencies (declare inline for uv)
+```js
+// JavaScript (fallback)
+const rand = Math.random().toString(36).slice(2, 8);
+const filename = `stock_report_${rand}.docx`;
+```
+
+### Python dependencies (declare inline for uv) — **preferred language**
 
 ```python
 # /// script
@@ -57,7 +56,7 @@ doc = docx.Document()
 doc.save(os.path.join(os.environ['OUTPUT_DIR'], filename))
 ```
 
-### JavaScript (Node.js) — `docx` npm package is pre-installed
+### JavaScript (Node.js) — `docx` npm package is pre-installed (use only when Python is unavailable)
 
 The `docx` npm package is already installed in the project. JS/MJS scripts can import it directly.
 Output files MUST be written to `process.env.OUTPUT_DIR`.
@@ -76,14 +75,16 @@ fs.writeFileSync(path.join(process.env.OUTPUT_DIR, `document_${rand}.docx`), buf
 console.log('done');
 ```
 
-**Example `run_script` call with inline content:**
+**Example `run_script` call with inline content (Python preferred):**
 
 ```json
 {
-  "script_path": "/abs/path/to/SKILLS/docx/scripts/tmp/create_doc.mjs",
-  "script_content": "import { Document, Packer, Paragraph, TextRun } from 'docx';\nimport fs from 'fs';\nimport path from 'path';\nconst rand = Math.random().toString(36).slice(2, 8);\nconst filename = `hello_world_${rand}.docx`;\nconst doc = new Document({ sections: [{ children: [new Paragraph({ children: [new TextRun('Hello World')] })] }] });\nconst buf = await Packer.toBuffer(doc);\nfs.writeFileSync(path.join(process.env.OUTPUT_DIR, filename), buf);\nconsole.log('created:', filename);\n"
+  "script_path": "<PROJECT_ROOT>/data/skills/tmp/create_doc.py",
+  "script_content": "# /// script\n# requires-python = '>=3.10'\n# dependencies = ['python-docx']\n# ///\nimport docx, os, random, string\nrand = ''.join(random.choices(string.ascii_lowercase + string.digits, k=6))\nfilename = f'hello_world_{rand}.docx'\ndoc = docx.Document()\ndoc.add_paragraph('Hello World')\ndoc.save(os.path.join(os.environ['OUTPUT_DIR'], filename))\nprint('created:', filename)\n"
 }
 ```
+
+> **script_path 说明**：将 `<PROJECT_ROOT>` 替换为实际项目根目录的绝对路径。`DATA_SKILLS_DIR` 环境变量（在脚本内可用）即指向 `<PROJECT_ROOT>/data/skills`。
 
 > **Tauri desktop**: Files are saved locally and opened with the system's default application.
 

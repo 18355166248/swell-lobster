@@ -191,6 +191,21 @@ code {
   }
 }
 
+/* === 流式正文淡入滑入 === */
+@keyframes streaming-text-in {
+  from {
+    opacity: 0.6;
+    transform: translateX(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+.streaming-text {
+  animation: streaming-text-in 0.25s ease-out both;
+}
+
 /* === 工具调用状态圆点 === */
 .tool-status-dot {
   width: 8px;
@@ -227,7 +242,7 @@ code {
     transform: translateX(-100%);
   }
   100% {
-    transform: translateX(250%);
+    transform: translateX(350%);
   }
 }
 
@@ -239,11 +254,14 @@ code {
 .tool-title-shimmer::after {
   content: '';
   position: absolute;
-  inset: 0;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: 40%;
   background: linear-gradient(
     90deg,
     transparent 0%,
-    rgba(255, 255, 255, 0.18) 50%,
+    hsl(var(--brand-h) var(--brand-s) var(--brand-l) / 0.35) 50%,
     transparent 100%
   );
   animation: tool-shimmer 1.6s ease-in-out infinite;

@@ -13,7 +13,7 @@ function buildTree(files: FileItem[]): TreeDataNode[] {
   const roots: TreeDataNode[] = [];
 
   for (const file of files) {
-    const parts = file.path.split('/');
+    const parts = file.path.replace(/\\/g, '/').split('/');
 
     // ensure all parent dirs exist
     for (let i = 1; i < parts.length; i++) {

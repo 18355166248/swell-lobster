@@ -42,6 +42,16 @@ function getAllowedRoots(): string[] {
   });
 }
 
+/** 动态生成的脚本只允许写入 data/skills/ 目录，不允许写入 SKILLS/（只读技能库）。 */
+function getWritableRoot(): string {
+  const dir = join(settings.dataDir, 'skills');
+  try {
+    return realpathSync(dir);
+  } catch {
+    return resolve(dir);
+  }
+}
+
 function isPathAllowed(filePath: string, roots: string[]): boolean {
   let real: string;
   try {
@@ -55,7 +65,7 @@ function isPathAllowed(filePath: string, roots: string[]): boolean {
 function getOutputDir(): string {
   const dir = process.env['SWELL_OUTPUT_DIR'] ?? join(settings.projectRoot, 'data', 'outputs');
   mkdirSync(dir, { recursive: true });
-  return dir;
+  return resolve(dir);
 }
 
 /** 执行前对输出目录做快照：记录 文件名 → mtime(ms)，用于执行后比对新增或被修改的文件。 */
@@ -87,8 +97,10 @@ async function detectPython(): Promise<{ bin: string; prefix: string[] } | null>
   }
 
   // 优先使用 SWELL_UV_BIN（打包版 uv sidecar 路径），其次检测系统 PATH 里的 uv
+  // 注意：uv 的版本检测必须用 `uv --version`，不能用 `uv run --version`（后者会报错 exit 2）
   const uvBin = process.env['SWELL_UV_BIN'] ?? 'uv';
-  if (await isExecutable(uvBin) && await isPythonRunnable(uvBin, ['run'])) {
+  if (await isExecutable(uvBin) && await isUvRunnable(uvBin)) {
+    console.log("🚀 ~ uvBin:", uvBin)
     return { bin: uvBin, prefix: ['run'] };
   }
 
@@ -115,6 +127,19 @@ function isPythonRunnable(bin: string, prefix: string[]): Promise<boolean> {
   return new Promise((resolve) => {
     const args = [...prefix, '--version'];
     const check = spawn(bin, args, { stdio: 'ignore', windowsHide: true });
+    check.on('close', (code) => resolve(code === 0));
+    check.on('error', () => resolve(false));
+  });
+}
+
+/**
+ * 验证 uv 命令可用。
+ * 注意：不能用 isPythonRunnable(uv, ['run'])，因为 `uv run --version` 会报错（exit 2）。
+ * 必须用 `uv --version` 检测。
+ */
+function isUvRunnable(bin: string): Promise<boolean> {
+  return new Promise((resolve) => {
+    const check = spawn(bin, ['--version'], { stdio: 'ignore', windowsHide: true });
     check.on('close', (code) => resolve(code === 0));
     check.on('error', () => resolve(false));
   });
@@ -206,7 +231,9 @@ export const runScriptTool: ToolDef = {
     'Execute a script file from SKILLS/ or data/skills/ directories.',
     'Supported: .py (Python), .js / .mjs (Node.js).',
     'Scripts MUST write output files to $OUTPUT_DIR (injected as env var).',
-    'Returns JSON: { exit_code, stdout, stderr, output_files: [{filename, url}], timed_out }.',
+    'For dynamically generated scripts (script_content), script_path MUST be inside $DATA_SKILLS_DIR (data/skills/).',
+    'Returns JSON: { exit_code, stdout, stderr, output_files: [{filename, path, url}], timed_out }.',
+    'output_files[].path is the absolute filesystem path; output_files[].url is the API download link.',
     'Include download links in reply: [filename.pptx](/api/files/filename.pptx)',
   ].join(' '),
   parameters: {
@@ -252,13 +279,16 @@ export const runScriptTool: ToolDef = {
       });
     }
 
-    // 2. 如果提供了内联脚本内容且文件不存在，先在允许目录内创建文件
+    // 2. 如果提供了内联脚本内容且文件不存在，先在可写目录内创建文件
+    //    动态生成的脚本只允许写入 data/skills/，不允许写入 SKILLS/（只读技能库）。
     if (script_content && !existsSync(scriptPath)) {
       const resolvedPath = resolve(scriptPath);
-      const roots = getAllowedRoots();
-      const allowed = roots.some((r) => resolvedPath === r || resolvedPath.startsWith(r + sep));
+      const writableRoot = getWritableRoot();
+      const allowed = resolvedPath === writableRoot || resolvedPath.startsWith(writableRoot + sep);
       if (!allowed) {
-        return JSON.stringify({ error: 'script_path is outside the allowed skills directories.' });
+        return JSON.stringify({
+          error: `Dynamic scripts must be placed inside data/skills/ (got: ${scriptPath}). Use $DATA_SKILLS_DIR env var as the path prefix.`,
+        });
       }
       mkdirSync(dirname(resolvedPath), { recursive: true });
       writeFileSync(resolvedPath, String(script_content), 'utf-8');
@@ -309,6 +339,7 @@ export const runScriptTool: ToolDef = {
     const env: NodeJS.ProcessEnv = {
       ...process.env,
       SKILLS_ROOT: join(settings.projectRoot, 'SKILLS'),
+      DATA_SKILLS_DIR: join(settings.dataDir, 'skills'),
       OUTPUT_DIR: outputDir,
     };
 
@@ -322,7 +353,7 @@ export const runScriptTool: ToolDef = {
       ) * 1000;
 
     const result = await spawnWithTimeout(bin, cmdArgs, {
-      cwd: join(scriptPath, '..'), // 工作目录 = 脚本所在目录
+      cwd: dirname(resolve(scriptPath)), // 工作目录 = 脚本所在目录
       env,
       stdin: input_data ? String(input_data) : undefined,
       timeoutMs,
@@ -330,17 +361,30 @@ export const runScriptTool: ToolDef = {
 
     // 10. 检测新生成或被修改的输出文件
     const afterSnapshot = snapshotOutputDir(outputDir);
-    const newFiles: { filename: string; url: string }[] = [];
+    const newFiles: { filename: string; path: string; url: string }[] = [];
     for (const [name, mtime] of afterSnapshot) {
       const prev = beforeSnapshot.get(name);
       if (prev === undefined || mtime > prev) {
-        newFiles.push({ filename: name, url: `/api/files/${encodeURIComponent(name)}` });
+        const realPath = join(outputDir, name);
+        newFiles.push({
+          filename: name,
+          path: realPath,
+          url: `/api/files/${encodeURIComponent(name)}?localPath=${encodeURIComponent(realPath)}`,
+        });
       }
     }
 
+    // 脚本有标准输出但 output_files 为空，说明文件没有写入 OUTPUT_DIR
+    const warning =
+      newFiles.length === 0 && result.stdout.trim()
+        ? `\n⚠️ output_files is empty — the script did not write any files to OUTPUT_DIR (${outputDir}). ` +
+          `Ensure your script uses os.environ['OUTPUT_DIR'] (Python) or process.env.OUTPUT_DIR (Node.js) as the output path. ` +
+          `Files written elsewhere will not be detected.`
+        : '';
+
     return JSON.stringify({
       exit_code: result.exitCode,
-      stdout: result.stdout,
+      stdout: result.stdout + warning,
       stderr: result.stderr,
       output_files: newFiles,
       timed_out: result.timedOut,

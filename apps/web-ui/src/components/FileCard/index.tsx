@@ -11,7 +11,7 @@ import { isTauri } from '../../utils/platform';
 
 interface FileCardProps {
   filename: string;
-  /** 相对路径，如 /api/files/report.pptx */
+  /** 相对路径，如 /api/files/report.pptx?localPath=... */
   href: string;
 }
 
@@ -47,39 +47,42 @@ function getFileTypeInfo(filename: string): FileTypeInfo {
   );
 }
 
+/** 从 /api/files/xxx?localPath=... 中解析本地路径 */
+function parseLocalPath(href: string): string | null {
+  try {
+    const qIndex = href.indexOf('?');
+    if (qIndex === -1) return null;
+    const params = new URLSearchParams(href.slice(qIndex + 1));
+    return params.get('localPath');
+  } catch {
+    return null;
+  }
+}
+
+/** 返回纯下载 URL（去掉 query 参数） */
+function toDownloadHref(href: string): string {
+  const qIndex = href.indexOf('?');
+  return qIndex === -1 ? href : href.slice(0, qIndex);
+}
+
 export function FileCard({ filename, href }: FileCardProps) {
   const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
   const typeInfo = getFileTypeInfo(filename);
   const inTauri = isTauri();
+  const localPath = parseLocalPath(href);
+  const downloadHref = toDownloadHref(href);
 
-  const handleOpen = async () => {
-    if (loading) return;
+  /** Web 模式：用 /api/shell/open 调系统默认程序打开 */
+  const handleWebOpen = async () => {
+    if (loading || !localPath) return;
     setLoading(true);
     setError(false);
     try {
-      if (inTauri) {
-        // Tauri 模式：通过 Rust command 用系统默认程序打开文件
-        const { invoke } = await import(/* @vite-ignore */ '@tauri-apps/api/core');
-        // get_output_dir 返回本地输出目录，拼接文件名得到本地路径
-        const outputDir: string = await invoke('get_output_dir');
-        const localPath =
-          outputDir.replace(/[/\\]$/, '') + (outputDir.includes('\\') ? '\\' : '/') + filename;
-        await invoke('open_file', { path: localPath });
-      } else {
-        // Web 模式：先 HEAD 验证文件存在，再触发下载
-        const url = `${getApiBase()}${href}`;
-        const check = await fetch(url, { method: 'HEAD' });
-        if (!check.ok) {
-          setError(true);
-          return;
-        }
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = filename;
-        a.click();
-      }
+      const url = `${getApiBase()}/api/shell/open?path=${encodeURIComponent(localPath)}`;
+      const res = await fetch(url);
+      if (!res.ok) setError(true);
     } catch {
       setError(true);
     } finally {
@@ -87,8 +90,56 @@ export function FileCard({ filename, href }: FileCardProps) {
     }
   };
 
-  const handleSaveAs = async () => {
-    if (!inTauri || loading) return;
+  /** Web 模式：触发文件下载 */
+  const handleWebDownload = async () => {
+    if (loading) return;
+    setLoading(true);
+    setError(false);
+    try {
+      const url = `${getApiBase()}${downloadHref}`;
+      const check = await fetch(url, { method: 'HEAD' });
+      if (!check.ok) {
+        setError(true);
+        return;
+      }
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      a.click();
+    } catch {
+      setError(true);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  /** Tauri 模式：用 Rust command 打开 */
+  const handleTauriOpen = async () => {
+    if (loading) return;
+    setLoading(true);
+    setError(false);
+    try {
+      const { invoke } = await import(/* @vite-ignore */ '@tauri-apps/api/core');
+      // 优先用 localPath（后端实际保存路径），fallback 到 get_output_dir + filename
+      let filePath: string;
+      if (localPath) {
+        filePath = localPath;
+      } else {
+        const outputDir: string = await invoke('get_output_dir');
+        const s = outputDir.includes('\\') ? '\\' : '/';
+        filePath = outputDir.replace(/[/\\]$/, '') + s + filename;
+      }
+      await invoke('open_file', { path: filePath });
+    } catch {
+      setError(true);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  /** Tauri 模式：另存为 */
+  const handleTauriSaveAs = async () => {
+    if (loading) return;
     setLoading(true);
     try {
       const { save } = await import(/* @vite-ignore */ '@tauri-apps/plugin-dialog');
@@ -98,10 +149,8 @@ export function FileCard({ filename, href }: FileCardProps) {
         filters: ext ? [{ name: typeInfo.label, extensions: [ext] }] : [],
       });
       if (!savePath) return;
-
-      // 从 tide-lobster HTTP API 下载文件内容，再写入用户选择的路径
       const { writeFile } = await import(/* @vite-ignore */ '@tauri-apps/plugin-fs');
-      const url = `${getApiBase()}${href}`;
+      const url = `${getApiBase()}${downloadHref}`;
       const res = await fetch(url);
       const buf = await res.arrayBuffer();
       await writeFile(savePath, new Uint8Array(buf));
@@ -110,8 +159,15 @@ export function FileCard({ filename, href }: FileCardProps) {
     }
   };
 
+  // 截取路径尾部用于展示（最多 48 字符）
+  const pathLabel = localPath
+    ? localPath.length > 48
+      ? '…' + localPath.slice(-48)
+      : localPath
+    : null;
+
   return (
-    <div className="inline-flex items-center gap-3 my-2 px-4 py-3 rounded-xl border dark:border-claude-darkBorder border-claude-border dark:bg-claude-darkSurface bg-claude-surfaceHover max-w-xs w-full">
+    <div className="inline-flex items-center gap-3 my-2 px-4 py-3 rounded-xl border dark:border-claude-darkBorder border-claude-border dark:bg-claude-darkSurface bg-claude-surfaceHover max-w-sm w-full">
       {/* 文件图标 */}
       <span className="text-2xl leading-none flex-shrink-0" role="img" aria-label={typeInfo.label}>
         {typeInfo.emoji}
@@ -130,6 +186,13 @@ export function FileCard({ filename, href }: FileCardProps) {
             <WarningOutlined />
             {t('chat.fileNotFound')}
           </p>
+        ) : pathLabel ? (
+          <p
+            className="text-xs dark:text-claude-darkTextSecondary text-claude-textSecondary mt-0.5 truncate font-mono"
+            title={localPath ?? undefined}
+          >
+            {pathLabel}
+          </p>
         ) : (
           <p className="text-xs dark:text-claude-darkTextSecondary text-claude-textSecondary mt-0.5">
             {typeInfo.label}
@@ -139,33 +202,52 @@ export function FileCard({ filename, href }: FileCardProps) {
 
       {/* 操作按钮 */}
       <div className="flex items-center gap-1 flex-shrink-0">
-        <button
-          onClick={handleOpen}
-          disabled={loading}
-          className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors dark:bg-claude-darkSurfaceMuted dark:hover:bg-claude-darkSurfaceHover bg-white hover:bg-claude-surface dark:text-claude-darkText text-claude-text border dark:border-claude-darkBorder border-claude-border disabled:opacity-50"
-          title={inTauri ? t('chat.fileOpen') : t('chat.fileDownload')}
-        >
-          {loading ? (
-            <LoadingOutlined className="h-3.5 w-3.5" />
-          ) : inTauri ? (
-            <FolderOpenOutlined className="h-3.5 w-3.5" />
-          ) : (
-            <DownloadOutlined className="h-3.5 w-3.5" />
-          )}
-          {inTauri ? t('chat.fileOpen') : t('chat.fileDownload')}
-        </button>
-
-        {/* Tauri 模式额外提供「另存为」 */}
-        {inTauri && (
-          <button
-            onClick={handleSaveAs}
-            disabled={loading}
-            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors dark:bg-claude-darkSurfaceMuted dark:hover:bg-claude-darkSurfaceHover bg-white hover:bg-claude-surface dark:text-claude-darkText text-claude-text border dark:border-claude-darkBorder border-claude-border disabled:opacity-50"
-            title={t('chat.fileSaveAs')}
-          >
-            <DownloadOutlined className="h-3.5 w-3.5" />
-            {t('chat.fileSaveAs')}
-          </button>
+        {inTauri ? (
+          <>
+            <button
+              onClick={handleTauriOpen}
+              disabled={loading}
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors dark:bg-claude-darkSurfaceMuted dark:hover:bg-claude-darkSurfaceHover bg-white hover:bg-claude-surface dark:text-claude-darkText text-claude-text border dark:border-claude-darkBorder border-claude-border disabled:opacity-50"
+              title={t('chat.fileOpen')}
+            >
+              {loading ? <LoadingOutlined /> : <FolderOpenOutlined />}
+              {t('chat.fileOpen')}
+            </button>
+            <button
+              onClick={handleTauriSaveAs}
+              disabled={loading}
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors dark:bg-claude-darkSurfaceMuted dark:hover:bg-claude-darkSurfaceHover bg-white hover:bg-claude-surface dark:text-claude-darkText text-claude-text border dark:border-claude-darkBorder border-claude-border disabled:opacity-50"
+              title={t('chat.fileSaveAs')}
+            >
+              <DownloadOutlined />
+              {t('chat.fileSaveAs')}
+            </button>
+          </>
+        ) : (
+          <>
+            {/* Web 模式：打开（调系统默认程序）*/}
+            {localPath && (
+              <button
+                onClick={handleWebOpen}
+                disabled={loading}
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors dark:bg-claude-darkSurfaceMuted dark:hover:bg-claude-darkSurfaceHover bg-white hover:bg-claude-surface dark:text-claude-darkText text-claude-text border dark:border-claude-darkBorder border-claude-border disabled:opacity-50"
+                title={t('chat.fileOpen')}
+              >
+                {loading ? <LoadingOutlined /> : <FolderOpenOutlined />}
+                {t('chat.fileOpen')}
+              </button>
+            )}
+            {/* Web 模式：下载 */}
+            <button
+              onClick={handleWebDownload}
+              disabled={loading}
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors dark:bg-claude-darkSurfaceMuted dark:hover:bg-claude-darkSurfaceHover bg-white hover:bg-claude-surface dark:text-claude-darkText text-claude-text border dark:border-claude-darkBorder border-claude-border disabled:opacity-50"
+              title={t('chat.fileDownload')}
+            >
+              {loading ? <LoadingOutlined /> : <DownloadOutlined />}
+              {t('chat.fileDownload')}
+            </button>
+          </>
         )}
       </div>
     </div>

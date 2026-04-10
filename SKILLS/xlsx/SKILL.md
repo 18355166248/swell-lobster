@@ -15,11 +15,10 @@ official: true
 
 1. Use `run_script` with the absolute script path
 2. Script paths use `$SKILLS_ROOT` prefix: `$SKILLS_ROOT/xlsx/scripts/<file>.py`
-3. Output files MUST be written to `os.environ['OUTPUT_DIR']`
-4. `run_script` returns JSON — check `output_files` array for download URLs
-5. Include download links in your final reply:
-   `[filename.xlsx](/api/files/filename.xlsx)`
-6. **For dynamically generated scripts**: use `script_content` parameter to provide the script source inline — the tool will create the file automatically before running it
+3. Output files MUST be written to `os.environ['OUTPUT_DIR']` — **never hardcode any other path**. Files written elsewhere will NOT appear in `output_files` and the file card will be broken.
+4. `run_script` returns JSON — `output_files[].url` is the file card link; `output_files[].path` is the real filesystem path
+5. In your reply, use the `url` field to render the file card: `[filename.xlsx](output_files[].url)` — always use `output_files[].url` as-is; never hand-write or truncate the URL (it contains a required `?localPath=` parameter)
+6. **For dynamically generated scripts**: use `script_content` parameter to provide the script source inline — the tool will create the file automatically before running it. **Script path MUST be inside `$DATA_SKILLS_DIR/tmp/` (e.g., `$DATA_SKILLS_DIR/tmp/create_report.py`)**; writing to `SKILLS/` is not allowed.
 
 ### Output filename convention
 

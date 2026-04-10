@@ -731,7 +731,9 @@ export function ChatPage() {
                           t={t as (key: string, options?: object) => string}
                         />
                         {item.rawContent ? (
-                          <div className="w-full min-w-0 text-foreground [&_.markdown-content]:max-w-none">
+                          <div
+                            className={`w-full min-w-0 text-foreground [&_.markdown-content]:max-w-none${item.streaming ? ' streaming-text' : ''}`}
+                          >
                             {item.content}
                           </div>
                         ) : item.loading ? (

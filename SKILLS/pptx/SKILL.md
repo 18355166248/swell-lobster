@@ -17,11 +17,10 @@ official: true
 2. Script paths use `$SKILLS_ROOT` prefix: `$SKILLS_ROOT/pptx/scripts/<file>`
    - `.py` scripts → Python interpreter (auto-detected)
    - `.js` scripts (e.g. `html2pptx.js`) → Node.js interpreter (`process.execPath`)
-3. Output files MUST be written to `os.environ['OUTPUT_DIR']` (Python) or `process.env.OUTPUT_DIR` (Node.js)
-4. `run_script` returns JSON — check `output_files` array for download URLs
-5. Include download links in your final reply using Markdown:
-   `[filename.pptx](/api/files/filename.pptx)`
-6. **For dynamically generated scripts**: use `script_content` parameter to provide the script source inline — the tool will create the file automatically before running it
+3. Output files MUST be written to `os.environ['OUTPUT_DIR']` (Python) or `process.env.OUTPUT_DIR` (Node.js) — **never hardcode any other path**. Files written elsewhere will NOT appear in `output_files` and the file card will be broken.
+4. `run_script` returns JSON — `output_files[].url` is the file card link; `output_files[].path` is the real filesystem path
+5. In your reply, use the `url` field to render the file card: `[filename.pptx](output_files[].url)` — always use `output_files[].url` as-is; never hand-write or truncate the URL (it contains a required `?localPath=` parameter)
+6. **For dynamically generated scripts**: use `script_content` parameter to provide the script source inline — the tool will create the file automatically before running it. **Script path MUST be inside `$DATA_SKILLS_DIR/tmp/` (e.g., `$DATA_SKILLS_DIR/tmp/create_slides.mjs`)**; writing to `SKILLS/` is not allowed.
 
 ### Output filename convention
 
@@ -42,10 +41,11 @@ filename = f'presentation_{rand}.pptx'
 ```
 Call run_script:
   script_path: "/abs/path/SKILLS/pptx/scripts/html2pptx.js"
-  args: ["--html", "/tmp/slides.html", "--output", "<OUTPUT_DIR>/deck_20240101.pptx"]
+  args: ["--html", "/tmp/slides.html"]
+  # 脚本通过 process.env.OUTPUT_DIR 写出文件，不要在 args 中手写输出路径
 
 Then reply:
-  "演示文稿已生成：[deck_20240101.pptx](/api/files/deck_20240101.pptx)"
+  "演示文稿已生成：[deck_20240101.pptx](output_files[0].url)"
 ```
 
 > **Tauri desktop**: Files are saved to the user's local output directory and can be opened directly with the system's default application.

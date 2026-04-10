@@ -11,7 +11,7 @@
 
 import { Hono } from 'hono';
 import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, statSync } from 'node:fs';
-import { resolve, sep, dirname } from 'node:path';
+import { resolve, sep, dirname, relative } from 'node:path';
 import { settings } from '../../config.js';
 import { IdentityService } from '../../identity/identityService.js';
 
@@ -41,7 +41,7 @@ function listFilesRecursive(
     if (entry.isDirectory()) {
       results.push(...listFilesRecursive(fullPath, root, exts));
     } else if (entry.isFile() && exts.some((ext) => entry.name.endsWith(ext))) {
-      const rel = fullPath.slice(root.length + 1).replace(/\\/g, '/'); // relative path, forward slashes
+      const rel = relative(root, fullPath).replace(/\\/g, '/'); // relative path, forward slashes
       results.push({ path: rel, name: entry.name });
     }
   }

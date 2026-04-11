@@ -1,6 +1,14 @@
-import { useEffect, useRef, useState } from 'react';
-import { DeleteOutlined, SearchOutlined } from '@ant-design/icons';
-import { App, Empty, Input, Spin } from 'antd';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  DeleteOutlined,
+  EditOutlined,
+  MoreOutlined,
+  PushpinFilled,
+  PushpinOutlined,
+  SearchOutlined,
+  CheckSquareOutlined,
+} from '@ant-design/icons';
+import { App, Button, Checkbox, Dropdown, Empty, Input, Spin } from 'antd';
 import { useTranslation } from 'react-i18next';
 import { useAtomValue } from 'jotai';
 
@@ -33,19 +41,30 @@ export function SessionList({
   const { t } = useTranslation();
   const { modal } = App.useApp();
   const chatGenerating = useAtomValue(chatGeneratingAtom);
+
   const [keyword, setKeyword] = useState('');
   const [results, setResults] = useState<SessionSearchResult[]>([]);
-  // 上次请求结束时的 trimmed 词；与当前输入比较得到加载态，避免在 effect 里同步 setState。
   const [completedQuery, setCompletedQuery] = useState<string | null>(null);
+
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState('');
   const editInputRef = useRef<HTMLInputElement>(null);
+
+  const [pinnedIds, setPinnedIds] = useState<Set<string>>(new Set());
+  const [batchMode, setBatchMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   const trimmed = keyword.trim();
   const showingSearch = trimmed.length > 0;
   const listMatchesKeyword = completedQuery === trimmed;
   const displayResults = showingSearch && listMatchesKeyword ? results : [];
   const searchLoading = showingSearch && !listMatchesKeyword;
+
+  const sortedSessions = useMemo(() => {
+    const pinned = sessions.filter((s) => pinnedIds.has(s.id));
+    const unpinned = sessions.filter((s) => !pinnedIds.has(s.id));
+    return [...pinned, ...unpinned];
+  }, [sessions, pinnedIds]);
 
   const handleKeywordChange = (value: string) => {
     setKeyword(value);
@@ -55,13 +74,10 @@ export function SessionList({
     }
   };
 
-  // 防抖 + 卸载取消：仅在异步回调里更新 results / completedQuery，避免 effect 内同步 setState。
   useEffect(() => {
     if (!trimmed) return;
-
     let cancelled = false;
     const query = trimmed;
-
     const timer = window.setTimeout(() => {
       searchSessions(query)
         .then((rows) => {
@@ -77,25 +93,23 @@ export function SessionList({
           }
         });
     }, 300);
-
     return () => {
       cancelled = true;
       window.clearTimeout(timer);
     };
   }, [trimmed]);
 
-  const startRename = (session: SessionSummary, e: React.MouseEvent) => {
-    e.stopPropagation();
+  const startRename = (session: SessionSummary) => {
     setEditingId(session.id);
     setEditingTitle(session.title || '');
     requestAnimationFrame(() => editInputRef.current?.select());
   };
 
   const commitRename = async (sessionId: string) => {
-    const trimmed = editingTitle.trim();
+    const value = editingTitle.trim();
     const orig = sessions.find((s) => s.id === sessionId)?.title;
-    if (trimmed && trimmed !== orig) {
-      await onRename(sessionId, trimmed);
+    if (value && value !== orig) {
+      await onRename(sessionId, value);
     }
     setEditingId(null);
   };
@@ -119,6 +133,81 @@ export function SessionList({
       onOk: () => onDelete(sessionId),
     });
   };
+
+  const handleTogglePin = (sessionId: string) => {
+    setPinnedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(sessionId)) next.delete(sessionId);
+      else next.add(sessionId);
+      return next;
+    });
+  };
+
+  const handleEnterBatch = (sessionId?: string) => {
+    setBatchMode(true);
+    if (sessionId) setSelectedIds(new Set([sessionId]));
+  };
+
+  const handleCancelBatch = () => {
+    setBatchMode(false);
+    setSelectedIds(new Set());
+  };
+
+  const handleSelectAll = () => setSelectedIds(new Set(sessions.map((s) => s.id)));
+
+  const handleToggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const handleBatchDelete = () => {
+    if (selectedIds.size === 0) return;
+    modal.confirm({
+      title: t('chat.batchDeleteConfirm', { count: selectedIds.size }),
+      okText: t('common.confirm'),
+      cancelText: t('common.cancel'),
+      okButtonProps: { danger: true },
+      onOk: async () => {
+        for (const id of selectedIds) {
+          await onDelete(id);
+        }
+        handleCancelBatch();
+      },
+    });
+  };
+
+  const getMenuItems = (session: SessionSummary) => [
+    {
+      key: 'batch',
+      label: t('chat.batchSelect'),
+      icon: <CheckSquareOutlined />,
+      onClick: () => handleEnterBatch(session.id),
+    },
+    {
+      key: 'rename',
+      label: t('chat.rename'),
+      icon: <EditOutlined />,
+      onClick: () => startRename(session),
+    },
+    {
+      key: 'pin',
+      label: pinnedIds.has(session.id) ? t('chat.unpin') : t('chat.pin'),
+      icon: pinnedIds.has(session.id) ? <PushpinFilled /> : <PushpinOutlined />,
+      onClick: () => handleTogglePin(session.id),
+    },
+    { type: 'divider' as const },
+    {
+      key: 'delete',
+      label: t('common.delete'),
+      icon: <DeleteOutlined />,
+      danger: true,
+      onClick: () => handleDelete(session.id),
+    },
+  ];
 
   return (
     <div className="flex flex-col gap-2">
@@ -170,16 +259,55 @@ export function SessionList({
         </div>
       ) : (
         <div className="flex flex-col gap-1">
-          {sessions.map((session) => (
+          {batchMode && (
+            <div className="flex items-center gap-1 px-1 pb-1 border-b border-border">
+              <span className="text-xs text-muted-foreground flex-1">
+                {t('chat.selectedCount', { count: selectedIds.size })}
+              </span>
+              <Button size="small" type="link" className="px-1 text-xs" onClick={handleSelectAll}>
+                {t('chat.selectAll')}
+              </Button>
+              <Button
+                size="small"
+                type="link"
+                danger
+                disabled={selectedIds.size === 0}
+                className="px-1 text-xs"
+                onClick={handleBatchDelete}
+              >
+                {t('common.delete')}
+              </Button>
+              <Button size="small" type="link" className="px-1 text-xs" onClick={handleCancelBatch}>
+                {t('common.cancel')}
+              </Button>
+            </div>
+          )}
+
+          {sortedSessions.map((session) => (
             <div
               key={session.id}
-              className={`flex items-center justify-between rounded-md p-2 cursor-pointer group ${
+              className={`flex items-center rounded-md px-2 py-1.5 cursor-pointer group relative ${
                 session.id === activeSessionId
                   ? 'bg-primary text-primary-foreground'
                   : 'hover:bg-muted'
-              }`}
-              onClick={() => onSelect(session.id)}
+              } ${batchMode ? 'gap-2' : ''}`}
+              onClick={() => {
+                if (batchMode) {
+                  handleToggleSelect(session.id);
+                } else {
+                  onSelect(session.id);
+                }
+              }}
             >
+              {batchMode && (
+                <Checkbox
+                  checked={selectedIds.has(session.id)}
+                  onClick={(e) => e.stopPropagation()}
+                  onChange={() => handleToggleSelect(session.id)}
+                  className="shrink-0"
+                />
+              )}
+
               {editingId === session.id ? (
                 <input
                   ref={editInputRef}
@@ -191,30 +319,36 @@ export function SessionList({
                   onClick={(e) => e.stopPropagation()}
                 />
               ) : (
-                <span
-                  className="flex-1 min-w-0 flex items-center gap-1.5"
-                  onDoubleClick={(e) => startRename(session, e)}
-                >
+                <span className="flex-1 min-w-0 flex items-center gap-1.5 text-sm">
+                  {pinnedIds.has(session.id) && (
+                    <PushpinFilled className="shrink-0 text-[10px] opacity-60" />
+                  )}
                   {chatGenerating.has(session.id) && (
-                    <span className="w-1.5 h-1.5 rounded-full bg-current flex-shrink-0 animate-pulse" />
+                    <span className="inline-flex shrink-0 w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
                   )}
                   <span className="truncate">{session.title || t('chat.newSession')}</span>
                 </span>
               )}
-              <button
-                type="button"
-                className={`ml-2 p-1 rounded-full hover:bg-red-500 hover:text-white ${
-                  session.id === activeSessionId
-                    ? 'text-primary-foreground'
-                    : 'text-muted-foreground group-hover:opacity-100 opacity-0'
-                }`}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  handleDelete(session.id);
-                }}
-              >
-                <DeleteOutlined />
-              </button>
+
+              {!batchMode && editingId !== session.id && (
+                <Dropdown
+                  menu={{ items: getMenuItems(session) }}
+                  trigger={['click']}
+                  placement="bottomRight"
+                >
+                  <button
+                    type="button"
+                    className={`shrink-0 p-0.5 rounded transition-opacity ${
+                      session.id === activeSessionId
+                        ? 'text-primary-foreground/70 hover:text-primary-foreground opacity-0 group-hover:opacity-100'
+                        : 'text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100'
+                    }`}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <MoreOutlined />
+                  </button>
+                </Dropdown>
+              )}
             </div>
           ))}
         </div>

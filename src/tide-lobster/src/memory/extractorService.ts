@@ -147,12 +147,20 @@ ${fullText}
       const fenceMatch = raw.match(/```(?:json)?\s*([\s\S]*?)```/);
       if (fenceMatch) raw = fenceMatch[1].trim();
 
-      const parsed = JSON.parse(raw) as Array<{
-        content?: string;
-        memory_type?: MemoryType;
-        importance?: number;
-        tags?: string[];
-      }>;
+      // 模型可能在 JSON 前后输出解释性文字；尝试从中提取 [...] 片段
+      if (!raw.startsWith('[')) {
+        const arrayMatch = raw.match(/\[[\s\S]*\]/);
+        if (!arrayMatch) return;
+        raw = arrayMatch[0];
+      }
+
+      let parsed: Array<{ content?: string; memory_type?: MemoryType; importance?: number; tags?: string[] }>;
+      try {
+        parsed = JSON.parse(raw) as typeof parsed;
+      } catch {
+        // 模型返回了非标准 JSON，跳过本轮提取
+        return;
+      }
       if (!Array.isArray(parsed)) return;
 
       // store.create() 内部通过 fingerprint 去重（ON CONFLICT），此处无需再做重叠检查

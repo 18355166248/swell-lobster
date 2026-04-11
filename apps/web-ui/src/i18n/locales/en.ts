@@ -98,6 +98,13 @@ const en = {
     fileSaveAs: 'Save As',
     fileNotFound: 'File not found or not yet generated',
     generatedFiles: 'Generated files',
+    rename: 'Rename',
+    pin: 'Pin',
+    unpin: 'Unpin',
+    batchSelect: 'Batch select',
+    selectAll: 'Select all',
+    selectedCount: '{{count}} selected',
+    batchDeleteConfirm: 'Delete {{count}} selected conversations?',
   },
 
   persona: {

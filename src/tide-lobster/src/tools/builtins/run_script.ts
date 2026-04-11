@@ -231,7 +231,10 @@ export const runScriptTool: ToolDef = {
     'Execute a script file from SKILLS/ or data/skills/ directories.',
     'Supported: .py (Python), .js / .mjs (Node.js).',
     'Scripts MUST write output files to $OUTPUT_DIR (injected as env var).',
-    'For dynamically generated scripts (script_content), script_path MUST be inside $DATA_SKILLS_DIR (data/skills/).',
+    `For dynamically generated scripts (script_content), script_path MUST start with: ${join(settings.dataDir, 'skills')} — do NOT guess, use this exact prefix.`,
+    `Injected env vars: SKILLS_ROOT, OUTPUT_DIR, DATA_SKILLS_DIR, NODE_PATH (includes global node_modules), SKILLS_PPTX_SCRIPTS_DIR=${join(settings.projectRoot, 'SKILLS', 'pptx', 'scripts')}.`,
+    `To use pptxgenjs in a dynamic .js script: const pptxgen = require('pptxgenjs'); — it is globally installed and resolvable via NODE_PATH.`,
+    `To use html2pptx in a dynamic .js script: const html2pptx = require(process.env.SKILLS_PPTX_SCRIPTS_DIR + '/html2pptx'); — always use the env var, never a relative path.`,
     'Returns JSON: { exit_code, stdout, stderr, output_files: [{filename, path, url}], timed_out }.',
     'output_files[].path is the absolute filesystem path; output_files[].url is the API download link.',
     'Include download links in reply: [filename.pptx](/api/files/filename.pptx)',
@@ -239,8 +242,7 @@ export const runScriptTool: ToolDef = {
   parameters: {
     script_path: {
       type: 'string',
-      description:
-        'Absolute path to the script. Must be inside SKILLS/ or data/skills/. Use $SKILLS_ROOT env var as prefix.',
+      description: `Absolute path to the script. For existing scripts use SKILLS/ prefix. For dynamic scripts (with script_content) MUST use: ${join(settings.dataDir, 'skills')} as prefix.`,
       required: true,
     },
     script_content: {
@@ -268,7 +270,7 @@ export const runScriptTool: ToolDef = {
   },
 
   async execute({ script_path, script_content, args, input_data, timeout_seconds }) {
-    const scriptPath = String(script_path ?? '').trim();
+    let scriptPath = String(script_path ?? '').trim();
     if (!scriptPath) return JSON.stringify({ error: 'script_path is required.' });
 
     // 1. 扩展名白名单（早期校验，与文件是否存在无关）
@@ -281,17 +283,25 @@ export const runScriptTool: ToolDef = {
 
     // 2. 如果提供了内联脚本内容且文件不存在，先在可写目录内创建文件
     //    动态生成的脚本只允许写入 data/skills/，不允许写入 SKILLS/（只读技能库）。
+    //    若模型误把 script_path 指向 SKILLS/，自动重定向到 data/skills/ 对应子路径。
     if (script_content && !existsSync(scriptPath)) {
       const resolvedPath = resolve(scriptPath);
       const writableRoot = getWritableRoot();
       const allowed = resolvedPath === writableRoot || resolvedPath.startsWith(writableRoot + sep);
       if (!allowed) {
-        return JSON.stringify({
-          error: `Dynamic scripts must be placed inside data/skills/ (got: ${scriptPath}). Use $DATA_SKILLS_DIR env var as the path prefix.`,
-        });
+        // 尝试自动重定向：SKILLS/ → data/skills/
+        const skillsRoot = resolve(join(settings.projectRoot, 'SKILLS'));
+        if (resolvedPath.startsWith(skillsRoot + sep)) {
+          const rel = resolvedPath.slice(skillsRoot.length + sep.length);
+          scriptPath = join(writableRoot, rel);
+        } else {
+          return JSON.stringify({
+            error: `Dynamic scripts must be placed inside data/skills/ (got: ${scriptPath}). Use $DATA_SKILLS_DIR env var as the path prefix.`,
+          });
+        }
       }
-      mkdirSync(dirname(resolvedPath), { recursive: true });
-      writeFileSync(resolvedPath, String(script_content), 'utf-8');
+      mkdirSync(dirname(resolve(scriptPath)), { recursive: true });
+      writeFileSync(resolve(scriptPath), String(script_content), 'utf-8');
     }
 
     // 3. 文件存在性检查（在路径安全校验之前，给出更清晰的错误消息）
@@ -336,11 +346,27 @@ export const runScriptTool: ToolDef = {
     const cmdArgs = [...interpreterPrefix, scriptPath, ...scriptArgs];
 
     // 8. 构建环境变量
+    const skillsPptxScriptsDir = join(settings.projectRoot, 'SKILLS', 'pptx', 'scripts');
+    // 拼接 NODE_PATH：让动态脚本能找到全局安装的 npm 包（pptxgenjs / playwright 等）
+    const globalNodeModules = (() => {
+      if (process.platform === 'win32') {
+        const appData = process.env.APPDATA;
+        return appData ? join(appData, 'npm', 'node_modules') : '';
+      }
+      return join(dirname(process.execPath), '..', 'lib', 'node_modules');
+    })();
+    const existingNodePath = process.env.NODE_PATH ?? '';
+    const nodePath = [skillsPptxScriptsDir, globalNodeModules, existingNodePath]
+      .filter(Boolean)
+      .join(sep === '\\' ? ';' : ':');
+
     const env: NodeJS.ProcessEnv = {
       ...process.env,
       SKILLS_ROOT: join(settings.projectRoot, 'SKILLS'),
+      SKILLS_PPTX_SCRIPTS_DIR: skillsPptxScriptsDir,
       DATA_SKILLS_DIR: join(settings.dataDir, 'skills'),
       OUTPUT_DIR: outputDir,
+      NODE_PATH: nodePath,
     };
 
     // 9. 执行

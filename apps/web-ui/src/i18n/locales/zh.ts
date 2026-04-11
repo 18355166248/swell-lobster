@@ -101,6 +101,13 @@ const zh = {
     fileSaveAs: '另存为',
     fileNotFound: '文件不存在或尚未生成',
     generatedFiles: '生成的文件',
+    rename: '重命名',
+    pin: '置顶',
+    unpin: '取消置顶',
+    batchSelect: '批量操作',
+    selectAll: '全选',
+    selectedCount: '已选 {{count}} 项',
+    batchDeleteConfirm: '确定删除选中的 {{count}} 个对话吗？',
   },
 
   // 人设

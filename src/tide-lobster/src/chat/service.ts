@@ -264,6 +264,7 @@ export class ChatService {
 
     // 用 tracking wrapper 跟踪已推送给前端的文本，abort 时可落盘
     let accumulated = '';
+    const trackedToolInvocations: ToolExecutionTrace[] = [];
     const trackingOnEvent = async (event: ChatStreamEvent) => {
       if (event.type === 'delta') accumulated += event.delta;
       await onEvent(event);
@@ -278,6 +279,7 @@ export class ChatService {
         systemPrompt,
         onEvent: trackingOnEvent,
         signal,
+        toolInvocationsRef: trackedToolInvocations,
       });
 
       // 将拼接后的完整助手回复写入会话
@@ -302,13 +304,16 @@ export class ChatService {
       return { session: appended.session, message: assistant.content };
     } catch (e) {
       const isAbort = (e instanceof Error && e.name === 'AbortError') || signal?.aborted;
-      if (isAbort && accumulated.trim()) {
+      if (isAbort && (accumulated.trim() || trackedToolInvocations.length > 0)) {
         // 将前端实际收到的部分内容落盘，刷新后仍可见
-        this.store.appendAssistantMessageWithMeta({
+        const appended = this.store.appendAssistantMessageWithMeta({
           sessionId: session.id,
           assistantContent: accumulated,
           endpointName: endpoint.name,
         });
+        if (appended && trackedToolInvocations.length > 0) {
+          this.attachToolInvocations(appended.session, trackedToolInvocations);
+        }
       }
       throw e;
     }
@@ -409,9 +414,10 @@ export class ChatService {
     systemPrompt?: string;
     onEvent?: (event: ChatStreamEvent) => void | Promise<void>;
     signal?: AbortSignal;
+    toolInvocationsRef?: ToolExecutionTrace[];
   }): Promise<{ content: string; usage?: LLMUsage; toolInvocations: ToolExecutionTrace[] }> {
     let currentMessages = [...args.messages];
-    const toolInvocations: ToolExecutionTrace[] = [];
+    const toolInvocations = args.toolInvocationsRef ?? [];
     let lastContent = '';
 
     for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {

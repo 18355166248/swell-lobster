@@ -121,7 +121,8 @@
       "Bash(mkdir -p F:/FrontEnd/Code/swell-lobster/data/outputs)",
       "Bash(cat)",
       "Read(//f/tmp/**)",
-      "Bash(python test_hello.py)"
+      "Bash(python test_hello.py)",
+      "Bash(echo \"exit:$?\")"
     ]
   }
 }

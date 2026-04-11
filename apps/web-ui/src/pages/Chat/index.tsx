@@ -510,7 +510,7 @@ export function ChatPage() {
 
   const handleRetry = useCallback(
     async (msgIndex: number) => {
-      if (loading) return;
+      if (chatGeneratingSessions.has(activeSessionId)) return;
       const genSessionId = activeSessionId;
       const currentMessages = sessionMessagesMap.get(genSessionId) ?? [];
 
@@ -553,7 +553,17 @@ export function ChatPage() {
         updateSessionMessages(genSessionId, res.session.messages || []);
         setSessions((prev) => upsertSessionSummary(prev, res.session));
       } catch (e) {
-        if (!(e instanceof Error && e.name === 'AbortError')) {
+        if (e instanceof Error && e.name === 'AbortError') {
+          updateSessionMessages(genSessionId, (prev) => {
+            const last = prev[prev.length - 1];
+            if (!last || last.role !== 'assistant') return prev;
+            if (!last.content && !last.tool_invocations?.length) return prev.slice(0, -1);
+            const stoppedInvocations = last.tool_invocations?.map((t) =>
+              t.status === 'running' ? { ...t, status: 'failed' as const } : t
+            );
+            return [...prev.slice(0, -1), { ...last, tool_invocations: stoppedInvocations }];
+          });
+        } else {
           updateSessionMessages(genSessionId, (prev) => prev.slice(0, -1));
           setError(e instanceof Error ? e.message : t('chat.sendFailed'));
         }
@@ -570,7 +580,7 @@ export function ChatPage() {
       }
     },
     [
-      loading,
+      chatGeneratingSessions,
       sessionMessagesMap,
       activeSessionId,
       selectedEndpointName,
@@ -586,7 +596,7 @@ export function ChatPage() {
 
   const send = async () => {
     const text = input.trim();
-    if (!text || loading) return;
+    if (!text || chatGeneratingSessions.has(activeSessionId)) return;
 
     // 在 async 前捕获当前 session ID（新会话时可能为空字符串）
     const genSessionId = activeSessionId;
@@ -633,10 +643,15 @@ export function ChatPage() {
       setSessions((prev) => upsertSessionSummary(prev, res.session));
     } catch (e) {
       if (e instanceof Error && e.name === 'AbortError') {
-        // 用户主动停止：移除空的 assistant 占位，保留已流出的内容
+        // 用户主动停止：移除空的 assistant 占位，保留已流出的内容；将 running 的工具标为 failed
         updateSessionMessages(genSessionId, (prev) => {
           const last = prev[prev.length - 1];
-          return last?.role === 'assistant' && !last.content ? prev.slice(0, -1) : prev;
+          if (!last || last.role !== 'assistant') return prev;
+          if (!last.content && !last.tool_invocations?.length) return prev.slice(0, -1);
+          const stoppedInvocations = last.tool_invocations?.map((t) =>
+            t.status === 'running' ? { ...t, status: 'failed' as const } : t
+          );
+          return [...prev.slice(0, -1), { ...last, tool_invocations: stoppedInvocations }];
         });
       } else {
         updateSessionMessages(genSessionId, (prev) => prev.slice(0, Math.max(0, prev.length - 2)));
@@ -656,9 +671,10 @@ export function ChatPage() {
   };
 
   const bubbleItems = useMemo(
-    () =>
-      messages.map((m, i) => {
-        const isLastAssistant = loading && m.role === 'assistant' && i === messages.length - 1;
+    () => {
+      const isGenerating = chatGeneratingSessions.has(activeSessionId);
+      return messages.map((m, i) => {
+        const isLastAssistant = isGenerating && m.role === 'assistant' && i === messages.length - 1;
         return {
           key: i,
           role: m.role === 'user' ? 'user' : 'assistant',
@@ -667,9 +683,10 @@ export function ChatPage() {
           loading: isLastAssistant && m.content === '',
           streaming: isLastAssistant && m.content !== '',
         };
-      }),
+      });
+    },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [sessionMessagesMap, activeSessionId, loading]
+    [sessionMessagesMap, activeSessionId, chatGeneratingSessions]
   );
 
   return (
@@ -821,7 +838,8 @@ export function ChatPage() {
                             role="assistant"
                             align="end"
                             onRetry={
-                              !loading && item.key === messages.length - 1
+                              !chatGeneratingSessions.has(activeSessionId) &&
+                              item.key === messages.length - 1
                                 ? () => handleRetry(item.key as number)
                                 : undefined
                             }
@@ -879,8 +897,8 @@ export function ChatPage() {
           <div className="max-w-[800px] w-full mx-auto min-w-0 shrink-0">
             <ChatComposer
               input={input}
-              loading={loading}
-              streaming={loading}
+              loading={chatGeneratingSessions.has(activeSessionId)}
+              streaming={chatGeneratingSessions.has(activeSessionId)}
               onInputChange={setInput}
               onSend={send}
               onStop={handleStop}

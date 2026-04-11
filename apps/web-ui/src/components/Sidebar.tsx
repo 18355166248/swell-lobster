@@ -17,6 +17,7 @@ import {
   UserOutlined,
   SettingOutlined,
   LoadingOutlined,
+  BookOutlined,
 } from '@ant-design/icons';
 import { useAtomValue } from 'jotai';
 import { ROUTES } from '../routes';
@@ -40,6 +41,7 @@ export function Sidebar() {
     { key: ROUTES.MCP, icon: <AppstoreOutlined />, label: t('sidebar.mcp') },
     { key: ROUTES.SCHEDULER, icon: <ScheduleOutlined />, label: t('sidebar.scheduler') },
     { key: ROUTES.MEMORY, icon: <DatabaseOutlined />, label: t('sidebar.memory') },
+    { key: ROUTES.JOURNAL, icon: <BookOutlined />, label: t('journal.title') },
     { key: ROUTES.STATUS, icon: <DashboardOutlined />, label: t('sidebar.status') },
     { key: ROUTES.TOKEN_STATS, icon: <BarChartOutlined />, label: t('sidebar.tokenStats') },
     { type: 'divider' },

@@ -342,6 +342,34 @@ const migrations: Array<{ version: number; up: (db: Database.Database) => void }
       );
     },
   },
+  {
+    version: 15,
+    up: (db) => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS journal_entries (
+          id          INTEGER PRIMARY KEY AUTOINCREMENT,
+          title       TEXT NOT NULL DEFAULT '',
+          content     TEXT NOT NULL DEFAULT '',
+          category    TEXT NOT NULL DEFAULT '',
+          tags        TEXT NOT NULL DEFAULT '[]',
+          entry_date  TEXT NOT NULL,
+          created_at  INTEGER NOT NULL,
+          updated_at  INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_journal_entry_date ON journal_entries(entry_date);
+
+        CREATE TABLE IF NOT EXISTS app_logs (
+          id         INTEGER PRIMARY KEY AUTOINCREMENT,
+          level      TEXT NOT NULL,
+          source     TEXT NOT NULL,
+          message    TEXT NOT NULL,
+          context    TEXT,
+          created_at INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_app_logs_created ON app_logs(created_at);
+      `);
+    },
+  },
 ];
 
 function runMigrations(db: Database.Database): void {

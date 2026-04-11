@@ -540,6 +540,38 @@ const en = {
     subtitle: 'Page not found',
     back: '← Back to Home',
   },
+
+  journal: {
+    title: 'Journal',
+    tabDiary: 'Diary',
+    tabLogs: 'System Logs',
+    newEntry: 'New Entry',
+    editEntry: 'Edit Entry',
+    deleteConfirm: 'Delete this entry?',
+    noEntries: 'No entries for this day',
+    fields: {
+      title: 'Title',
+      content: 'Content',
+      category: 'Category',
+      tags: 'Tags',
+      entryDate: 'Date',
+    },
+    logs: {
+      level: 'Level',
+      source: 'Source',
+      message: 'Message',
+      time: 'Time',
+      context: 'Context',
+      sourceBackend: 'Backend',
+      sourceFrontend: 'Frontend',
+      filterDate: 'Filter by date',
+      filterLevel: 'Filter by level',
+      filterSource: 'Filter by source',
+      noLogs: 'No logs',
+      allLevels: 'All levels',
+      allSources: 'All sources',
+    },
+  },
 };
 
 export default en;

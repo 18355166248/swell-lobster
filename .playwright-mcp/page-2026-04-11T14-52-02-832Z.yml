@@ -1,0 +1,153 @@
+- generic [ref=e4]:
+  - complementary [ref=e5]:
+    - generic [ref=e7]:
+      - img "logo" [ref=e8]
+      - generic [ref=e9]:
+        - generic [ref=e10]: SwellLobster
+        - generic [ref=e11]: 桌面终端
+    - navigation [ref=e12]:
+      - menu [ref=e13]:
+        - menuitem "message 聊天" [ref=e14] [cursor=pointer]:
+          - img "message" [ref=e15]:
+            - img [ref=e16]
+          - generic [ref=e18]: 聊天
+        - menuitem "wifi 消息通道" [ref=e19] [cursor=pointer]:
+          - img "wifi" [ref=e20]:
+            - img [ref=e21]
+          - generic [ref=e23]: 消息通道
+        - menuitem "thunderbolt 技能" [ref=e24] [cursor=pointer]:
+          - img "thunderbolt" [ref=e25]:
+            - img [ref=e26]
+          - generic [ref=e28]: 技能
+        - menuitem "appstore MCP" [ref=e29] [cursor=pointer]:
+          - img "appstore" [ref=e30]:
+            - img [ref=e31]
+          - generic [ref=e33]: MCP
+        - menuitem "schedule 计划任务" [ref=e34] [cursor=pointer]:
+          - img "schedule" [ref=e35]:
+            - img [ref=e36]
+          - generic [ref=e38]: 计划任务
+        - menuitem "database 记忆管理" [ref=e39] [cursor=pointer]:
+          - img "database" [ref=e40]:
+            - img [ref=e41]
+          - generic [ref=e43]: 记忆管理
+        - menuitem "book 日志" [ref=e44] [cursor=pointer]:
+          - img "book" [ref=e45]:
+            - img [ref=e46]
+          - generic [ref=e48]: 日志
+        - menuitem "dashboard 状态面板" [ref=e49] [cursor=pointer]:
+          - img "dashboard" [ref=e50]:
+            - img [ref=e51]
+          - generic [ref=e53]: 状态面板
+        - menuitem "bar-chart Token 统计" [ref=e54] [cursor=pointer]:
+          - img "bar-chart" [ref=e55]:
+            - img [ref=e56]
+          - generic [ref=e58]: Token 统计
+        - separator [ref=e59]
+        - text: 配置
+        - group [ref=e60]:
+          - menuitem "cloud-server LLM 端点" [ref=e61] [cursor=pointer]:
+            - img "cloud-server" [ref=e62]:
+              - img [ref=e63]
+            - generic [ref=e67]: LLM 端点
+          - menuitem "comment IM 通道" [ref=e68] [cursor=pointer]:
+            - img "comment" [ref=e69]:
+              - img [ref=e70]
+            - generic [ref=e74]: IM 通道
+          - menuitem "tool 工具与技能" [ref=e75] [cursor=pointer]:
+            - img "tool" [ref=e76]:
+              - img [ref=e77]
+            - generic [ref=e79]: 工具与技能
+          - menuitem "user 身份配置" [ref=e80] [cursor=pointer]:
+            - img "user" [ref=e81]:
+              - img [ref=e82]
+            - generic [ref=e84]: 身份配置
+          - menuitem "setting 高级配置" [ref=e85] [cursor=pointer]:
+            - img "setting" [ref=e86]:
+              - img [ref=e87]
+            - generic [ref=e89]: 高级配置
+    - generic [ref=e91]:
+      - generic [ref=e92]: Desktop v0.1.0
+      - generic [ref=e93]: Backend -
+  - generic [ref=e94]:
+    - banner [ref=e95]:
+      - generic [ref=e96]:
+        - generic [ref=e97]: default
+        - generic [ref=e99]: 运行中
+        - generic [ref=e399]: 5 端点
+      - generic [ref=e101]:
+        - button "desktop" [ref=e103] [cursor=pointer]:
+          - img "desktop" [ref=e105]:
+            - img [ref=e106]
+        - generic [ref=e109] [cursor=pointer]:
+          - generic "中文" [ref=e110]:
+            - text: 中文
+            - combobox [ref=e111]
+          - img "down" [ref=e113]:
+            - img [ref=e114]
+        - button "reload" [ref=e117] [cursor=pointer]:
+          - img "reload" [ref=e401]:
+            - img [ref=e402]
+        - link "link API" [ref=e119] [cursor=pointer]:
+          - /url: http://127.0.0.1:18900
+          - img "link" [ref=e121]:
+            - img [ref=e122]
+          - generic [ref=e124]: API
+    - main [ref=e125]:
+      - generic [ref=e126]:
+        - heading "日志" [level=4] [ref=e128]
+        - generic [ref=e129]:
+          - tablist [ref=e130]:
+            - generic [ref=e132]:
+              - tab "个人日记" [ref=e134] [cursor=pointer]
+              - tab "系统日志" [active] [selected] [ref=e136] [cursor=pointer]
+          - tabpanel "系统日志" [ref=e509]:
+            - generic [ref=e510]:
+              - generic [ref=e511]:
+                - generic [ref=e514]:
+                  - textbox "按日期筛选" [ref=e515]
+                  - generic:
+                    - img "calendar":
+                      - img
+                - generic [ref=e517] [cursor=pointer]:
+                  - generic [ref=e518]:
+                    - generic: 按级别筛选
+                    - combobox [ref=e519]
+                  - img "down" [ref=e521]:
+                    - img [ref=e522]
+                - generic [ref=e525] [cursor=pointer]:
+                  - generic [ref=e526]:
+                    - generic: 按来源筛选
+                    - combobox [ref=e527]
+                  - img "down" [ref=e529]:
+                    - img [ref=e530]
+              - generic [ref=e534]:
+                - table [ref=e538]:
+                  - rowgroup [ref=e544]:
+                    - row "时间 级别 来源 消息" [ref=e545]:
+                      - columnheader [ref=e546]
+                      - columnheader "时间" [ref=e547]
+                      - columnheader "级别" [ref=e548]
+                      - columnheader "来源" [ref=e549]
+                      - columnheader "消息" [ref=e550]
+                  - rowgroup [ref=e551]:
+                    - 'row "04-11 22:30:19 ERROR 后端 [telegram] getMe() failed: Network request for ''getMe'' failed!" [ref=e552]':
+                      - cell [ref=e553]
+                      - cell "04-11 22:30:19" [ref=e554]
+                      - cell "ERROR" [ref=e555]:
+                        - generic [ref=e556]: ERROR
+                      - cell "后端" [ref=e557]:
+                        - generic [ref=e558]: 后端
+                      - 'cell "[telegram] getMe() failed: Network request for ''getMe'' failed!" [ref=e559]'
+                - list [ref=e560]:
+                  - listitem [ref=e561]: 共 1 条
+                  - listitem "Previous Page" [ref=e562]:
+                    - button "left" [disabled] [ref=e563]:
+                      - img "left" [ref=e564]:
+                        - img [ref=e565]
+                  - listitem "1" [ref=e567] [cursor=pointer]:
+                    - generic [ref=e568]: "1"
+                  - listitem "Next Page" [ref=e569]:
+                    - button "right" [disabled] [ref=e570]:
+                      - img "right" [ref=e571]:
+                        - img [ref=e572]

@@ -60,6 +60,22 @@ export async function apiPatch<T = unknown>(
   );
 }
 
+export async function apiPut<T = unknown>(
+  path: string,
+  body: unknown,
+  options?: RequestOptions
+): Promise<T> {
+  return requestJson<T>(
+    path,
+    {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    },
+    options
+  );
+}
+
 export async function apiDelete<T = unknown>(path: string, options?: RequestOptions): Promise<T> {
   return requestJson<T>(
     path,

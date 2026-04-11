@@ -129,7 +129,17 @@
       "Bash(python -c \"from PIL import Image; print\\('PIL ok'\\)\")",
       "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(json.dumps\\(d.get\\('bundle',{}\\).get\\('externalBin',[]\\), indent=2\\)\\); print\\('---'\\); print\\(json.dumps\\(d.get\\('plugins',{}\\), indent=2\\)\\)\")",
       "Bash(python:*)",
-      "Bash(cat F:/FrontEnd/Code/swell-lobster/apps/desktop/src-tauri/capabilities/*.json)"
+      "Bash(cat F:/FrontEnd/Code/swell-lobster/apps/desktop/src-tauri/capabilities/*.json)",
+      "Bash(echo \"vite pid: $!\")",
+      "mcp__plugin_playwright_playwright__browser_navigate",
+      "mcp__plugin_playwright_playwright__browser_take_screenshot",
+      "mcp__plugin_playwright_playwright__browser_console_messages",
+      "mcp__plugin_playwright_playwright__browser_click",
+      "mcp__plugin_playwright_playwright__browser_fill_form",
+      "Bash(echo \"started pid=$!\")",
+      "Bash(awk '{print $5}')",
+      "Bash(xargs -r taskkill /PID /F)",
+      "Bash(cmd:*)"
     ]
   }
 }

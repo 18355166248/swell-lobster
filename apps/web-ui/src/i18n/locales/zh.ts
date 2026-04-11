@@ -554,6 +554,39 @@ const zh = {
     subtitle: '页面不存在',
     back: '← 返回首页',
   },
+
+  // 日志与日记
+  journal: {
+    title: '日志',
+    tabDiary: '个人日记',
+    tabLogs: '系统日志',
+    newEntry: '新建日记',
+    editEntry: '编辑日记',
+    deleteConfirm: '确认删除该日记？',
+    noEntries: '当天暂无日记',
+    fields: {
+      title: '标题',
+      content: '内容',
+      category: '分类',
+      tags: '标签',
+      entryDate: '日期',
+    },
+    logs: {
+      level: '级别',
+      source: '来源',
+      message: '消息',
+      time: '时间',
+      context: '上下文',
+      sourceBackend: '后端',
+      sourceFrontend: '前端',
+      filterDate: '按日期筛选',
+      filterLevel: '按级别筛选',
+      filterSource: '按来源筛选',
+      noLogs: '暂无日志',
+      allLevels: '全部级别',
+      allSources: '全部来源',
+    },
+  },
 } as const;
 
 export default zh;

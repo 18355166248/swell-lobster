@@ -1,0 +1,317 @@
+- generic [ref=e4]:
+  - complementary [ref=e5]:
+    - generic [ref=e7]:
+      - img "logo" [ref=e8]
+      - generic [ref=e9]:
+        - generic [ref=e10]: SwellLobster
+        - generic [ref=e11]: 桌面终端
+    - navigation [ref=e12]:
+      - menu [ref=e13]:
+        - menuitem "message 聊天" [ref=e14] [cursor=pointer]:
+          - img "message" [ref=e15]:
+            - img [ref=e16]
+          - generic [ref=e18]: 聊天
+        - menuitem "wifi 消息通道" [ref=e19] [cursor=pointer]:
+          - img "wifi" [ref=e20]:
+            - img [ref=e21]
+          - generic [ref=e23]: 消息通道
+        - menuitem "thunderbolt 技能" [ref=e24] [cursor=pointer]:
+          - img "thunderbolt" [ref=e25]:
+            - img [ref=e26]
+          - generic [ref=e28]: 技能
+        - menuitem "appstore MCP" [ref=e29] [cursor=pointer]:
+          - img "appstore" [ref=e30]:
+            - img [ref=e31]
+          - generic [ref=e33]: MCP
+        - menuitem "schedule 计划任务" [ref=e34] [cursor=pointer]:
+          - img "schedule" [ref=e35]:
+            - img [ref=e36]
+          - generic [ref=e38]: 计划任务
+        - menuitem "database 记忆管理" [ref=e39] [cursor=pointer]:
+          - img "database" [ref=e40]:
+            - img [ref=e41]
+          - generic [ref=e43]: 记忆管理
+        - menuitem "book 日志" [ref=e44] [cursor=pointer]:
+          - img "book" [ref=e45]:
+            - img [ref=e46]
+          - generic [ref=e48]: 日志
+        - menuitem "dashboard 状态面板" [ref=e49] [cursor=pointer]:
+          - img "dashboard" [ref=e50]:
+            - img [ref=e51]
+          - generic [ref=e53]: 状态面板
+        - menuitem "bar-chart Token 统计" [ref=e54] [cursor=pointer]:
+          - img "bar-chart" [ref=e55]:
+            - img [ref=e56]
+          - generic [ref=e58]: Token 统计
+        - separator [ref=e59]
+        - text: 配置
+        - group [ref=e60]:
+          - menuitem "cloud-server LLM 端点" [ref=e61] [cursor=pointer]:
+            - img "cloud-server" [ref=e62]:
+              - img [ref=e63]
+            - generic [ref=e67]: LLM 端点
+          - menuitem "comment IM 通道" [ref=e68] [cursor=pointer]:
+            - img "comment" [ref=e69]:
+              - img [ref=e70]
+            - generic [ref=e74]: IM 通道
+          - menuitem "tool 工具与技能" [ref=e75] [cursor=pointer]:
+            - img "tool" [ref=e76]:
+              - img [ref=e77]
+            - generic [ref=e79]: 工具与技能
+          - menuitem "user 身份配置" [ref=e80] [cursor=pointer]:
+            - img "user" [ref=e81]:
+              - img [ref=e82]
+            - generic [ref=e84]: 身份配置
+          - menuitem "setting 高级配置" [ref=e85] [cursor=pointer]:
+            - img "setting" [ref=e86]:
+              - img [ref=e87]
+            - generic [ref=e89]: 高级配置
+    - generic [ref=e91]:
+      - generic [ref=e92]: Desktop v0.1.0
+      - generic [ref=e93]: Backend -
+  - generic [ref=e94]:
+    - banner [ref=e95]:
+      - generic [ref=e96]:
+        - generic [ref=e97]: default
+        - generic [ref=e99]: 检查中
+      - generic [ref=e101]:
+        - button "desktop" [ref=e103] [cursor=pointer]:
+          - img "desktop" [ref=e105]:
+            - img [ref=e106]
+        - generic [ref=e109] [cursor=pointer]:
+          - generic "中文" [ref=e110]:
+            - text: 中文
+            - combobox [ref=e111]
+          - img "down" [ref=e113]:
+            - img [ref=e114]
+        - button "reload" [disabled] [ref=e117]:
+          - generic:
+            - img "reload":
+              - img
+        - link "link API" [ref=e119] [cursor=pointer]:
+          - /url: http://127.0.0.1:18900
+          - img "link" [ref=e121]:
+            - img [ref=e122]
+          - generic [ref=e124]: API
+    - main [ref=e125]:
+      - generic [ref=e126]:
+        - heading "日志" [level=4] [ref=e128]
+        - generic [ref=e129]:
+          - tablist [ref=e130]:
+            - generic [ref=e132]:
+              - tab "个人日记" [selected] [ref=e134] [cursor=pointer]
+              - tab "系统日志" [ref=e136] [cursor=pointer]
+          - tabpanel "个人日记" [ref=e139]:
+            - generic [ref=e140]:
+              - generic [ref=e142]:
+                - generic [ref=e143]:
+                  - generic [ref=e144] [cursor=pointer]:
+                    - generic "2026" [ref=e145]:
+                      - text: "2026"
+                      - combobox [ref=e146]
+                    - img "down" [ref=e148]:
+                      - img [ref=e149]
+                  - generic [ref=e151] [cursor=pointer]:
+                    - generic "Apr" [ref=e152]:
+                      - text: Apr
+                      - combobox [ref=e153]
+                    - img "down" [ref=e155]:
+                      - img [ref=e156]
+                  - radiogroup [ref=e158]:
+                    - generic [ref=e159] [cursor=pointer]:
+                      - generic [ref=e160]:
+                        - radio "Month" [checked]
+                      - text: Month
+                    - generic [ref=e161] [cursor=pointer]:
+                      - generic [ref=e162]:
+                        - radio "Year"
+                      - text: Year
+                - table [ref=e166]:
+                  - rowgroup [ref=e167]:
+                    - row "Su Mo Tu We Th Fr Sa" [ref=e168]:
+                      - columnheader "Su" [ref=e169]
+                      - columnheader "Mo" [ref=e170]
+                      - columnheader "Tu" [ref=e171]
+                      - columnheader "We" [ref=e172]
+                      - columnheader "Th" [ref=e173]
+                      - columnheader "Fr" [ref=e174]
+                      - columnheader "Sa" [ref=e175]
+                  - rowgroup [ref=e176]:
+                    - row "29 29 30 30 31 31 01 1 02 2 03 3 04 4" [ref=e177]:
+                      - cell "29 29" [ref=e178] [cursor=pointer]:
+                        - generic [ref=e179]:
+                          - generic [ref=e180]: "29"
+                          - generic [ref=e182]: "29"
+                      - cell "30 30" [ref=e183] [cursor=pointer]:
+                        - generic [ref=e184]:
+                          - generic [ref=e185]: "30"
+                          - generic [ref=e187]: "30"
+                      - cell "31 31" [ref=e188] [cursor=pointer]:
+                        - generic [ref=e189]:
+                          - generic [ref=e190]: "31"
+                          - generic [ref=e192]: "31"
+                      - cell "01 1" [ref=e193] [cursor=pointer]:
+                        - generic [ref=e194]:
+                          - generic [ref=e195]: "01"
+                          - generic [ref=e197]: "1"
+                      - cell "02 2" [ref=e198] [cursor=pointer]:
+                        - generic [ref=e199]:
+                          - generic [ref=e200]: "02"
+                          - generic [ref=e202]: "2"
+                      - cell "03 3" [ref=e203] [cursor=pointer]:
+                        - generic [ref=e204]:
+                          - generic [ref=e205]: "03"
+                          - generic [ref=e207]: "3"
+                      - cell "04 4" [ref=e208] [cursor=pointer]:
+                        - generic [ref=e209]:
+                          - generic [ref=e210]: "04"
+                          - generic [ref=e212]: "4"
+                    - row "05 5 06 6 07 7 08 8 09 9 10 10 11 11" [ref=e213]:
+                      - cell "05 5" [ref=e214] [cursor=pointer]:
+                        - generic [ref=e215]:
+                          - generic [ref=e216]: "05"
+                          - generic [ref=e218]: "5"
+                      - cell "06 6" [ref=e219] [cursor=pointer]:
+                        - generic [ref=e220]:
+                          - generic [ref=e221]: "06"
+                          - generic [ref=e223]: "6"
+                      - cell "07 7" [ref=e224] [cursor=pointer]:
+                        - generic [ref=e225]:
+                          - generic [ref=e226]: "07"
+                          - generic [ref=e228]: "7"
+                      - cell "08 8" [ref=e229] [cursor=pointer]:
+                        - generic [ref=e230]:
+                          - generic [ref=e231]: "08"
+                          - generic [ref=e233]: "8"
+                      - cell "09 9" [ref=e234] [cursor=pointer]:
+                        - generic [ref=e235]:
+                          - generic [ref=e236]: "09"
+                          - generic [ref=e238]: "9"
+                      - cell "10 10" [ref=e239] [cursor=pointer]:
+                        - generic [ref=e240]:
+                          - generic [ref=e241]: "10"
+                          - generic [ref=e243]: "10"
+                      - cell "11 11" [ref=e244] [cursor=pointer]:
+                        - generic [ref=e245]:
+                          - generic [ref=e246]: "11"
+                          - generic [ref=e248]: "11"
+                    - row "12 12 13 13 14 14 15 15 16 16 17 17 18 18" [ref=e249]:
+                      - cell "12 12" [ref=e250] [cursor=pointer]:
+                        - generic [ref=e251]:
+                          - generic [ref=e252]: "12"
+                          - generic [ref=e254]: "12"
+                      - cell "13 13" [ref=e255] [cursor=pointer]:
+                        - generic [ref=e256]:
+                          - generic [ref=e257]: "13"
+                          - generic [ref=e259]: "13"
+                      - cell "14 14" [ref=e260] [cursor=pointer]:
+                        - generic [ref=e261]:
+                          - generic [ref=e262]: "14"
+                          - generic [ref=e264]: "14"
+                      - cell "15 15" [ref=e265] [cursor=pointer]:
+                        - generic [ref=e266]:
+                          - generic [ref=e267]: "15"
+                          - generic [ref=e269]: "15"
+                      - cell "16 16" [ref=e270] [cursor=pointer]:
+                        - generic [ref=e271]:
+                          - generic [ref=e272]: "16"
+                          - generic [ref=e274]: "16"
+                      - cell "17 17" [ref=e275] [cursor=pointer]:
+                        - generic [ref=e276]:
+                          - generic [ref=e277]: "17"
+                          - generic [ref=e279]: "17"
+                      - cell "18 18" [ref=e280] [cursor=pointer]:
+                        - generic [ref=e281]:
+                          - generic [ref=e282]: "18"
+                          - generic [ref=e284]: "18"
+                    - row "19 19 20 20 21 21 22 22 23 23 24 24 25 25" [ref=e285]:
+                      - cell "19 19" [ref=e286] [cursor=pointer]:
+                        - generic [ref=e287]:
+                          - generic [ref=e288]: "19"
+                          - generic [ref=e290]: "19"
+                      - cell "20 20" [ref=e291] [cursor=pointer]:
+                        - generic [ref=e292]:
+                          - generic [ref=e293]: "20"
+                          - generic [ref=e295]: "20"
+                      - cell "21 21" [ref=e296] [cursor=pointer]:
+                        - generic [ref=e297]:
+                          - generic [ref=e298]: "21"
+                          - generic [ref=e300]: "21"
+                      - cell "22 22" [ref=e301] [cursor=pointer]:
+                        - generic [ref=e302]:
+                          - generic [ref=e303]: "22"
+                          - generic [ref=e305]: "22"
+                      - cell "23 23" [ref=e306] [cursor=pointer]:
+                        - generic [ref=e307]:
+                          - generic [ref=e308]: "23"
+                          - generic [ref=e310]: "23"
+                      - cell "24 24" [ref=e311] [cursor=pointer]:
+                        - generic [ref=e312]:
+                          - generic [ref=e313]: "24"
+                          - generic [ref=e315]: "24"
+                      - cell "25 25" [ref=e316] [cursor=pointer]:
+                        - generic [ref=e317]:
+                          - generic [ref=e318]: "25"
+                          - generic [ref=e320]: "25"
+                    - row "26 26 27 27 28 28 29 29 30 30 01 1 02 2" [ref=e321]:
+                      - cell "26 26" [ref=e322] [cursor=pointer]:
+                        - generic [ref=e323]:
+                          - generic [ref=e324]: "26"
+                          - generic [ref=e326]: "26"
+                      - cell "27 27" [ref=e327] [cursor=pointer]:
+                        - generic [ref=e328]:
+                          - generic [ref=e329]: "27"
+                          - generic [ref=e331]: "27"
+                      - cell "28 28" [ref=e332] [cursor=pointer]:
+                        - generic [ref=e333]:
+                          - generic [ref=e334]: "28"
+                          - generic [ref=e336]: "28"
+                      - cell "29 29" [ref=e337] [cursor=pointer]:
+                        - generic [ref=e338]:
+                          - generic [ref=e339]: "29"
+                          - generic [ref=e341]: "29"
+                      - cell "30 30" [ref=e342] [cursor=pointer]:
+                        - generic [ref=e343]:
+                          - generic [ref=e344]: "30"
+                          - generic [ref=e346]: "30"
+                      - cell "01 1" [ref=e347] [cursor=pointer]:
+                        - generic [ref=e348]:
+                          - generic [ref=e349]: "01"
+                          - generic [ref=e351]: "1"
+                      - cell "02 2" [ref=e352] [cursor=pointer]:
+                        - generic [ref=e353]:
+                          - generic [ref=e354]: "02"
+                          - generic [ref=e356]: "2"
+                    - row "03 3 04 4 05 5 06 6 07 7 08 8 09 9" [ref=e357]:
+                      - cell "03 3" [ref=e358] [cursor=pointer]:
+                        - generic [ref=e359]:
+                          - generic [ref=e360]: "03"
+                          - generic [ref=e362]: "3"
+                      - cell "04 4" [ref=e363] [cursor=pointer]:
+                        - generic [ref=e364]:
+                          - generic [ref=e365]: "04"
+                          - generic [ref=e367]: "4"
+                      - cell "05 5" [ref=e368] [cursor=pointer]:
+                        - generic [ref=e369]:
+                          - generic [ref=e370]: "05"
+                          - generic [ref=e372]: "5"
+                      - cell "06 6" [ref=e373] [cursor=pointer]:
+                        - generic [ref=e374]:
+                          - generic [ref=e375]: "06"
+                          - generic [ref=e377]: "6"
+                      - cell "07 7" [ref=e378] [cursor=pointer]:
+                        - generic [ref=e379]:
+                          - generic [ref=e380]: "07"
+                          - generic [ref=e382]: "7"
+                      - cell "08 8" [ref=e383] [cursor=pointer]:
+                        - generic [ref=e384]:
+                          - generic [ref=e385]: "08"
+                          - generic [ref=e387]: "8"
+                      - cell "09 9" [ref=e388] [cursor=pointer]:
+                        - generic [ref=e389]:
+                          - generic [ref=e390]: "09"
+                          - generic [ref=e392]: "9"
+              - generic [ref=e394]:
+                - strong [ref=e396]: 2026-04-11
+                - button "新建日记" [ref=e397] [cursor=pointer]:
+                  - generic [ref=e398]: 新建日记

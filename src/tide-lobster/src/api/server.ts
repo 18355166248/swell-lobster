@@ -22,6 +22,8 @@ import { memoryRouter } from './routes/memory.js';
 import { schedulerRouter } from './routes/scheduler.js';
 import { filesRouter } from './routes/files.js';
 import { tokenStatsRouter } from './routes/tokenStats.js';
+import { journalRouter } from './routes/journal.js';
+import { logsRouter } from './routes/logs.js';
 
 export function createApp(): Hono {
   const app = new Hono();
@@ -62,6 +64,8 @@ export function createApp(): Hono {
   app.route('/', schedulerRouter);
   app.route('/', tokenStatsRouter);
   app.route('/', filesRouter);
+  app.route('/', journalRouter);
+  app.route('/', logsRouter);
 
   return app;
 }

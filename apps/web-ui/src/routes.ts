@@ -7,6 +7,7 @@ export const ROUTES = {
   MCP: '/mcp',
   SCHEDULER: '/scheduler',
   MEMORY: '/memory',
+  JOURNAL: '/journal',
   STATUS: '/status',
   TOKEN_STATS: '/token-stats',
   CONFIG_LLM: '/config/llm',

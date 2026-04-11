@@ -15,6 +15,7 @@ import { initializeBuiltinTools } from './tools/index.js';
 import { imManager } from './im/manager.js';
 import { chatService } from './chat/index.js';
 import { startSkillFileWatcher } from './skills/loader.js';
+import { writeAppLog } from './api/routes/logs.js';
 import { existsSync, readdirSync, copyFileSync } from 'node:fs';
 import { join, basename } from 'node:path';
 
@@ -41,6 +42,25 @@ function initIdentityFiles(): void {
 }
 
 setupGlobalProxy();
+
+/** 拦截 console.error / console.warn，写入 app_logs（db 已在 getDb() 惰性初始化时就绪）。 */
+function installLogInterceptors(): void {
+  const origError = console.error.bind(console);
+  console.error = (...args: unknown[]) => {
+    origError(...args);
+    const msg = args.map((a) => (a instanceof Error ? a.message : String(a))).join(' ');
+    writeAppLog('error', 'backend', msg);
+  };
+
+  const origWarn = console.warn.bind(console);
+  console.warn = (...args: unknown[]) => {
+    origWarn(...args);
+    const msg = args.map((a) => (a instanceof Error ? a.message : String(a))).join(' ');
+    writeAppLog('warn', 'backend', msg);
+  };
+}
+
+installLogInterceptors();
 
 async function main() {
   initIdentityFiles();

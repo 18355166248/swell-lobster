@@ -8,6 +8,7 @@ import { SkillsPage } from './pages/Skills';
 import { MCPPage } from './pages/MCP';
 import { SchedulerPage } from './pages/Scheduler';
 import { MemoryPage } from './pages/Memory';
+import { JournalPage } from './pages/Journal';
 import { StatusPage } from './pages/Status';
 import { TokenStatsPage } from './pages/TokenStats';
 import { ConfigLLMPage } from './pages/config/LLM';
@@ -30,6 +31,7 @@ export const router = createBrowserRouter([
       { path: 'mcp', element: <MCPPage /> },
       { path: 'scheduler', element: <SchedulerPage /> },
       { path: 'memory', element: <MemoryPage /> },
+      { path: 'journal', element: <JournalPage /> },
       { path: 'status', element: <StatusPage /> },
       { path: 'token-stats', element: <TokenStatsPage /> },
       { path: 'config/llm', element: <ConfigLLMPage /> },

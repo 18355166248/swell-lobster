@@ -33,6 +33,23 @@ function Stop-DevProcessTree {
   }
 }
 
+# 检测端口是否被占用，若占用则强制终止对应进程
+function Clear-Port {
+  param([int]$Port)
+  $conns = Get-NetTCPConnection -LocalPort $Port -ErrorAction SilentlyContinue
+  if (-not $conns) { return }
+  $pids = $conns | Select-Object -ExpandProperty OwningProcess -Unique
+  foreach ($procId in $pids) {
+    Write-Host "  端口 $Port 被 PID $procId 占用，正在清理..." -ForegroundColor Yellow
+    Stop-Process -Id $procId -Force -ErrorAction SilentlyContinue
+  }
+  # 最多等 3 秒确认端口释放
+  for ($i = 0; $i -lt 6; $i++) {
+    Start-Sleep -Milliseconds 500
+    if (-not (Get-NetTCPConnection -LocalPort $Port -ErrorAction SilentlyContinue)) { break }
+  }
+}
+
 if (-not (Test-CommandAvailable 'node') -or -not (Test-CommandAvailable 'npm')) {
   Write-Error '未找到 node 或 npm，请先安装 Node.js（建议 >= 20.20.0）。'
   exit 1
@@ -74,6 +91,8 @@ if ($Mode -eq 'build') {
 }
 
 # ── 启动后端 ─────────────────────────────────────────────────────────────────
+Write-Host '🔍   检查端口占用...' -ForegroundColor Cyan
+Clear-Port -Port 18900
 Write-Host '🚀   启动后端  (src/tide-lobster) ...' -ForegroundColor Cyan
 $pBackend = Start-Process -FilePath 'cmd.exe' `
   -ArgumentList @('/c', 'npm run dev') `
@@ -85,6 +104,7 @@ $script:DevChildren = @($pBackend)
 # ── 根据模式启动前端或桌面端 ─────────────────────────────────────────────────
 if ($Mode -eq 'desktop') {
   Write-Host '🚀   启动桌面端  (apps/desktop — Tauri) ...' -ForegroundColor Cyan
+  Clear-Port -Port 5173
   $pDesktop = Start-Process -FilePath 'cmd.exe' `
     -ArgumentList @('/c', 'npm run dev') `
     -WorkingDirectory $desktopDir `
@@ -98,6 +118,7 @@ if ($Mode -eq 'desktop') {
   Write-Host ''
 } else {
   Write-Host '🚀   启动前端  (apps/web-ui) ...' -ForegroundColor Cyan
+  Clear-Port -Port 5173
   $pFrontend = Start-Process -FilePath 'cmd.exe' `
     -ArgumentList @('/c', 'npm run dev') `
     -WorkingDirectory $frontendDir `

@@ -17,9 +17,10 @@
  * 返回 JSON 字符串：
  *   { exit_code, stdout, stderr, output_files: [{filename, url}], timed_out }
  */
-import { existsSync, mkdirSync, readdirSync, realpathSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, statSync, writeFileSync } from 'node:fs';
 import { basename, dirname, extname, join, resolve, sep } from 'node:path';
-import { spawn } from 'node:child_process';
+import { spawnSync, spawn } from 'node:child_process';
+import { builtinModules } from 'node:module';
 import { settings } from '../../config.js';
 import type { ToolDef } from '../types.js';
 
@@ -49,6 +50,69 @@ function getWritableRoot(): string {
     return realpathSync(dir);
   } catch {
     return resolve(dir);
+  }
+}
+
+/** 从脚本内容中提取所有裸模块名（非相对路径、非 node: 内置）。*/
+function extractBareImports(source: string): string[] {
+  const specifiers = new Set<string>();
+  // import ... from 'pkg'  /  export ... from 'pkg'
+  const staticRe = /(?:import|export)\s+(?:.*?\s+from\s+)?['"]([^'"]+)['"]/gm;
+  // import('pkg')
+  const dynamicRe = /\bimport\s*\(\s*['"]([^'"]+)['"]\s*\)/g;
+
+  for (const re of [staticRe, dynamicRe]) {
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(source)) !== null) {
+      specifiers.add(m[1]);
+    }
+  }
+
+  const builtins = new Set([...builtinModules, ...builtinModules.map((m) => `node:${m}`)]);
+
+  return [...specifiers]
+    .filter((s) => !s.startsWith('.') && !s.startsWith('/') && !s.startsWith('file:'))
+    .filter((s) => !builtins.has(s) && !s.startsWith('node:'))
+    .map((s) => (s.startsWith('@') ? s.split('/').slice(0, 2).join('/') : s.split('/')[0]))
+    .filter((s, i, arr) => arr.indexOf(s) === i); // dedupe
+}
+
+/**
+ * 解析脚本的 import 语句，检测缺失的 npm 包并自动安装到 data/skills/node_modules/。
+ * ESM resolver 从脚本位置向上查找 node_modules/，在 data/skills/ 找到即可解析。
+ * 完全动态：只安装脚本实际声明的包，不写死任何包名。
+ */
+function ensureEsmModulesAvailable(scriptContent: string): void {
+  const needed = extractBareImports(scriptContent);
+  if (needed.length === 0) return;
+
+  const writableRoot = join(settings.dataDir, 'skills');
+  mkdirSync(writableRoot, { recursive: true });
+
+  const missing = needed.filter((pkg) => !existsSync(join(writableRoot, 'node_modules', pkg)));
+  if (missing.length === 0) return;
+
+  // 确保 package.json 存在（让 ESM resolver 在此停止向上查找）
+  const pkgJsonPath = join(writableRoot, 'package.json');
+  if (!existsSync(pkgJsonPath)) {
+    writeFileSync(
+      pkgJsonPath,
+      JSON.stringify({ name: 'data-skills', private: true, type: 'module' }, null, 2)
+    );
+  }
+
+  console.log('[run_script] installing missing ESM packages:', missing.join(', '));
+
+  const isWin = process.platform === 'win32';
+  const result = spawnSync('npm', ['install', ...missing, '--prefer-offline', '--no-save'], {
+    cwd: writableRoot,
+    stdio: 'pipe',
+    shell: isWin,
+    timeout: 120_000,
+  });
+
+  if (result.status !== 0) {
+    console.error('[run_script] npm install failed:', result.stderr?.toString().slice(0, 500));
   }
 }
 
@@ -229,12 +293,12 @@ export const runScriptTool: ToolDef = {
   name: 'run_script',
   description: [
     'Execute a script file from SKILLS/ or data/skills/ directories.',
-    'Supported: .py (Python), .js / .mjs (Node.js).',
+    'Supported: .py (Python), .mjs (Node.js ESM). CJS (.js with require) is NOT supported for dynamic scripts — always use .mjs with import syntax.',
     'Scripts MUST write output files to $OUTPUT_DIR (injected as env var).',
     `For dynamically generated scripts (script_content), script_path MUST start with: ${join(settings.dataDir, 'skills')} — do NOT guess, use this exact prefix.`,
     `Injected env vars: SKILLS_ROOT, OUTPUT_DIR, DATA_SKILLS_DIR, NODE_PATH (includes global node_modules), SKILLS_PPTX_SCRIPTS_DIR=${join(settings.projectRoot, 'SKILLS', 'pptx', 'scripts')}.`,
-    `To use pptxgenjs in a dynamic .js script: const pptxgen = require('pptxgenjs'); — it is globally installed and resolvable via NODE_PATH.`,
-    `To use html2pptx in a dynamic .js script: const html2pptx = require(process.env.SKILLS_PPTX_SCRIPTS_DIR + '/html2pptx'); — always use the env var, never a relative path.`,
+    `To use pptxgenjs in a dynamic .mjs script: import pptxgen from 'pptxgenjs'; — globally installed, resolvable via NODE_PATH.`,
+    `To use html2pptx in a dynamic .mjs script: import html2pptx from \`\${process.env.SKILLS_PPTX_SCRIPTS_DIR}/html2pptx.js\`; — always use the env var, never a relative path.`,
     'Returns JSON: { exit_code, stdout, stderr, output_files: [{filename, path, url}], timed_out }.',
     'output_files[].path is the absolute filesystem path; output_files[].url is the API download link.',
     'Include download links in reply: [filename.pptx](/api/files/filename.pptx)',
@@ -242,13 +306,13 @@ export const runScriptTool: ToolDef = {
   parameters: {
     script_path: {
       type: 'string',
-      description: `Absolute path to the script. For existing scripts use SKILLS/ prefix. For dynamic scripts (with script_content) MUST use: ${join(settings.dataDir, 'skills')} as prefix.`,
+      description: `Absolute path to the script. For existing scripts use SKILLS/ prefix. For dynamic scripts (with script_content) MUST use: ${join(settings.dataDir, 'skills')} as prefix, and extension MUST be .mjs (ESM only, no CJS).`,
       required: true,
     },
     script_content: {
       type: 'string',
       description:
-        'Inline script content. If provided and the file does not exist, it will be written to script_path before execution. Useful for dynamically generated scripts.',
+        'Inline script content. MUST use ESM syntax (import/export), NOT CommonJS (require/module.exports). Extension must be .mjs. If provided and the file does not exist, it will be written to script_path before execution.',
       required: false,
     },
     args: {
@@ -285,6 +349,12 @@ export const runScriptTool: ToolDef = {
     //    动态生成的脚本只允许写入 data/skills/，不允许写入 SKILLS/（只读技能库）。
     //    若模型误把 script_path 指向 SKILLS/，自动重定向到 data/skills/ 对应子路径。
     if (script_content && !existsSync(scriptPath)) {
+      // 动态 JS 脚本必须用 .mjs（ESM），禁止 CJS .js
+      if (ext === '.js') {
+        return JSON.stringify({
+          error: 'Dynamic JS scripts must use .mjs extension (ESM only). Rename your script_path to end with .mjs and use import/export syntax instead of require/module.exports.',
+        });
+      }
       const resolvedPath = resolve(scriptPath);
       const writableRoot = getWritableRoot();
       const allowed = resolvedPath === writableRoot || resolvedPath.startsWith(writableRoot + sep);
@@ -338,6 +408,13 @@ export const runScriptTool: ToolDef = {
       interpreterPrefix = python.prefix;
     } else {
       // .js / .mjs → 使用当前 Node.js 二进制
+      // ESM 不支持 NODE_PATH，解析 import 语句并安装缺失依赖到 data/skills/node_modules/
+      if (ext === '.mjs') {
+        const source = script_content
+          ? String(script_content)
+          : (() => { try { return readFileSync(scriptPath, 'utf-8'); } catch { return ''; } })();
+        ensureEsmModulesAvailable(source);
+      }
       bin = process.execPath;
     }
 

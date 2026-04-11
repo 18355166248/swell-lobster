@@ -122,7 +122,11 @@
       "Bash(cat)",
       "Read(//f/tmp/**)",
       "Bash(python test_hello.py)",
-      "Bash(echo \"exit:$?\")"
+      "Bash(echo \"exit:$?\")",
+      "Bash(python3:*)",
+      "Bash(ls:*)",
+      "Bash(npm list:*)",
+      "Bash(python -c \"from PIL import Image; print\\('PIL ok'\\)\")"
     ]
   }
 }

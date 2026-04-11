@@ -16,7 +16,6 @@ import {
   ToolOutlined,
   UserOutlined,
   SettingOutlined,
-  BulbOutlined,
   LoadingOutlined,
 } from '@ant-design/icons';
 import { useAtomValue } from 'jotai';
@@ -64,9 +63,11 @@ export function Sidebar() {
         {...(isTauri() ? { 'data-tauri-drag-region': true } : {})}
       >
         <div className="flex items-center gap-2.5">
-          <div className="w-7 h-7 rounded-lg bg-accent/20 flex items-center justify-center flex-shrink-0">
-            <BulbOutlined style={{ fontSize: 14, color: 'var(--accent)' }} />
-          </div>
+          <img
+            src="/logo.png"
+            alt="logo"
+            className="w-7 h-7 rounded-lg object-cover flex-shrink-0"
+          />
           <div>
             <div className="font-semibold text-sidebar-foreground text-sm leading-tight">
               {t('sidebar.appName')}

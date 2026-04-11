@@ -85,6 +85,7 @@ const ThinkBlock: React.FC<{ content: string; partial?: boolean }> = ({ content,
 
 // ─────────────────────────────────────────────────────────────────────────────
 
+const CODE_BLOCK_LINE_LIMIT = 200;
 const CODE_BLOCK_CHAR_LIMIT = 20000;
 const SYNTAX_HIGHLIGHTER_STYLE = {
   margin: 0,

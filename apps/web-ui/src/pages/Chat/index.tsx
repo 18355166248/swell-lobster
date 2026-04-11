@@ -222,7 +222,6 @@ export function ChatPage() {
     () => new Map()
   );
   const [input, setInput] = useState('');
-  const [loading, setLoading] = useState(false);
   const [chatGeneratingSessions, setChatGenerating] = useAtom(chatGeneratingAtom);
 
   // 当前展示的消息（由 activeSessionId 派生，不是独立 state）
@@ -535,7 +534,6 @@ export function ChatPage() {
       if (genSessionId) {
         setChatGenerating((prev) => new Set(prev).add(genSessionId));
       }
-      setLoading(true);
       setError(null);
 
       try {
@@ -569,7 +567,6 @@ export function ChatPage() {
         }
       } finally {
         abortRef.current = null;
-        setLoading(false);
         if (genSessionId) {
           setChatGenerating((prev) => {
             const next = new Set(prev);
@@ -615,7 +612,6 @@ export function ChatPage() {
     if (genSessionId) {
       setChatGenerating((prev) => new Set(prev).add(genSessionId));
     }
-    setLoading(true);
     setError(null);
 
     try {
@@ -659,7 +655,6 @@ export function ChatPage() {
       }
     } finally {
       abortRef.current = null;
-      setLoading(false);
       if (genSessionId) {
         setChatGenerating((prev) => {
           const next = new Set(prev);

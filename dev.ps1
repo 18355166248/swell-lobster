@@ -54,9 +54,9 @@ foreach ($d in @($backendDir, $frontendDir, $desktopDir)) {
 # ── 打包模式（顺序执行） ──────────────────────────────────────────────────────
 if ($Mode -eq 'build') {
   Write-Host ''
-  Write-Host '📦  [1/3] 构建后端 SEA 二进制  (src/tide-lobster) ...' -ForegroundColor Cyan
+  Write-Host '📦  [1/3] 构建后端二进制  (src/tide-lobster) ...' -ForegroundColor Cyan
   Push-Location $backendDir
-  try { npm run build:sea } finally { Pop-Location }
+  try { npm run build:pkg } finally { Pop-Location }
 
   Write-Host ''
   Write-Host '📦  [2/3] 准备 Tauri sidecar binaries  (apps/desktop) ...' -ForegroundColor Cyan

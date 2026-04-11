@@ -46,9 +46,11 @@
       "../../../SKILLS/pdf/SKILL.md": "SKILLS/pdf/SKILL.md",
       "../../../SKILLS/pptx/SKILL.md": "SKILLS/pptx/SKILL.md",
       "../../../SKILLS/skill-creator/SKILL.md": "SKILLS/skill-creator/SKILL.md",
+      "../../../SKILLS/translato-zh2en/SKILL.md": "SKILLS/translato-zh2en/SKILL.md",
       "../../../SKILLS/xlsx/SKILL.md": "SKILLS/xlsx/SKILL.md",
       "../../../identity/*": "identity/",
-      "../../../identity/**/*": "identity/"
+      "../../../identity/personas/*": "identity/personas/",
+      "../../../identity/runtime/*": "identity/runtime/"
     },
     "externalBin": ["binaries/tide-lobster", "binaries/uv"]
   }

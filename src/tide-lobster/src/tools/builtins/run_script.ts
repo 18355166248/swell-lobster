@@ -300,8 +300,8 @@ export const runScriptTool: ToolDef = {
     `To use pptxgenjs in a dynamic .mjs script: import pptxgen from 'pptxgenjs'; — globally installed, resolvable via NODE_PATH.`,
     `To use html2pptx in a dynamic .mjs script: import html2pptx from \`\${process.env.SKILLS_PPTX_SCRIPTS_DIR}/html2pptx.js\`; — always use the env var, never a relative path.`,
     'Returns JSON: { exit_code, stdout, stderr, output_files: [{filename, path, url}], timed_out }.',
-    'output_files[].path is the absolute filesystem path; output_files[].url is the API download link.',
-    'Include download links in reply: [filename.pptx](/api/files/filename.pptx)',
+    'output_files[].path is the absolute filesystem path; output_files[].url is the API download link (includes required ?localPath= param).',
+    'CRITICAL: In your reply ALWAYS use output_files[].url as-is for download links — NEVER hand-write or construct /api/files/ URLs. Hand-written URLs lack the ?localPath= param and will be rejected by the frontend.',
   ].join(' '),
   parameters: {
     script_path: {
@@ -406,6 +406,37 @@ export const runScriptTool: ToolDef = {
       }
       bin = python.bin;
       interpreterPrefix = python.prefix;
+
+      // 使用 uv run 时，检查脚本是否缺少 `# /// script` 内联依赖声明。
+      // 没有该块，uv 不会安装任何第三方包，import 会在运行时直接报 ModuleNotFoundError。
+      if (interpreterPrefix.includes('run')) {
+        const pySource = script_content
+          ? String(script_content)
+          : (() => { try { return readFileSync(scriptPath, 'utf-8'); } catch { return ''; } })();
+
+        const hasInlineMeta = /^#\s*\/\/\/\s*script/m.test(pySource);
+        const thirdPartyImports = [...pySource.matchAll(/^\s*(?:import|from)\s+([\w.]+)/gm)]
+          .map((m) => m[1].split('.')[0])
+          .filter((name) => !['os', 'sys', 'json', 're', 'math', 'pathlib', 'datetime',
+            'collections', 'itertools', 'functools', 'typing', 'io', 'time', 'random',
+            'string', 'hashlib', 'base64', 'struct', 'copy', 'enum', 'abc', 'contextlib',
+            'dataclasses', 'tempfile', 'shutil', 'glob', 'fnmatch', 'subprocess',
+            'threading', 'multiprocessing', 'logging', 'traceback', 'warnings',
+            'unittest', 'csv', 'configparser', 'argparse', 'textwrap', 'decimal',
+            'fractions', 'statistics', 'array', 'heapq', 'bisect', 'weakref'].includes(name));
+
+        if (!hasInlineMeta && thirdPartyImports.length > 0) {
+          const deps = [...new Set(thirdPartyImports)].map((d) => `"${d}"`).join(', ');
+          return JSON.stringify({
+            error:
+              `Script uses third-party package(s) [${deps}] but is missing the uv inline script metadata block. ` +
+              `uv will NOT auto-install packages without it. ` +
+              `Add this block at the very top of the script (before any imports):\n\n` +
+              `# /// script\n# requires-python = ">=3.10"\n# dependencies = [${deps}]\n# ///\n\n` +
+              `Fix the script and retry.`,
+          });
+        }
+      }
     } else {
       // .js / .mjs → 使用当前 Node.js 二进制
       // ESM 不支持 NODE_PATH，解析 import 语句并安装缺失依赖到 data/skills/node_modules/
@@ -468,7 +499,13 @@ export const runScriptTool: ToolDef = {
     for (const [name, mtime] of afterSnapshot) {
       const prev = beforeSnapshot.get(name);
       if (prev === undefined || mtime > prev) {
-        const realPath = join(outputDir, name);
+        // 用 realpathSync 取规范绝对路径，确保 localPath 与磁盘实际位置一致
+        let realPath: string;
+        try {
+          realPath = realpathSync(join(outputDir, name));
+        } catch {
+          realPath = resolve(join(outputDir, name));
+        }
         newFiles.push({
           filename: name,
           path: realPath,

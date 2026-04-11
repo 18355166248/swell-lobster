@@ -14,6 +14,7 @@ import { CopyOutlined, CheckOutlined, ExpandOutlined, FolderOpenOutlined } from 
 import { Modal } from 'antd';
 import { useTranslation } from 'react-i18next'; // Using useTranslation instead of i18nService
 import mermaid from 'mermaid';
+import { invoke } from '@tauri-apps/api/core';
 import { getApiBase } from '../../api/base';
 import { isTauri } from '../../utils/platform';
 
@@ -354,7 +355,6 @@ const InlineFilePath: React.FC<{ path: string }> = ({ path }) => {
     setError(false);
     try {
       if (isTauri()) {
-        const { invoke } = await import(/* @vite-ignore */ '@tauri-apps/api/core');
         await invoke('open_file', { path });
       } else {
         const url = `${getApiBase()}/api/shell/open?path=${encodeURIComponent(path)}`;

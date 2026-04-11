@@ -4,8 +4,11 @@ import {
   LoadingOutlined,
   WarningOutlined,
 } from '@ant-design/icons';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { invoke } from '@tauri-apps/api/core';
+import { save } from '@tauri-apps/plugin-dialog';
+import { writeFile } from '@tauri-apps/plugin-fs';
 import { getApiBase } from '../../api/base';
 import { isTauri } from '../../utils/platform';
 
@@ -68,23 +71,35 @@ function toDownloadHref(href: string): string {
 export function FileCard({ filename, href }: FileCardProps) {
   const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [exists, setExists] = useState<boolean | null>(null);
   const typeInfo = getFileTypeInfo(filename);
   const inTauri = isTauri();
   const localPath = parseLocalPath(href);
   const downloadHref = toDownloadHref(href);
 
+  // 挂载时 HEAD 检查文件是否可访问，不存在则不渲染卡片
+  useEffect(() => {
+    const url = `${getApiBase()}${downloadHref}`;
+    fetch(url, { method: 'HEAD' })
+      .then((res) => setExists(res.ok))
+      .catch(() => setExists(false));
+  }, [downloadHref]);
+
+  // 检查中或文件不存在：不渲染
+  if (exists !== true) return null;
+
   /** Web 模式：用 /api/shell/open 调系统默认程序打开 */
   const handleWebOpen = async () => {
     if (loading || !localPath) return;
     setLoading(true);
-    setError(false);
+    setError(null);
     try {
       const url = `${getApiBase()}/api/shell/open?path=${encodeURIComponent(localPath)}`;
       const res = await fetch(url);
-      if (!res.ok) setError(true);
-    } catch {
-      setError(true);
+      if (!res.ok) setError(await res.text());
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
     } finally {
       setLoading(false);
     }
@@ -94,20 +109,20 @@ export function FileCard({ filename, href }: FileCardProps) {
   const handleWebDownload = async () => {
     if (loading) return;
     setLoading(true);
-    setError(false);
+    setError(null);
     try {
       const url = `${getApiBase()}${downloadHref}`;
       const check = await fetch(url, { method: 'HEAD' });
       if (!check.ok) {
-        setError(true);
+        setError(`HTTP ${check.status}`);
         return;
       }
       const a = document.createElement('a');
       a.href = url;
       a.download = filename;
       a.click();
-    } catch {
-      setError(true);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
     } finally {
       setLoading(false);
     }
@@ -117,9 +132,8 @@ export function FileCard({ filename, href }: FileCardProps) {
   const handleTauriOpen = async () => {
     if (loading) return;
     setLoading(true);
-    setError(false);
+    setError(null);
     try {
-      const { invoke } = await import(/* @vite-ignore */ '@tauri-apps/api/core');
       // 优先用 localPath（后端实际保存路径），fallback 到 get_output_dir + filename
       let filePath: string;
       if (localPath) {
@@ -130,8 +144,8 @@ export function FileCard({ filename, href }: FileCardProps) {
         filePath = outputDir.replace(/[/\\]$/, '') + s + filename;
       }
       await invoke('open_file', { path: filePath });
-    } catch {
-      setError(true);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
     } finally {
       setLoading(false);
     }
@@ -141,19 +155,20 @@ export function FileCard({ filename, href }: FileCardProps) {
   const handleTauriSaveAs = async () => {
     if (loading) return;
     setLoading(true);
+    setError(null);
     try {
-      const { save } = await import(/* @vite-ignore */ '@tauri-apps/plugin-dialog');
       const ext = filename.split('.').pop() ?? '';
       const savePath = await save({
         defaultPath: filename,
         filters: ext ? [{ name: typeInfo.label, extensions: [ext] }] : [],
       });
       if (!savePath) return;
-      const { writeFile } = await import(/* @vite-ignore */ '@tauri-apps/plugin-fs');
       const url = `${getApiBase()}${downloadHref}`;
       const res = await fetch(url);
       const buf = await res.arrayBuffer();
       await writeFile(savePath, new Uint8Array(buf));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
     } finally {
       setLoading(false);
     }
@@ -179,9 +194,9 @@ export function FileCard({ filename, href }: FileCardProps) {
           {filename}
         </p>
         {error ? (
-          <p className="text-xs text-red-500 mt-0.5 flex items-center gap-1">
+          <p className="text-xs text-red-500 mt-0.5 flex items-center gap-1 truncate" title={error}>
             <WarningOutlined />
-            {t('chat.fileNotFound')}
+            {error}
           </p>
         ) : pathLabel ? (
           <p

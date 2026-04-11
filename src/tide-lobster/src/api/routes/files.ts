@@ -7,9 +7,9 @@
  * 安全：basename() + resolve() 双重校验，防止目录穿越。
  */
 import { Hono } from 'hono';
-import { createReadStream, existsSync, statSync } from 'node:fs';
+import { createReadStream, existsSync, mkdirSync, statSync } from 'node:fs';
 import { spawn } from 'node:child_process';
-import { basename, join, resolve, sep } from 'node:path';
+import { basename, join, resolve } from 'node:path';
 import { Readable } from 'node:stream';
 import { settings } from '../../config.js';
 
@@ -35,9 +35,11 @@ const MIME_TYPES: Record<string, string> = {
 };
 
 function getOutputDir(): string {
-  return resolve(
+  const dir = resolve(
     process.env['SWELL_OUTPUT_DIR'] ?? join(settings.projectRoot, 'data', 'outputs')
   );
+  mkdirSync(dir, { recursive: true });
+  return dir;
 }
 
 /** 下载文件 */
@@ -48,11 +50,25 @@ filesRouter.get('/api/files/:filename', (c) => {
   if (!safe) return c.json({ detail: 'invalid filename' }, 400);
 
   const outputDir = getOutputDir();
-  const filePath = join(outputDir, safe);
 
-  // 二次校验：确保解析后路径仍在输出目录内
-  const real = resolve(filePath);
-  if (!real.startsWith(resolve(outputDir) + sep) && real !== resolve(outputDir)) {
+  // 优先使用 localPath 参数（run_script 写入的真实路径），安全校验后作为主路径
+  // 只允许 localPath 与当前 outputDir 中的 basename 一致，防止路径遍历
+  const rawLocalPath = c.req.query('localPath');
+  let filePath: string;
+  if (rawLocalPath) {
+    const decoded = resolve(decodeURIComponent(rawLocalPath));
+    // 安全：localPath 的 basename 必须与 URL 中的 filename 一致
+    if (basename(decoded) === safe && existsSync(decoded)) {
+      filePath = decoded;
+    } else {
+      filePath = join(outputDir, safe);
+    }
+  } else {
+    filePath = join(outputDir, safe);
+  }
+
+  // 二次校验：确保最终路径的 basename 仍是安全文件名（防止符号链接绕过）
+  if (basename(filePath) !== safe) {
     return c.json({ detail: 'forbidden' }, 403);
   }
 

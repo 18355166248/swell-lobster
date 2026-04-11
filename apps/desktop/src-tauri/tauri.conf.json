@@ -48,6 +48,10 @@
       "../../../SKILLS/skill-creator/SKILL.md": "SKILLS/skill-creator/SKILL.md",
       "../../../SKILLS/translato-zh2en/SKILL.md": "SKILLS/translato-zh2en/SKILL.md",
       "../../../SKILLS/xlsx/SKILL.md": "SKILLS/xlsx/SKILL.md",
+      "../../../SKILLS/playwright/SKILL.md": "SKILLS/playwright/SKILL.md",
+      "../../../SKILLS/playwright/scripts/screenshot.mjs": "SKILLS/playwright/scripts/screenshot.mjs",
+      "../../../SKILLS/playwright/scripts/extract.mjs": "SKILLS/playwright/scripts/extract.mjs",
+      "../../../SKILLS/playwright/scripts/helpers.mjs": "SKILLS/playwright/scripts/helpers.mjs",
       "../../../identity/*": "identity/",
       "../../../identity/personas/*": "identity/personas/",
       "../../../identity/runtime/*": "identity/runtime/"

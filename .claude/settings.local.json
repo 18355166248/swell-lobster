@@ -139,7 +139,11 @@
       "Bash(echo \"started pid=$!\")",
       "Bash(awk '{print $5}')",
       "Bash(xargs -r taskkill /PID /F)",
-      "Bash(cmd:*)"
+      "Bash(cmd:*)",
+      "Bash(npx playwright-cli:*)",
+      "Bash(playwright-cli:*)",
+      "WebFetch(domain:playwright.dev)",
+      "WebFetch(domain:github.com)"
     ]
   }
 }

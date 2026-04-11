@@ -147,6 +147,9 @@ TODO_LOCAL.md
 docs_local/
 docs/bug_doc/
 
+# Playwright — 本地生成的配置，含用户路径，不入库
+.playwright/cli.config.json
+
 # OS
 .DS_Store
 Thumbs.db

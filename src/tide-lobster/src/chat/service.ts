@@ -464,6 +464,9 @@ export class ChatService {
       }
 
       // 保留助手可见文本（若有），并挂上 tool_calls，供下一轮请求前拼接 tool 角色消息
+      if (args.onEvent && result.content) {
+        await args.onEvent({ type: 'delta', delta: result.content });
+      }
       currentMessages = [
         ...currentMessages,
         {

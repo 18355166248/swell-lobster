@@ -17,7 +17,74 @@ import mermaid from 'mermaid';
 import { getApiBase } from '../../api/base';
 import { isTauri } from '../../utils/platform';
 
-const CODE_BLOCK_LINE_LIMIT = 200;
+// ── Think block ──────────────────────────────────────────────────────────────
+
+type ThinkSegment = { type: 'think'; content: string; partial?: boolean };
+type TextSegment = { type: 'text'; content: string };
+type ContentSegment = ThinkSegment | TextSegment;
+
+/** 将内容按 <think>...</think> 切分；处理流式未闭合的情况。 */
+function splitThinkBlocks(content: string): ContentSegment[] {
+  const parts: ContentSegment[] = [];
+  const regex = /<think>([\s\S]*?)<\/think>/g;
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = regex.exec(content)) !== null) {
+    if (match.index > lastIndex) {
+      parts.push({ type: 'text', content: content.slice(lastIndex, match.index) });
+    }
+    parts.push({ type: 'think', content: match[1] });
+    lastIndex = match.index + match[0].length;
+  }
+
+  const remaining = content.slice(lastIndex);
+  const partialStart = remaining.indexOf('<think>');
+  if (partialStart !== -1) {
+    if (partialStart > 0) {
+      parts.push({ type: 'text', content: remaining.slice(0, partialStart) });
+    }
+    parts.push({ type: 'think', partial: true, content: remaining.slice(partialStart + 7) });
+  } else if (remaining) {
+    parts.push({ type: 'text', content: remaining });
+  }
+
+  return parts;
+}
+
+const ThinkBlock: React.FC<{ content: string; partial?: boolean }> = ({ content, partial }) => {
+  const [expanded, setExpanded] = useState(false);
+  const trimmed = content.trim();
+  const preview = trimmed.slice(0, 80).replace(/\s+/g, ' ');
+  const hasMore = trimmed.length > 80;
+
+  return (
+    <div className="my-2 rounded-lg border border-border/40 bg-muted/20 overflow-hidden text-xs">
+      <button
+        type="button"
+        onClick={() => setExpanded((v) => !v)}
+        className="w-full flex items-center gap-1.5 px-3 py-1.5 text-muted-foreground/70 hover:text-muted-foreground transition-colors select-none"
+      >
+        <span className="text-[9px] shrink-0">{expanded ? '▾' : '▸'}</span>
+        <span className="shrink-0 font-medium">{partial ? '思考中…' : '思考过程'}</span>
+        {!expanded && (preview || partial) && (
+          <span className="truncate opacity-50 text-left min-w-0">
+            {preview}
+            {hasMore || partial ? '…' : ''}
+          </span>
+        )}
+      </button>
+      {expanded && trimmed && (
+        <div className="px-3 pb-2.5 pt-1.5 border-t border-border/30 text-muted-foreground/60 leading-5 whitespace-pre-wrap font-sans">
+          {trimmed}
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 const CODE_BLOCK_CHAR_LIMIT = 20000;
 const SYNTAX_HIGHLIGHTER_STYLE = {
   margin: 0,
@@ -643,26 +710,29 @@ interface MarkdownContentProps {
   // resolveLocalFilePath?: (href: string, text: string) => string | null; // Removed Electron-specific prop
 }
 
-const MarkdownContent: React.FC<MarkdownContentProps> = ({
-  content,
-  className = '',
-  // resolveLocalFilePath, // Removed Electron-specific prop
-}) => {
-  const components = useMemo(() => createMarkdownComponents(), []); // No dependencies needed
-  const normalizedContent = useMemo(
-    () => normalizeDisplayMath(encodeFileUrlsInMarkdown(content)),
-    [content]
-  );
+const MarkdownContent: React.FC<MarkdownContentProps> = ({ content, className = '' }) => {
+  const components = useMemo(() => createMarkdownComponents(), []);
+  const segments = useMemo(() => splitThinkBlocks(content), [content]);
+
   return (
     <div className={`markdown-content text-[15px] leading-6 ${className}`}>
-      <ReactMarkdown
-        remarkPlugins={[remarkGfm, remarkMath]}
-        rehypePlugins={[rehypeKatex]}
-        urlTransform={safeUrlTransform}
-        components={components}
-      >
-        {normalizedContent}
-      </ReactMarkdown>
+      {segments.map((seg, i) => {
+        if (seg.type === 'think') {
+          return <ThinkBlock key={i} content={seg.content} partial={seg.partial} />;
+        }
+        const normalized = normalizeDisplayMath(encodeFileUrlsInMarkdown(seg.content));
+        return (
+          <ReactMarkdown
+            key={i}
+            remarkPlugins={[remarkGfm, remarkMath]}
+            rehypePlugins={[rehypeKatex]}
+            urlTransform={safeUrlTransform}
+            components={components}
+          >
+            {normalized}
+          </ReactMarkdown>
+        );
+      })}
     </div>
   );
 };

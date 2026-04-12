@@ -78,8 +78,12 @@ filesRouter.get('/api/files/:filename', (c) => {
   const dotExt = ('.' + safe.split('.').pop()?.toLowerCase()) as string;
   const mime = MIME_TYPES[dotExt] ?? 'application/octet-stream';
 
+  const isImage = mime.startsWith('image/');
   c.header('Content-Type', mime);
-  c.header('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(safe)}`);
+  c.header(
+    'Content-Disposition',
+    `${isImage ? 'inline' : 'attachment'}; filename*=UTF-8''${encodeURIComponent(safe)}`
+  );
   c.header('Content-Length', String(stat.size));
   c.header('Cache-Control', 'no-cache');
 

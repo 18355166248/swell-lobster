@@ -659,9 +659,11 @@ const createMarkdownComponents = () => {
         {children}
       </td>
     ),
-    img: (props: ComponentPropsWithoutRef<'img'>) => (
-      <img className="max-w-full h-auto rounded-xl my-4" {...props} />
-    ),
+    img: ({ src, ...props }: ComponentPropsWithoutRef<'img'>) => {
+      const resolvedSrc =
+        typeof src === 'string' && src.startsWith('/api/files/') ? `${getApiBase()}${src}` : src;
+      return <img className="max-w-full h-auto rounded-xl my-4" src={resolvedSrc} {...props} />;
+    },
     hr: (props: ComponentPropsWithoutRef<'hr'>) => (
       <hr className="my-5 dark:border-claude-darkBorder border-claude-border" {...props} />
     ),

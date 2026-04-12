@@ -20,6 +20,7 @@ import type {
   ChatStreamEvent,
   ChatSession,
   EndpointItem,
+  MessageBlock,
   SessionSearchResult,
   SessionSummary,
   ToolInvocation,
@@ -70,25 +71,36 @@ function updateLastAssistantMessage(
 
 function applyStreamEvent(messages: ChatMessage[], event: ChatStreamEvent): ChatMessage[] {
   if (event.type === 'delta') {
-    return updateLastAssistantMessage(messages, (message) => ({
-      ...message,
-      content: message.content + event.delta,
-    }));
+    return updateLastAssistantMessage(messages, (message) => {
+      const blocks = message.blocks ?? [];
+      const lastBlock = blocks[blocks.length - 1];
+      let newBlocks: MessageBlock[];
+      if (lastBlock?.type === 'text') {
+        newBlocks = [
+          ...blocks.slice(0, -1),
+          { type: 'text', content: lastBlock.content + event.delta },
+        ];
+      } else {
+        newBlocks = [...blocks, { type: 'text', content: event.delta }];
+      }
+      return { ...message, content: message.content + event.delta, blocks: newBlocks };
+    });
   }
 
   if (event.type === 'tool_call') {
-    return updateLastAssistantMessage(messages, (message) => ({
-      ...message,
-      tool_invocations: [
-        ...(message.tool_invocations ?? []),
-        {
-          id: `${event.name}_${Date.now()}_${message.tool_invocations?.length ?? 0}`,
-          name: event.name,
-          arguments: event.arguments,
-          status: 'running',
-        },
-      ],
-    }));
+    return updateLastAssistantMessage(messages, (message) => {
+      const newInvocation: ToolInvocation = {
+        id: `${event.name}_${Date.now()}_${message.tool_invocations?.length ?? 0}`,
+        name: event.name,
+        arguments: event.arguments,
+        status: 'running',
+      };
+      return {
+        ...message,
+        tool_invocations: [...(message.tool_invocations ?? []), newInvocation],
+        blocks: [...(message.blocks ?? []), { type: 'tool_invocation', invocation: newInvocation }],
+      };
+    });
   }
 
   return updateLastAssistantMessage(messages, (message) => {
@@ -99,8 +111,9 @@ function applyStreamEvent(messages: ChatMessage[], event: ChatStreamEvent): Chat
     const targetIndex =
       lastRunningIndex === -1 ? -1 : toolInvocations.length - 1 - lastRunningIndex;
 
+    let updatedInvocation: ToolInvocation;
     if (targetIndex === -1) {
-      toolInvocations.push({
+      updatedInvocation = {
         id: `${event.name}_${Date.now()}_${toolInvocations.length}`,
         name: event.name,
         arguments: {},
@@ -108,21 +121,32 @@ function applyStreamEvent(messages: ChatMessage[], event: ChatStreamEvent): Chat
         result: event.content,
         truncated: event.truncated,
         original_length: event.original_length,
-      });
+      };
+      toolInvocations.push(updatedInvocation);
     } else {
-      toolInvocations[targetIndex] = {
+      updatedInvocation = {
         ...toolInvocations[targetIndex],
         status: event.status,
         result: event.content,
         truncated: event.truncated,
         original_length: event.original_length,
       };
+      toolInvocations[targetIndex] = updatedInvocation;
     }
 
-    return {
-      ...message,
-      tool_invocations: toolInvocations,
-    };
+    // 同步更新 blocks 中对应的 tool_invocation 块
+    const blocks = (message.blocks ?? []).map((block) => {
+      if (
+        block.type === 'tool_invocation' &&
+        block.invocation.name === event.name &&
+        block.invocation.status === 'running'
+      ) {
+        return { ...block, invocation: updatedInvocation };
+      }
+      return block;
+    });
+
+    return { ...message, tool_invocations: toolInvocations, blocks };
   });
 }
 
@@ -136,6 +160,29 @@ function formatRelativeTime(
   if (diff < 3600) return t('chat.timeMinutesAgo', { n: Math.floor(diff / 60) });
   if (diff < 86400) return t('chat.timeHoursAgo', { n: Math.floor(diff / 3600) });
   return t('chat.timeDaysAgo', { n: Math.floor(diff / 86400) });
+}
+
+/**
+ * 流式完成后，把内存中最后一条 assistant 消息的 blocks 合并到服务器返回的消息列表里。
+ * 服务器不存储 blocks，不合并的话渲染会降级到无序模式。
+ */
+function mergeBlocksFromMemory(
+  serverMessages: ChatMessage[],
+  inMemoryMessages: ChatMessage[]
+): ChatMessage[] {
+  const lastMemBlocks = [...inMemoryMessages]
+    .reverse()
+    .find((m) => m.role === 'assistant' && m.blocks && m.blocks.length > 0)?.blocks;
+  if (!lastMemBlocks) return serverMessages;
+
+  const result = [...serverMessages];
+  for (let i = result.length - 1; i >= 0; i--) {
+    if (result[i].role === 'assistant') {
+      result[i] = { ...result[i], blocks: lastMemBlocks };
+      break;
+    }
+  }
+  return result;
 }
 
 /**
@@ -160,6 +207,51 @@ function getToolArgSummary(args: Record<string, unknown>): string | null {
   return null;
 }
 
+function ToolCard({
+  item,
+  t,
+}: {
+  item: ToolInvocation;
+  t: (key: string, options?: object) => string;
+}) {
+  return (
+    <details
+      key={item.id}
+      className="rounded-xl border border-border bg-muted/35 px-3 py-2 text-sm text-foreground"
+    >
+      <summary className="cursor-pointer list-none">
+        <div
+          className={`flex items-center gap-2 min-w-0 rounded-lg${item.status === 'running' ? ' tool-title-shimmer' : ''}`}
+        >
+          <div className={`tool-status-dot ${item.status} shrink-0`} />
+          <span className="font-medium shrink-0">{item.name}</span>
+          {(() => {
+            const summary = getToolArgSummary(item.arguments);
+            return summary ? (
+              <span className="text-muted-foreground truncate min-w-0">· {summary}</span>
+            ) : null;
+          })()}
+        </div>
+      </summary>
+      <div className="mt-2 max-h-64 overflow-y-auto space-y-2">
+        <pre className="overflow-x-auto rounded-lg bg-background px-2 py-1.5 text-xs">
+          {JSON.stringify(item.arguments, null, 2)}
+        </pre>
+        {item.result ? (
+          <pre className="overflow-x-auto rounded-lg bg-background px-2 py-1.5 text-xs">
+            {item.result}
+          </pre>
+        ) : null}
+        {item.truncated && (
+          <span className="text-xs text-muted-foreground">
+            {t('chat.toolTruncated', { length: item.original_length })}
+          </span>
+        )}
+      </div>
+    </details>
+  );
+}
+
 function ToolInvocationPanel({
   toolInvocations,
   t,
@@ -172,40 +264,7 @@ function ToolInvocationPanel({
   return (
     <div className="my-3 flex flex-col gap-2">
       {toolInvocations.map((item) => (
-        <details
-          key={item.id}
-          className="rounded-xl border border-border bg-muted/35 px-3 py-2 text-sm text-foreground"
-        >
-          <summary className="cursor-pointer list-none">
-            <div
-              className={`flex items-center gap-2 min-w-0 rounded-lg${item.status === 'running' ? ' tool-title-shimmer' : ''}`}
-            >
-              <div className={`tool-status-dot ${item.status} shrink-0`} />
-              <span className="font-medium shrink-0">{item.name}</span>
-              {(() => {
-                const summary = getToolArgSummary(item.arguments);
-                return summary ? (
-                  <span className="text-muted-foreground truncate min-w-0">· {summary}</span>
-                ) : null;
-              })()}
-            </div>
-          </summary>
-          <div className="mt-2 max-h-64 overflow-y-auto space-y-2">
-            <pre className="overflow-x-auto rounded-lg bg-background px-2 py-1.5 text-xs">
-              {JSON.stringify(item.arguments, null, 2)}
-            </pre>
-            {item.result ? (
-              <pre className="overflow-x-auto rounded-lg bg-background px-2 py-1.5 text-xs">
-                {item.result}
-              </pre>
-            ) : null}
-            {item.truncated && (
-              <span className="text-xs text-muted-foreground">
-                {t('chat.toolTruncated', { length: item.original_length })}
-              </span>
-            )}
-          </div>
-        </details>
+        <ToolCard key={item.id} item={item} t={t} />
       ))}
     </div>
   );
@@ -548,7 +607,9 @@ export function ChatPage() {
           },
           controller.signal
         );
-        updateSessionMessages(genSessionId, res.session.messages || []);
+        updateSessionMessages(genSessionId, (prev) =>
+          mergeBlocksFromMemory(res.session.messages || [], prev)
+        );
         setSessions((prev) => upsertSessionSummary(prev, res.session));
       } catch (e) {
         if (e instanceof Error && e.name === 'AbortError') {
@@ -635,7 +696,9 @@ export function ChatPage() {
         });
       }
       setActiveSessionId(res.conversation_id);
-      updateSessionMessages(res.conversation_id, res.session.messages || []);
+      updateSessionMessages(res.conversation_id, (prev) =>
+        mergeBlocksFromMemory(res.session.messages || [], prev)
+      );
       setSessions((prev) => upsertSessionSummary(prev, res.session));
     } catch (e) {
       if (e instanceof Error && e.name === 'AbortError') {
@@ -800,6 +863,10 @@ export function ChatPage() {
                     return <LoadingBubble key={item.key} />;
                   }
                   if (item.role === 'assistant') {
+                    const blocks = messageRow?.blocks;
+                    const hasTool = blocks
+                      ? blocks.some((b) => b.type === 'tool_invocation')
+                      : toolInvocations.length > 0;
                     return (
                       <div
                         key={messageId ?? item.key}
@@ -808,19 +875,60 @@ export function ChatPage() {
                           isHighlighted ? 'bg-amber-100/80 ring-1 ring-amber-300' : ''
                         }`}
                       >
-                        <ToolInvocationPanel
-                          toolInvocations={toolInvocations}
-                          t={t as (key: string, options?: object) => string}
-                        />
-                        {item.rawContent ? (
-                          <div
-                            className={`w-full min-w-0 text-foreground [&_.markdown-content]:max-w-none${item.streaming ? ' streaming-text' : ''}`}
-                          >
-                            {item.content}
+                        {blocks ? (
+                          // 流式构建的消息：按 blocks 有序渲染
+                          <div className="flex flex-col gap-2">
+                            {blocks.map((block, blockIndex) => {
+                              if (block.type === 'tool_invocation') {
+                                return (
+                                  <ToolCard
+                                    key={block.invocation.id}
+                                    item={block.invocation}
+                                    t={t as (key: string, options?: object) => string}
+                                  />
+                                );
+                              }
+                              // 文本块：在有工具的消息中，工具前的文本是"思考过程"
+                              const isBeforeTool =
+                                hasTool &&
+                                !blocks
+                                  .slice(0, blockIndex)
+                                  .some((b) => b.type === 'tool_invocation');
+                              return isBeforeTool ? (
+                                <div
+                                  key={blockIndex}
+                                  className={`pl-3 border-l-2 border-border text-sm text-muted-foreground [&_.markdown-content]:max-w-none${item.streaming ? ' streaming-text' : ''}`}
+                                >
+                                  <ChatMarkdown text={block.content} />
+                                </div>
+                              ) : (
+                                <div
+                                  key={blockIndex}
+                                  className={`w-full min-w-0 text-foreground [&_.markdown-content]:max-w-none${item.streaming ? ' streaming-text' : ''}`}
+                                >
+                                  <ChatMarkdown text={block.content} />
+                                </div>
+                              );
+                            })}
                           </div>
-                        ) : item.loading ? (
-                          <LoadingBubble />
-                        ) : null}
+                        ) : (
+                          // 历史消息降级：tools 在前，content 在后（无法还原原始顺序）
+                          <>
+                            <ToolInvocationPanel
+                              toolInvocations={toolInvocations}
+                              t={t as (key: string, options?: object) => string}
+                            />
+                            {item.rawContent ? (
+                              <div
+                                className={`w-full min-w-0 text-foreground [&_.markdown-content]:max-w-none${item.streaming ? ' streaming-text' : ''}`}
+                              >
+                                {item.content}
+                              </div>
+                            ) : item.loading ? (
+                              <LoadingBubble />
+                            ) : null}
+                          </>
+                        )}
                         <div className="flex items-center justify-between">
                           <span className="text-[11px] text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity select-none whitespace-nowrap">
                             {formatRelativeTime(

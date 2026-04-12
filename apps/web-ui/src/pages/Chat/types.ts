@@ -10,12 +10,18 @@ export type ToolInvocation = {
   original_length?: number;
 };
 
+export type MessageBlock =
+  | { type: 'text'; content: string }
+  | { type: 'tool_invocation'; invocation: ToolInvocation };
+
 export type ChatMessage = {
   id?: string;
   role: ChatRole;
   content: string;
   created_at?: string;
   tool_invocations?: ToolInvocation[];
+  /** 流式时按事件顺序构建的有序块，历史消息中不存在 */
+  blocks?: MessageBlock[];
 };
 
 export type EndpointItem = {

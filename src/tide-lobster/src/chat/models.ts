@@ -2,12 +2,18 @@ import type { ToolExecutionTrace } from '../tools/types.js';
 
 export type ChatRole = 'user' | 'assistant';
 
+/** 助手消息的有序内容块：文本段或工具调用，保留原始执行顺序。 */
+export type MessageBlock =
+  | { type: 'text'; content: string }
+  | { type: 'tool_invocation'; invocation: ToolExecutionTrace };
+
 export type ChatMessage = {
   id?: string;
   role: ChatRole;
   content: string;
   created_at?: string;
   tool_invocations?: ToolExecutionTrace[]; // 工具执行轨迹（非流式时仅最后一轮）
+  blocks?: MessageBlock[]; // 有序内容块，含顺序信息；新会话存库，历史会话无此字段
 };
 
 export type ChatSession = {

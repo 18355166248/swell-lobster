@@ -8,7 +8,7 @@ import { randomUUID } from 'node:crypto';
 import { resolve } from 'node:path';
 
 import { parseEnv } from '../utils/envUtils.js';
-import type { ChatMessage, ChatSession, EndpointConfig, SessionSummary } from './models.js';
+import type { ChatMessage, ChatSession, EndpointConfig, MessageBlock, SessionSummary } from './models.js';
 import { requestWithFallback, type LLMRequestMessage, type LLMUsage } from './llmClient.js';
 import { ChatStore } from './chatStore.js';
 import { EndpointStore } from '../store/endpointStore.js';
@@ -265,6 +265,7 @@ export class ChatService {
     // 用 tracking wrapper 跟踪已推送给前端的文本，abort 时可落盘
     let accumulated = '';
     const trackedToolInvocations: ToolExecutionTrace[] = [];
+    const trackedBlocks: MessageBlock[] = [];
     const trackingOnEvent = async (event: ChatStreamEvent) => {
       if (event.type === 'delta') accumulated += event.delta;
       await onEvent(event);
@@ -280,6 +281,7 @@ export class ChatService {
         onEvent: trackingOnEvent,
         signal,
         toolInvocationsRef: trackedToolInvocations,
+        blocksRef: trackedBlocks,
       });
 
       // 将拼接后的完整助手回复写入会话
@@ -287,6 +289,7 @@ export class ChatService {
         sessionId: session.id,
         assistantContent: assistant.content,
         endpointName: endpoint.name,
+        blocks: assistant.blocks,
       });
 
       if (!appended) throw new Error('failed to persist chat session');
@@ -310,6 +313,7 @@ export class ChatService {
           sessionId: session.id,
           assistantContent: accumulated,
           endpointName: endpoint.name,
+          blocks: trackedBlocks.length > 0 ? trackedBlocks : undefined,
         });
         if (appended && trackedToolInvocations.length > 0) {
           this.attachToolInvocations(appended.session, trackedToolInvocations);
@@ -405,6 +409,7 @@ export class ChatService {
    * 单次「用户轮」内的 LLM 循环：请求 → 若无 tool_calls 则得到最终文案并返回；
    * 若有 tool_calls 则执行工具、把 assistant/tool 消息追加进 currentMessages 再请求，直到无工具或达到 MAX_TOOL_ROUNDS。
    * 流式场景下最终文案通过 emitTextAsChunks 模拟 delta；非流式直接整段 content。
+   * blocksRef 为外部传入的数组引用，函数直接 push，abort 时调用方仍可读取已积累的部分。
    */
   private async runCompletion(args: {
     endpoint: EndpointConfig;
@@ -415,10 +420,23 @@ export class ChatService {
     onEvent?: (event: ChatStreamEvent) => void | Promise<void>;
     signal?: AbortSignal;
     toolInvocationsRef?: ToolExecutionTrace[];
-  }): Promise<{ content: string; usage?: LLMUsage; toolInvocations: ToolExecutionTrace[] }> {
+    blocksRef?: MessageBlock[];
+  }): Promise<{ content: string; usage?: LLMUsage; toolInvocations: ToolExecutionTrace[]; blocks: MessageBlock[] }> {
     let currentMessages = [...args.messages];
     const toolInvocations = args.toolInvocationsRef ?? [];
+    const blocks: MessageBlock[] = args.blocksRef ?? [];
     let lastContent = '';
+
+    /** 追加或合并文本块：若末尾已是文本块则直接拼接，否则新建。 */
+    const pushText = (text: string) => {
+      if (!text) return;
+      const last = blocks[blocks.length - 1];
+      if (last?.type === 'text') {
+        last.content += text;
+      } else {
+        blocks.push({ type: 'text', content: text });
+      }
+    };
 
     for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
       // anthropic / openai 两套 tools schema 由 registry 分别序列化
@@ -456,10 +474,12 @@ export class ChatService {
           // 不用空字符串覆盖已有内容（模型工具调用后第二轮可能返回空）
           lastContent = result.content || lastContent;
         }
+        pushText(result.content || '');
         return {
           content: lastContent,
           usage: result.usage,
           toolInvocations,
+          blocks,
         };
       }
 
@@ -467,6 +487,7 @@ export class ChatService {
       if (args.onEvent && result.content) {
         await args.onEvent({ type: 'delta', delta: result.content });
       }
+      pushText(result.content || '');
       currentMessages = [
         ...currentMessages,
         {
@@ -484,6 +505,8 @@ export class ChatService {
           args.onEvent,
           args.sessionId
         );
+        // 工具执行完成后，以最终状态写入 blocks
+        blocks.push({ type: 'tool_invocation', invocation: trace });
         currentMessages = [
           ...currentMessages,
           {
@@ -500,6 +523,7 @@ export class ChatService {
     return {
       content: lastContent || '工具调用达到上限，已停止继续执行。',
       toolInvocations,
+      blocks,
     };
   }
 

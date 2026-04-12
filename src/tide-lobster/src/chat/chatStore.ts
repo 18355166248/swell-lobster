@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { getDb } from '../db/index.js';
 import type { ToolExecutionTrace } from '../tools/types.js';
-import type { ChatSession, ChatMessage, SessionSummary } from './models.js';
+import type { ChatSession, ChatMessage, MessageBlock, SessionSummary } from './models.js';
 
 function nowIso(): string {
   return new Date().toISOString();
@@ -64,7 +64,7 @@ export class ChatStore {
 
     // Get messages
     const messagesStmt = this.db.prepare(`
-      SELECT id, role, content, created_at, tool_invocations
+      SELECT id, role, content, created_at, tool_invocations, blocks
       FROM chat_messages
       WHERE session_id = ?
       ORDER BY sequence ASC, created_at ASC
@@ -84,12 +84,24 @@ export class ChatStore {
           // 忽略损坏的 JSON，按无工具轨迹处理
         }
       }
+      let blocks: MessageBlock[] | undefined;
+      if (row.blocks && typeof row.blocks === 'string') {
+        try {
+          const parsed = JSON.parse(row.blocks) as unknown;
+          if (Array.isArray(parsed)) {
+            blocks = parsed as MessageBlock[];
+          }
+        } catch {
+          // 忽略损坏的 JSON
+        }
+      }
       return {
         id: row.id,
         role: row.role,
         content: row.content,
         created_at: row.created_at,
         ...(tool_invocations?.length ? { tool_invocations } : {}),
+        ...(blocks?.length ? { blocks } : {}),
       };
     });
 
@@ -203,12 +215,14 @@ export class ChatStore {
     sessionId: string;
     assistantContent: string;
     endpointName?: string | null;
+    blocks?: MessageBlock[];
   }): { session: ChatSession; messageId: string } | undefined {
     return this.appendMessageAndReturnId({
       sessionId: args.sessionId,
       role: 'assistant',
       content: args.assistantContent,
       endpointName: args.endpointName,
+      blocks: args.blocks,
     });
   }
 
@@ -294,6 +308,7 @@ export class ChatStore {
     content: string;
     endpointName?: string | null;
     updateTitleFromUser?: boolean;
+    blocks?: MessageBlock[];
   }): { session: ChatSession; messageId: string } | undefined {
     const checkStmt = this.db.prepare('SELECT id, title FROM chat_sessions WHERE id = ?');
     const sessionRow = checkStmt.get(args.sessionId) as any;
@@ -310,11 +325,12 @@ export class ChatStore {
     const nextSeq = seqRow?.next_seq ?? 1;
 
     const insertStmt = this.db.prepare(`
-      INSERT INTO chat_messages (id, session_id, role, content, created_at, sequence)
-      VALUES (?, ?, ?, ?, ?, ?)
+      INSERT INTO chat_messages (id, session_id, role, content, created_at, sequence, blocks)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
     `);
     const messageId = randomUUID?.() ?? `msg_${Math.random().toString(16).slice(2, 12)}`;
-    insertStmt.run(messageId, args.sessionId, args.role, args.content, now, nextSeq);
+    const blocksJson = args.blocks?.length ? JSON.stringify(args.blocks) : null;
+    insertStmt.run(messageId, args.sessionId, args.role, args.content, now, nextSeq, blocksJson);
 
     const updates: string[] = ['updated_at = ?'];
     const values: any[] = [now];

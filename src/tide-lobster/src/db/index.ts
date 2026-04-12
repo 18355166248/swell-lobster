@@ -370,6 +370,13 @@ const migrations: Array<{ version: number; up: (db: Database.Database) => void }
       `);
     },
   },
+  {
+    version: 16,
+    up: (db) => {
+      // 消息有序内容块：保留文本与工具调用的原始执行顺序
+      db.exec(`ALTER TABLE chat_messages ADD COLUMN blocks TEXT`);
+    },
+  },
 ];
 
 function runMigrations(db: Database.Database): void {

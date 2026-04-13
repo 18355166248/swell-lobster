@@ -113,6 +113,7 @@ const en = {
     voiceListening: 'Listening...',
     exportMarkdown: 'Export Markdown',
     exportJson: 'Export JSON',
+    exportFailed: 'Export failed',
   },
 
   persona: {

@@ -116,6 +116,7 @@ const zh = {
     voiceListening: '正在识别...',
     exportMarkdown: '导出 Markdown',
     exportJson: '导出 JSON',
+    exportFailed: '导出失败',
   },
 
   // 人设

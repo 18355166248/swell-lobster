@@ -42,7 +42,7 @@ export function SessionList({
   onRename,
 }: SessionListProps) {
   const { t } = useTranslation();
-  const { modal } = App.useApp();
+  const { modal, message } = App.useApp();
   const chatGenerating = useAtomValue(chatGeneratingAtom);
 
   const [keyword, setKeyword] = useState('');
@@ -183,12 +183,23 @@ export function SessionList({
     });
   };
 
-  const handleExport = (sessionId: string, format: 'md' | 'json') => {
+  const handleExport = async (sessionId: string, format: 'md' | 'json') => {
     const url = `${getApiBase()}/api/export/session/${sessionId}?format=${format}`;
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `session-${sessionId}.${format === 'json' ? 'json' : 'md'}`;
-    a.click();
+    try {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`${res.status}`);
+      const text = await res.text();
+      const mimeType = format === 'json' ? 'application/json' : 'text/plain';
+      const dataUri = `data:${mimeType};charset=utf-8,${encodeURIComponent(text)}`;
+      const a = document.createElement('a');
+      a.href = dataUri;
+      a.download = `session-${sessionId}.${format}`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    } catch (e) {
+      void message.error(t('chat.exportFailed'));
+    }
   };
 
   const getMenuItems = (session: SessionSummary) => [

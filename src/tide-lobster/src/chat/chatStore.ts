@@ -64,7 +64,7 @@ export class ChatStore {
 
     // Get messages
     const messagesStmt = this.db.prepare(`
-      SELECT id, role, content, created_at, tool_invocations, blocks
+      SELECT id, role, content, created_at, tool_invocations, blocks, attachments
       FROM chat_messages
       WHERE session_id = ?
       ORDER BY sequence ASC, created_at ASC
@@ -95,6 +95,17 @@ export class ChatStore {
           // 忽略损坏的 JSON
         }
       }
+      let attachments: string[] | undefined;
+      if (row.attachments && typeof row.attachments === 'string') {
+        try {
+          const parsed = JSON.parse(row.attachments) as unknown;
+          if (Array.isArray(parsed)) {
+            attachments = parsed as string[];
+          }
+        } catch {
+          // 忽略损坏的 JSON
+        }
+      }
       return {
         id: row.id,
         role: row.role,
@@ -102,6 +113,7 @@ export class ChatStore {
         created_at: row.created_at,
         ...(tool_invocations?.length ? { tool_invocations } : {}),
         ...(blocks?.length ? { blocks } : {}),
+        ...(attachments?.length ? { attachments } : {}),
       };
     });
 
@@ -187,6 +199,7 @@ export class ChatStore {
     sessionId: string;
     userContent: string;
     endpointName?: string | null;
+    attachments?: string[];
   }): ChatSession | undefined {
     return this.appendMessageAndReturnId({
       sessionId: args.sessionId,
@@ -194,6 +207,7 @@ export class ChatStore {
       content: args.userContent,
       endpointName: args.endpointName,
       updateTitleFromUser: true,
+      attachments: args.attachments,
     })?.session;
   }
   // 追加助手消息
@@ -309,6 +323,7 @@ export class ChatStore {
     endpointName?: string | null;
     updateTitleFromUser?: boolean;
     blocks?: MessageBlock[];
+    attachments?: string[];
   }): { session: ChatSession; messageId: string } | undefined {
     const checkStmt = this.db.prepare('SELECT id, title FROM chat_sessions WHERE id = ?');
     const sessionRow = checkStmt.get(args.sessionId) as any;
@@ -325,12 +340,13 @@ export class ChatStore {
     const nextSeq = seqRow?.next_seq ?? 1;
 
     const insertStmt = this.db.prepare(`
-      INSERT INTO chat_messages (id, session_id, role, content, created_at, sequence, blocks)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO chat_messages (id, session_id, role, content, created_at, sequence, blocks, attachments)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `);
     const messageId = randomUUID?.() ?? `msg_${Math.random().toString(16).slice(2, 12)}`;
     const blocksJson = args.blocks?.length ? JSON.stringify(args.blocks) : null;
-    insertStmt.run(messageId, args.sessionId, args.role, args.content, now, nextSeq, blocksJson);
+    const attachmentsJson = args.attachments?.length ? JSON.stringify(args.attachments) : null;
+    insertStmt.run(messageId, args.sessionId, args.role, args.content, now, nextSeq, blocksJson, attachmentsJson);
 
     const updates: string[] = ['updated_at = ?'];
     const values: any[] = [now];

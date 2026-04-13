@@ -72,7 +72,10 @@ export class MemoryExtractorService {
 
     // 2. 丢弃规则：满足任意一条则跳过本轮提取，避免无效 LLM 调用
     const fullText = buildConversation(
-      session.messages.map((m) => ({ role: m.role, content: m.content }))
+      session.messages.map((m): LLMRequestMessage => {
+        if (m.role === 'user') return { role: 'user', content: m.content };
+        return { role: 'assistant', content: m.content };
+      })
     );
     if (isTooShort(fullText)) return;
     if (POLITE_ONLY_RE.test(lastUserContent.trim())) return;

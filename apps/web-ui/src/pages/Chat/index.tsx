@@ -15,6 +15,7 @@ import {
   sendMessageStream,
   updateSession,
 } from './api';
+import { getApiBase } from '../../api/base';
 import type {
   ChatMessage,
   ChatStreamEvent,
@@ -25,6 +26,7 @@ import type {
   SessionSummary,
   ToolInvocation,
 } from './types';
+import type { UploadedImage } from './components/ImageUploadButton';
 import { SessionList } from './components/SessionList';
 import { ChatComposer } from './components/ChatComposer';
 import { LoadingBubble } from './components/LoadingBubble';
@@ -32,6 +34,11 @@ import { PersonaSelect } from './components/PersonaSelect';
 import { MessageActions } from './components/MessageActions';
 
 const lastPersonaAtom = atomWithStorage<string | null>('chat_last_persona', null);
+
+function attachmentsToImageUrls(attachments?: string[]): string[] | undefined {
+  if (!attachments?.length) return undefined;
+  return attachments.map((fn) => `${getApiBase()}/api/uploads/${fn}`);
+}
 
 function upsertSessionSummary(list: SessionSummary[], session: ChatSession): SessionSummary[] {
   const next: SessionSummary = {
@@ -281,6 +288,7 @@ export function ChatPage() {
     () => new Map()
   );
   const [input, setInput] = useState('');
+  const [pendingImages, setPendingImages] = useState<UploadedImage[]>([]);
   const [chatGeneratingSessions, setChatGenerating] = useAtom(chatGeneratingAtom);
 
   // 当前展示的消息（由 activeSessionId 派生，不是独立 state）
@@ -403,7 +411,11 @@ export function ChatPage() {
     const detail = await fetchSessionDetail(sessionId);
     setActiveSessionId(detail.id);
     setActivePersonaPath(detail.persona_path ?? null);
-    updateSessionMessages(detail.id, detail.messages || []);
+    const messagesWithImages = (detail.messages || []).map((msg) => ({
+      ...msg,
+      imageUrls: attachmentsToImageUrls(msg.attachments),
+    }));
+    updateSessionMessages(detail.id, messagesWithImages);
     setSessions((prev) => upsertSessionSummary(prev, detail));
   };
 
@@ -607,9 +619,11 @@ export function ChatPage() {
           },
           controller.signal
         );
-        updateSessionMessages(genSessionId, (prev) =>
-          mergeBlocksFromMemory(res.session.messages || [], prev)
-        );
+        const serverMsgs = (res.session.messages || []).map((msg) => ({
+          ...msg,
+          imageUrls: attachmentsToImageUrls(msg.attachments),
+        }));
+        updateSessionMessages(genSessionId, (prev) => mergeBlocksFromMemory(serverMsgs, prev));
         setSessions((prev) => upsertSessionSummary(prev, res.session));
       } catch (e) {
         if (e instanceof Error && e.name === 'AbortError') {
@@ -661,8 +675,18 @@ export function ChatPage() {
     const controller = new AbortController();
     abortRef.current = controller;
 
-    const localUserMessage: ChatMessage = { role: 'user', content: text };
+    const localUserMessage: ChatMessage = {
+      role: 'user',
+      content: text,
+      imageUrls: pendingImages.length > 0 ? pendingImages.map((img) => img.previewUrl) : undefined,
+    };
+    const imagesToSend = pendingImages.map(({ base64, mimeType, filename }) => ({
+      base64,
+      mimeType,
+      filename,
+    }));
     setInput('');
+    setPendingImages([]);
     updateSessionMessages(genSessionId, (prev) => [
       ...prev,
       localUserMessage,
@@ -681,6 +705,7 @@ export function ChatPage() {
           conversation_id: genSessionId,
           message: text,
           endpoint_name: selectedEndpointName,
+          images: imagesToSend.length > 0 ? imagesToSend : undefined,
         },
         (event) => {
           updateSessionMessages(genSessionId, (prev) => applyStreamEvent(prev, event));
@@ -696,9 +721,11 @@ export function ChatPage() {
         });
       }
       setActiveSessionId(res.conversation_id);
-      updateSessionMessages(res.conversation_id, (prev) =>
-        mergeBlocksFromMemory(res.session.messages || [], prev)
-      );
+      const serverMsgs = (res.session.messages || []).map((msg) => ({
+        ...msg,
+        imageUrls: attachmentsToImageUrls(msg.attachments),
+      }));
+      updateSessionMessages(res.conversation_id, (prev) => mergeBlocksFromMemory(serverMsgs, prev));
       setSessions((prev) => upsertSessionSummary(prev, res.session));
     } catch (e) {
       if (e instanceof Error && e.name === 'AbortError') {
@@ -960,6 +987,20 @@ export function ChatPage() {
                       }`}
                     >
                       <div className="flex min-w-0 max-w-[min(85%,42rem)] flex-col items-end">
+                        {/* 图片附件 */}
+                        {messageRow?.imageUrls && messageRow.imageUrls.length > 0 && (
+                          <div className="flex flex-wrap gap-1.5 mb-1.5 justify-end">
+                            {messageRow.imageUrls.map((url, idx) => (
+                              <a key={idx} href={url} target="_blank" rel="noreferrer">
+                                <img
+                                  src={url}
+                                  alt=""
+                                  className="h-40 max-w-xs rounded-xl object-cover border border-border hover:opacity-90 transition-opacity"
+                                />
+                              </a>
+                            ))}
+                          </div>
+                        )}
                         <div className="rounded-2xl bg-muted px-4 py-2.5 text-[15px] leading-6 text-foreground">
                           {item.content}
                         </div>
@@ -1006,6 +1047,9 @@ export function ChatPage() {
               onSend={send}
               onStop={handleStop}
               activeSessionId={activeSessionId}
+              images={pendingImages}
+              onAddImage={(img) => setPendingImages((prev) => [...prev, img])}
+              onRemoveImage={(idx) => setPendingImages((prev) => prev.filter((_, i) => i !== idx))}
             />
           </div>
         </div>

@@ -7,6 +7,8 @@ import {
   PushpinOutlined,
   SearchOutlined,
   CheckSquareOutlined,
+  FileMarkdownOutlined,
+  FileTextOutlined,
 } from '@ant-design/icons';
 import { App, Button, Checkbox, Dropdown, Empty, Input, Spin } from 'antd';
 import { useTranslation } from 'react-i18next';
@@ -15,6 +17,7 @@ import { useAtomValue } from 'jotai';
 import { searchSessions } from '../api';
 import type { SessionSearchResult, SessionSummary } from '../types';
 import { chatGeneratingAtom } from '../../../store/chatGenerating';
+import { getApiBase } from '../../../api/base';
 
 type SessionListProps = {
   sessions: SessionSummary[];
@@ -180,6 +183,14 @@ export function SessionList({
     });
   };
 
+  const handleExport = (sessionId: string, format: 'md' | 'json') => {
+    const url = `${getApiBase()}/api/export/session/${sessionId}?format=${format}`;
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `session-${sessionId}.${format === 'json' ? 'json' : 'md'}`;
+    a.click();
+  };
+
   const getMenuItems = (session: SessionSummary) => [
     {
       key: 'batch',
@@ -198,6 +209,19 @@ export function SessionList({
       label: pinnedIds.has(session.id) ? t('chat.unpin') : t('chat.pin'),
       icon: pinnedIds.has(session.id) ? <PushpinFilled /> : <PushpinOutlined />,
       onClick: () => handleTogglePin(session.id),
+    },
+    { type: 'divider' as const },
+    {
+      key: 'export-md',
+      label: t('chat.exportMarkdown'),
+      icon: <FileMarkdownOutlined />,
+      onClick: () => handleExport(session.id, 'md'),
+    },
+    {
+      key: 'export-json',
+      label: t('chat.exportJson'),
+      icon: <FileTextOutlined />,
+      onClick: () => handleExport(session.id, 'json'),
     },
     { type: 'divider' as const },
     {

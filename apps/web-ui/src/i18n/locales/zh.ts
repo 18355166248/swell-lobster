@@ -108,6 +108,14 @@ const zh = {
     selectAll: '全选',
     selectedCount: '已选 {{count}} 项',
     batchDeleteConfirm: '确定删除选中的 {{count}} 个对话吗？',
+    uploadImage: '上传图片',
+    uploadFailed: '上传失败',
+    imageTooLarge: '图片超过 10MB 限制',
+    removeImage: '移除图片',
+    voiceInput: '语音输入',
+    voiceListening: '正在识别...',
+    exportMarkdown: '导出 Markdown',
+    exportJson: '导出 JSON',
   },
 
   // 人设

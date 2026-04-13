@@ -14,6 +14,7 @@ export type ChatMessage = {
   created_at?: string;
   tool_invocations?: ToolExecutionTrace[]; // 工具执行轨迹（非流式时仅最后一轮）
   blocks?: MessageBlock[]; // 有序内容块，含顺序信息；新会话存库，历史会话无此字段
+  attachments?: string[]; // 图片文件名列表，存储在 data/tmp/uploads/
 };
 
 export type ChatSession = {

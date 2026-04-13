@@ -9,7 +9,7 @@ import { resolve } from 'node:path';
 
 import { parseEnv } from '../utils/envUtils.js';
 import type { ChatMessage, ChatSession, EndpointConfig, MessageBlock, SessionSummary } from './models.js';
-import { requestWithFallback, type LLMRequestMessage, type LLMUsage } from './llmClient.js';
+import { requestWithFallback, type ContentPart, type LLMRequestMessage, type LLMUsage } from './llmClient.js';
 import { ChatStore } from './chatStore.js';
 import { EndpointStore } from '../store/endpointStore.js';
 import { IdentityService } from '../identity/identityService.js';
@@ -60,10 +60,33 @@ function trimMessages(messages: LLMRequestMessage[], maxChars = 60000): LLMReque
 
 /** 将持久化的 ChatMessage 转为 LLM 请求用的扁平 role/content 结构。 */
 function toLLMMessages(messages: ChatMessage[]): LLMRequestMessage[] {
-  return messages.map((message) => ({
-    role: message.role,
-    content: message.content,
-  }));
+  return messages.map((message): LLMRequestMessage => {
+    if (message.role === 'user') return { role: 'user', content: message.content };
+    return { role: 'assistant', content: message.content };
+  });
+}
+
+/**
+ * 将图片附件合并到最后一条 user 消息，构建多模态 ContentPart[]。
+ * 如果无图片，直接返回原 messages。
+ */
+function withImages(
+  messages: LLMRequestMessage[],
+  images: { base64: string; mimeType: string }[]
+): LLMRequestMessage[] {
+  if (!images.length) return messages;
+  const last = messages[messages.length - 1];
+  if (!last || last.role !== 'user') return messages;
+
+  const textContent = typeof last.content === 'string' ? last.content : '';
+  const parts: ContentPart[] = [
+    ...(textContent ? [{ type: 'text' as const, text: textContent }] : []),
+    ...images.map((img) => ({ type: 'image' as const, base64: img.base64, mimeType: img.mimeType })),
+  ];
+  return [
+    ...messages.slice(0, -1),
+    { role: 'user', content: parts },
+  ];
 }
 
 async function emitTextAsChunks(
@@ -139,6 +162,7 @@ export class ChatService {
     conversation_id?: string | null;
     message: string;
     endpoint_name?: string | null;
+    images?: { base64: string; mimeType: string; filename?: string }[];
   }): Promise<{ session: ChatSession; message: string }> {
     const userMessage = (args.message ?? '').trim();
     if (!userMessage) throw new Error('message is empty');
@@ -172,6 +196,7 @@ export class ChatService {
       sessionId: session.id,
       userContent: userMessage,
       endpointName: endpoint.name,
+      attachments: args.images?.map((img) => img.filename).filter(Boolean) as string[] | undefined,
     });
     if (!sessionAfterUser) throw new Error('failed to persist user message');
 
@@ -180,7 +205,7 @@ export class ChatService {
       endpoint,
       apiKey,
       sessionId: session.id,
-      messages: trimMessages(toLLMMessages(sessionAfterUser.messages)),
+      messages: withImages(trimMessages(toLLMMessages(sessionAfterUser.messages)), args.images ?? []),
       systemPrompt,
     });
 
@@ -219,6 +244,7 @@ export class ChatService {
       conversation_id?: string | null;
       message: string;
       endpoint_name?: string | null;
+      images?: { base64: string; mimeType: string; filename?: string }[];
     },
     onEvent: (event: ChatStreamEvent) => void | Promise<void>,
     signal?: AbortSignal
@@ -256,11 +282,13 @@ export class ChatService {
       sessionId: session.id,
       userContent: userMessage,
       endpointName: endpoint.name,
+      attachments: args.images?.map((img) => img.filename).filter(Boolean) as string[] | undefined,
     });
     if (!sessionAfterUser) throw new Error('failed to persist user message');
 
     const systemPrompt = this.buildSystemPrompt(sessionAfterUser, userMessage);
-    const baseMessages = trimMessages(toLLMMessages(sessionAfterUser.messages));
+    const baseMessages = withImages(trimMessages(toLLMMessages(sessionAfterUser.messages)), args.images ?? []);
+    // console.log("🚀 ~ ChatService ~ chatStream ~ baseMessages:", JSON.stringify(baseMessages, null, 2))
 
     // 用 tracking wrapper 跟踪已推送给前端的文本，abort 时可落盘
     let accumulated = '';

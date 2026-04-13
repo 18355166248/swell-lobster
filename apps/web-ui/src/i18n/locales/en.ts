@@ -105,6 +105,14 @@ const en = {
     selectAll: 'Select all',
     selectedCount: '{{count}} selected',
     batchDeleteConfirm: 'Delete {{count}} selected conversations?',
+    uploadImage: 'Upload image',
+    uploadFailed: 'Upload failed',
+    imageTooLarge: 'Image exceeds 10MB limit',
+    removeImage: 'Remove image',
+    voiceInput: 'Voice input',
+    voiceListening: 'Listening...',
+    exportMarkdown: 'Export Markdown',
+    exportJson: 'Export JSON',
   },
 
   persona: {

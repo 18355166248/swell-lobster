@@ -143,7 +143,9 @@
       "Bash(npx playwright-cli:*)",
       "Bash(playwright-cli:*)",
       "WebFetch(domain:playwright.dev)",
-      "WebFetch(domain:github.com)"
+      "WebFetch(domain:github.com)",
+      "Bash(mkdir -p F:/FrontEnd/Code/swell-lobster/src/tide-lobster/src/upload)",
+      "Bash(mkdir -p F:/FrontEnd/Code/swell-lobster/data/tmp/uploads)"
     ]
   }
 }

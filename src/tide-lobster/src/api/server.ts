@@ -24,6 +24,8 @@ import { filesRouter } from './routes/files.js';
 import { tokenStatsRouter } from './routes/tokenStats.js';
 import { journalRouter } from './routes/journal.js';
 import { logsRouter } from './routes/logs.js';
+import { uploadRouter } from './routes/upload.js';
+import { exportRouter } from './routes/export.js';
 
 export function createApp(): Hono {
   const app = new Hono();
@@ -66,6 +68,8 @@ export function createApp(): Hono {
   app.route('/', filesRouter);
   app.route('/', journalRouter);
   app.route('/', logsRouter);
+  app.route('/', uploadRouter);
+  app.route('/', exportRouter);
 
   return app;
 }

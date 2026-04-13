@@ -60,10 +60,39 @@ export async function searchSessions(query: string, limit = 20): Promise<Session
   return apiGet<SessionSearchResult[]>(`/api/sessions/search?${params.toString()}`);
 }
 
+export async function uploadImage(file: File): Promise<{
+  filename: string;
+  mimeType: string;
+  base64: string;
+  size: number;
+  previewUrl: string;
+}> {
+  const formData = new FormData();
+  formData.append('file', file);
+  const res = await fetch(`${getApiBase()}/api/upload/image`, {
+    method: 'POST',
+    body: formData,
+  });
+  if (!res.ok) {
+    const payload = (await res.json().catch(() => ({}))) as { detail?: string };
+    throw new Error(payload.detail ?? `Upload failed: ${res.status}`);
+  }
+  const data = (await res.json()) as {
+    filename: string;
+    mimeType: string;
+    base64: string;
+    size: number;
+    previewUrl: string;
+  };
+  // 后端返回的是相对路径，补全为完整 URL
+  return { ...data, previewUrl: `${getApiBase()}${data.previewUrl}` };
+}
+
 export async function sendMessage(payload: {
   conversation_id?: string;
   message: string;
   endpoint_name?: string;
+  images?: { base64: string; mimeType: string; filename?: string }[];
 }): Promise<{
   message: string;
   conversation_id: string;
@@ -78,6 +107,7 @@ export async function sendMessageStream(
     conversation_id?: string;
     message: string;
     endpoint_name?: string;
+    images?: { base64: string; mimeType: string; filename?: string }[];
   },
   onEvent: (event: ChatStreamEvent) => void,
   signal?: AbortSignal

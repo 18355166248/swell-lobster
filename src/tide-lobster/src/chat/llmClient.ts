@@ -11,8 +11,13 @@ export interface LLMUsage {
   cache_write_tokens?: number; // Anthropic 流式缓存写入 tokens
 }
 
+export type TextPart = { type: 'text'; text: string };
+export type ImagePart = { type: 'image'; base64: string; mimeType: string };
+export type ContentPart = TextPart | ImagePart;
+
 export type LLMRequestMessage =
-  | { role: 'user' | 'assistant'; content: string }
+  | { role: 'user'; content: string | ContentPart[] }
+  | { role: 'assistant'; content: string }
   | { role: 'assistant'; content: string | null; tool_calls: ToolCall[] }
   | { role: 'tool'; content: string; tool_call_id: string; name?: string };
 
@@ -285,6 +290,20 @@ function normalizeOpenAIMessages(
       };
     }
 
+    // 多模态 user message：ContentPart[] 序列化为 OpenAI vision 格式
+    if (message.role === 'user' && Array.isArray(message.content)) {
+      const parts = (message.content as ContentPart[]).map((part) => {
+        if (part.type === 'image') {
+          return {
+            type: 'image_url',
+            image_url: { url: `data:${part.mimeType};base64,${part.base64}` },
+          };
+        }
+        return { type: 'text', text: part.text };
+      });
+      return { role: 'user', content: parts };
+    }
+
     return {
       role: message.role,
       content: message.content,
@@ -320,6 +339,19 @@ function normalizeAnthropicMessages(messages: LLMRequestMessage[]): Array<Record
             input: toolCall.arguments,
           })),
         };
+      }
+      // 多模态 user message：ContentPart[] 序列化为 Anthropic vision 格式
+      if (message.role === 'user' && Array.isArray(message.content)) {
+        const parts = (message.content as ContentPart[]).map((part) => {
+          if (part.type === 'image') {
+            return {
+              type: 'image',
+              source: { type: 'base64', media_type: part.mimeType, data: part.base64 },
+            };
+          }
+          return { type: 'text', text: part.text };
+        });
+        return { role: 'user', content: parts };
       }
       return {
         role: message.role,

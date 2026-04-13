@@ -377,6 +377,12 @@ const migrations: Array<{ version: number; up: (db: Database.Database) => void }
       db.exec(`ALTER TABLE chat_messages ADD COLUMN blocks TEXT`);
     },
   },
+  {
+    version: 17,
+    up: (db) => {
+      db.exec(`ALTER TABLE chat_messages ADD COLUMN attachments TEXT`);
+    },
+  },
 ];
 
 function runMigrations(db: Database.Database): void {

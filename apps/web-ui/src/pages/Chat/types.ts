@@ -22,6 +22,10 @@ export type ChatMessage = {
   tool_invocations?: ToolInvocation[];
   /** 流式时按事件顺序构建的有序块，历史消息中不存在 */
   blocks?: MessageBlock[];
+  /** 前端专用：当前会话内用户发送的图片预览 URL，不持久化 */
+  imageUrls?: string[];
+  /** 服务端持久化的图片文件名列表 */
+  attachments?: string[];
 };
 
 export type EndpointItem = {

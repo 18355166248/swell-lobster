@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { ChatSender } from './ChatSender';
 import { useTranslation } from 'react-i18next';
 import type { TextAreaRef } from 'antd/es/input/TextArea';
+import type { UploadedImage } from './ImageUploadButton';
 
 type ChatComposerProps = {
   input: string;
@@ -11,6 +12,9 @@ type ChatComposerProps = {
   onStop: () => void;
   activeSessionId?: string;
   streaming?: boolean;
+  images: UploadedImage[];
+  onAddImage: (image: UploadedImage) => void;
+  onRemoveImage: (index: number) => void;
 };
 
 export function ChatComposer({
@@ -21,6 +25,9 @@ export function ChatComposer({
   onStop,
   activeSessionId,
   streaming,
+  images,
+  onAddImage,
+  onRemoveImage,
 }: ChatComposerProps) {
   const { t } = useTranslation();
   const inputRef = useRef<TextAreaRef>(null);
@@ -40,6 +47,9 @@ export function ChatComposer({
         loading={loading}
         onCancel={onStop}
         placeholder={t('chat.placeholder')}
+        images={images}
+        onAddImage={onAddImage}
+        onRemoveImage={onRemoveImage}
       />
     </div>
   );

@@ -1,23 +1,16 @@
 import { useRef } from 'react';
 import { Button, Tooltip, message } from 'antd';
-import { PictureOutlined } from '@ant-design/icons';
+import { FileAddOutlined } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
 import { uploadAttachment } from '../api';
+import type { UploadedAttachment } from './ImageUploadButton';
 
-export type UploadedAttachment = {
-  kind: 'image' | 'file';
-  filename: string;
-  mimeType: string;
-  size: number;
-  previewUrl?: string;
-};
-
-type ImageUploadButtonProps = {
-  onUpload: (image: UploadedAttachment) => void;
+type FileUploadButtonProps = {
+  onUpload: (file: UploadedAttachment) => void;
   disabled?: boolean;
 };
 
-export function ImageUploadButton({ onUpload, disabled }: ImageUploadButtonProps) {
+export function FileUploadButton({ onUpload, disabled }: FileUploadButtonProps) {
   const { t } = useTranslation();
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -28,9 +21,8 @@ export function ImageUploadButton({ onUpload, disabled }: ImageUploadButtonProps
   const handleChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    // 前端先做大小校验，快速失败
     if (file.size > 10 * 1024 * 1024) {
-      message.error(t('chat.imageTooLarge'));
+      message.error(t('chat.fileTooLarge'));
       e.target.value = '';
       return;
     }
@@ -51,14 +43,14 @@ export function ImageUploadButton({ onUpload, disabled }: ImageUploadButtonProps
       <input
         ref={inputRef}
         type="file"
-        accept="image/jpeg,image/png,image/gif,image/webp"
+        accept=".pdf,.txt,.md,text/plain,text/markdown,application/pdf"
         className="hidden"
         onChange={handleChange}
       />
-      <Tooltip title={t('chat.uploadImage')}>
+      <Tooltip title={t('chat.uploadFile')}>
         <Button
           type="text"
-          icon={<PictureOutlined />}
+          icon={<FileAddOutlined />}
           onClick={handleClick}
           disabled={disabled}
           size="small"

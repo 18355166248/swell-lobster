@@ -3,6 +3,27 @@ import { Button, Tooltip } from 'antd';
 import { AudioOutlined } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
 
+type SpeechRecognitionResultLike = {
+  transcript?: string;
+};
+
+type SpeechRecognitionEventLike = {
+  results: ArrayLike<ArrayLike<SpeechRecognitionResultLike>>;
+};
+
+type SpeechRecognitionLike = {
+  lang: string;
+  interimResults: boolean;
+  maxAlternatives: number;
+  onresult: ((event: SpeechRecognitionEventLike) => void) | null;
+  onerror: (() => void) | null;
+  onend: (() => void) | null;
+  start: () => void;
+  stop: () => void;
+};
+
+type SpeechRecognitionConstructor = new () => SpeechRecognitionLike;
+
 type VoiceInputButtonProps = {
   onResult: (text: string) => void;
   disabled?: boolean;
@@ -11,18 +32,16 @@ type VoiceInputButtonProps = {
 // 检测浏览器是否支持 Web Speech API
 const SpeechRecognitionAPI =
   typeof window !== 'undefined'
-    ? (((window as Record<string, unknown>).SpeechRecognition as
-        | typeof SpeechRecognition
-        | undefined) ??
-      ((window as Record<string, unknown>).webkitSpeechRecognition as
-        | typeof SpeechRecognition
-        | undefined))
+    ? ((window as unknown as { SpeechRecognition?: SpeechRecognitionConstructor })
+        .SpeechRecognition ??
+      (window as unknown as { webkitSpeechRecognition?: SpeechRecognitionConstructor })
+        .webkitSpeechRecognition)
     : undefined;
 
 export function VoiceInputButton({ onResult, disabled }: VoiceInputButtonProps) {
   const { t } = useTranslation();
   const [listening, setListening] = useState(false);
-  const recognitionRef = useRef<SpeechRecognition | null>(null);
+  const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
 
   // 不支持时不渲染
   if (!SpeechRecognitionAPI) return null;
@@ -38,7 +57,7 @@ export function VoiceInputButton({ onResult, disabled }: VoiceInputButtonProps) 
     recognition.interimResults = false;
     recognition.maxAlternatives = 1;
 
-    recognition.onresult = (e) => {
+    recognition.onresult = (e: SpeechRecognitionEventLike) => {
       const transcript = e.results[0]?.[0]?.transcript ?? '';
       if (transcript) onResult(transcript);
     };

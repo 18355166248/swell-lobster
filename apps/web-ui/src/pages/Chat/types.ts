@@ -14,6 +14,13 @@ export type MessageBlock =
   | { type: 'text'; content: string }
   | { type: 'tool_invocation'; invocation: ToolInvocation };
 
+export type ChatAttachment = {
+  kind: 'image' | 'file';
+  filename: string;
+  mimeType: string;
+  url: string;
+};
+
 export type ChatMessage = {
   id?: string;
   role: ChatRole;
@@ -24,8 +31,8 @@ export type ChatMessage = {
   blocks?: MessageBlock[];
   /** 前端专用：当前会话内用户发送的图片预览 URL，不持久化 */
   imageUrls?: string[];
-  /** 服务端持久化的图片文件名列表 */
-  attachments?: string[];
+  /** 服务端持久化的附件列表 */
+  attachments?: ChatAttachment[];
 };
 
 export type EndpointItem = {

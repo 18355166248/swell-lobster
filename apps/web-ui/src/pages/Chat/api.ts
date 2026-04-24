@@ -1,5 +1,6 @@
 import { apiGet, apiPatch, apiPost, getApiBase } from '../../api/base';
 import type {
+  ChatAttachment,
   ChatStreamEvent,
   ChatSession,
   EndpointItem,
@@ -60,16 +61,16 @@ export async function searchSessions(query: string, limit = 20): Promise<Session
   return apiGet<SessionSearchResult[]>(`/api/sessions/search?${params.toString()}`);
 }
 
-export async function uploadImage(file: File): Promise<{
+export async function uploadAttachment(file: File): Promise<{
+  kind: 'image' | 'file';
   filename: string;
   mimeType: string;
-  base64: string;
   size: number;
-  previewUrl: string;
+  previewUrl?: string;
 }> {
   const formData = new FormData();
   formData.append('file', file);
-  const res = await fetch(`${getApiBase()}/api/upload/image`, {
+  const res = await fetch(`${getApiBase()}/api/upload/file`, {
     method: 'POST',
     body: formData,
   });
@@ -78,21 +79,23 @@ export async function uploadImage(file: File): Promise<{
     throw new Error(payload.detail ?? `Upload failed: ${res.status}`);
   }
   const data = (await res.json()) as {
+    kind: 'image' | 'file';
     filename: string;
     mimeType: string;
-    base64: string;
     size: number;
-    previewUrl: string;
+    previewUrl?: string;
   };
-  // 后端返回的是相对路径，补全为完整 URL
-  return { ...data, previewUrl: `${getApiBase()}${data.previewUrl}` };
+  return {
+    ...data,
+    ...(data.previewUrl ? { previewUrl: `${getApiBase()}${data.previewUrl}` } : {}),
+  };
 }
 
 export async function sendMessage(payload: {
   conversation_id?: string;
   message: string;
   endpoint_name?: string;
-  images?: { base64: string; mimeType: string; filename?: string }[];
+  attachments?: Array<Pick<ChatAttachment, 'kind' | 'filename' | 'mimeType'>>;
 }): Promise<{
   message: string;
   conversation_id: string;
@@ -107,7 +110,7 @@ export async function sendMessageStream(
     conversation_id?: string;
     message: string;
     endpoint_name?: string;
-    images?: { base64: string; mimeType: string; filename?: string }[];
+    attachments?: Array<Pick<ChatAttachment, 'kind' | 'filename' | 'mimeType'>>;
   },
   onEvent: (event: ChatStreamEvent) => void,
   signal?: AbortSignal

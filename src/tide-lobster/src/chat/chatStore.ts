@@ -1,7 +1,40 @@
 import { randomUUID } from 'node:crypto';
 import { getDb } from '../db/index.js';
 import type { ToolExecutionTrace } from '../tools/types.js';
-import type { ChatSession, ChatMessage, MessageBlock, SessionSummary } from './models.js';
+import type {
+  ChatAttachment,
+  ChatSession,
+  ChatMessage,
+  MessageBlock,
+  SessionSummary,
+} from './models.js';
+
+function inferAttachmentFromFilename(filename: string): ChatAttachment {
+  const lower = filename.toLowerCase();
+  if (/\.(png|jpe?g|gif|webp)$/.test(lower)) {
+    return {
+      kind: 'image',
+      filename,
+      mimeType: lower.endsWith('.png')
+        ? 'image/png'
+        : lower.endsWith('.gif')
+          ? 'image/gif'
+          : lower.endsWith('.webp')
+            ? 'image/webp'
+            : 'image/jpeg',
+    };
+  }
+
+  return {
+    kind: 'file',
+    filename,
+    mimeType: lower.endsWith('.pdf')
+      ? 'application/pdf'
+      : lower.endsWith('.md') || lower.endsWith('.markdown')
+        ? 'text/markdown'
+        : 'text/plain',
+  };
+}
 
 function nowIso(): string {
   return new Date().toISOString();
@@ -95,12 +128,25 @@ export class ChatStore {
           // 忽略损坏的 JSON
         }
       }
-      let attachments: string[] | undefined;
+      let attachments: ChatAttachment[] | undefined;
       if (row.attachments && typeof row.attachments === 'string') {
         try {
           const parsed = JSON.parse(row.attachments) as unknown;
           if (Array.isArray(parsed)) {
-            attachments = parsed as string[];
+            attachments = parsed.flatMap((item) => {
+              if (typeof item === 'string') return [inferAttachmentFromFilename(item)];
+              if (
+                item &&
+                typeof item === 'object' &&
+                typeof (item as { filename?: unknown }).filename === 'string' &&
+                typeof (item as { mimeType?: unknown }).mimeType === 'string' &&
+                ((item as { kind?: unknown }).kind === 'image' ||
+                  (item as { kind?: unknown }).kind === 'file')
+              ) {
+                return [item as ChatAttachment];
+              }
+              return [];
+            });
           }
         } catch {
           // 忽略损坏的 JSON
@@ -199,7 +245,7 @@ export class ChatStore {
     sessionId: string;
     userContent: string;
     endpointName?: string | null;
-    attachments?: string[];
+    attachments?: ChatAttachment[];
   }): ChatSession | undefined {
     return this.appendMessageAndReturnId({
       sessionId: args.sessionId,
@@ -323,7 +369,7 @@ export class ChatStore {
     endpointName?: string | null;
     updateTitleFromUser?: boolean;
     blocks?: MessageBlock[];
-    attachments?: string[];
+    attachments?: ChatAttachment[];
   }): { session: ChatSession; messageId: string } | undefined {
     const checkStmt = this.db.prepare('SELECT id, title FROM chat_sessions WHERE id = ?');
     const sessionRow = checkStmt.get(args.sessionId) as any;
@@ -346,14 +392,24 @@ export class ChatStore {
     const messageId = randomUUID?.() ?? `msg_${Math.random().toString(16).slice(2, 12)}`;
     const blocksJson = args.blocks?.length ? JSON.stringify(args.blocks) : null;
     const attachmentsJson = args.attachments?.length ? JSON.stringify(args.attachments) : null;
-    insertStmt.run(messageId, args.sessionId, args.role, args.content, now, nextSeq, blocksJson, attachmentsJson);
+    insertStmt.run(
+      messageId,
+      args.sessionId,
+      args.role,
+      args.content,
+      now,
+      nextSeq,
+      blocksJson,
+      attachmentsJson
+    );
 
     const updates: string[] = ['updated_at = ?'];
     const values: any[] = [now];
 
     if (args.updateTitleFromUser && sessionRow.title === '新对话') {
       updates.push('title = ?');
-      values.push(args.content.trim().replace(/\n+/g, ' ').slice(0, 24) || '新对话');
+      const fallbackTitle = args.attachments?.[0]?.filename ?? '新对话';
+      values.push(args.content.trim().replace(/\n+/g, ' ').slice(0, 24) || fallbackTitle);
     }
     if (args.endpointName) {
       updates.push('endpoint_name = ?');

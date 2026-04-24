@@ -8,8 +8,14 @@ import { randomUUID } from 'node:crypto';
 import { resolve } from 'node:path';
 
 import { parseEnv } from '../utils/envUtils.js';
-import type { ChatMessage, ChatSession, EndpointConfig, MessageBlock, SessionSummary } from './models.js';
-import { requestWithFallback, type ContentPart, type LLMRequestMessage, type LLMUsage } from './llmClient.js';
+import type {
+  ChatAttachment,
+  ChatSession,
+  EndpointConfig,
+  MessageBlock,
+  SessionSummary,
+} from './models.js';
+import { requestWithFallback, type LLMRequestMessage, type LLMUsage } from './llmClient.js';
 import { ChatStore } from './chatStore.js';
 import { EndpointStore } from '../store/endpointStore.js';
 import { IdentityService } from '../identity/identityService.js';
@@ -19,6 +25,8 @@ import { extractorService } from '../memory/extractorService.js';
 import { globalToolRegistry } from '../tools/registry.js';
 import type { ToolCall, ToolExecutionTrace } from '../tools/types.js';
 import { buildSkillsAutoRoutingPrompt } from '../skills/autoRouting.js';
+import { persistUploadedBuffer, type StoredAttachment } from '../upload/handler.js';
+import { toLLMMessages, type ChatInputAttachment } from './attachments.js';
 
 /** 单次用户提问内，模型最多可发起多少轮「助手带 tool_calls → 执行工具 → 再请求模型」；防止死循环。 */
 const MAX_TOOL_ROUNDS = 25;
@@ -56,37 +64,6 @@ function trimMessages(messages: LLMRequestMessage[], maxChars = 60000): LLMReque
     result.unshift(message);
   }
   return result;
-}
-
-/** 将持久化的 ChatMessage 转为 LLM 请求用的扁平 role/content 结构。 */
-function toLLMMessages(messages: ChatMessage[]): LLMRequestMessage[] {
-  return messages.map((message): LLMRequestMessage => {
-    if (message.role === 'user') return { role: 'user', content: message.content };
-    return { role: 'assistant', content: message.content };
-  });
-}
-
-/**
- * 将图片附件合并到最后一条 user 消息，构建多模态 ContentPart[]。
- * 如果无图片，直接返回原 messages。
- */
-function withImages(
-  messages: LLMRequestMessage[],
-  images: { base64: string; mimeType: string }[]
-): LLMRequestMessage[] {
-  if (!images.length) return messages;
-  const last = messages[messages.length - 1];
-  if (!last || last.role !== 'user') return messages;
-
-  const textContent = typeof last.content === 'string' ? last.content : '';
-  const parts: ContentPart[] = [
-    ...(textContent ? [{ type: 'text' as const, text: textContent }] : []),
-    ...images.map((img) => ({ type: 'image' as const, base64: img.base64, mimeType: img.mimeType })),
-  ];
-  return [
-    ...messages.slice(0, -1),
-    { role: 'user', content: parts },
-  ];
 }
 
 async function emitTextAsChunks(
@@ -162,10 +139,11 @@ export class ChatService {
     conversation_id?: string | null;
     message: string;
     endpoint_name?: string | null;
-    images?: { base64: string; mimeType: string; filename?: string }[];
+    attachments?: ChatInputAttachment[];
   }): Promise<{ session: ChatSession; message: string }> {
     const userMessage = (args.message ?? '').trim();
-    if (!userMessage) throw new Error('message is empty');
+    const attachments = await this.prepareAttachments(args.attachments ?? []);
+    if (!userMessage && attachments.length === 0) throw new Error('message is empty');
 
     // 无 conversation_id 或会话不存在时新建会话；端点优先用入参，否则用会话上已绑定的端点
     let session = args.conversation_id ? this.store.getSession(args.conversation_id) : undefined;
@@ -196,7 +174,7 @@ export class ChatService {
       sessionId: session.id,
       userContent: userMessage,
       endpointName: endpoint.name,
-      attachments: args.images?.map((img) => img.filename).filter(Boolean) as string[] | undefined,
+      attachments,
     });
     if (!sessionAfterUser) throw new Error('failed to persist user message');
 
@@ -205,7 +183,7 @@ export class ChatService {
       endpoint,
       apiKey,
       sessionId: session.id,
-      messages: withImages(trimMessages(toLLMMessages(sessionAfterUser.messages)), args.images ?? []),
+      messages: trimMessages(toLLMMessages(this.projectRoot, sessionAfterUser.messages)),
       systemPrompt,
     });
 
@@ -244,14 +222,15 @@ export class ChatService {
       conversation_id?: string | null;
       message: string;
       endpoint_name?: string | null;
-      images?: { base64: string; mimeType: string; filename?: string }[];
+      attachments?: ChatInputAttachment[];
     },
     onEvent: (event: ChatStreamEvent) => void | Promise<void>,
     signal?: AbortSignal
   ): Promise<{ session: ChatSession; message: string }> {
     // 校验用户输入非空
     const userMessage = (args.message ?? '').trim();
-    if (!userMessage) throw new Error('message is empty');
+    const attachments = await this.prepareAttachments(args.attachments ?? []);
+    if (!userMessage && attachments.length === 0) throw new Error('message is empty');
 
     // 无 conversation_id 或会话不存在时新建会话；端点优先用入参，否则用会话上已绑定的端点
     let session = args.conversation_id ? this.store.getSession(args.conversation_id) : undefined;
@@ -282,13 +261,12 @@ export class ChatService {
       sessionId: session.id,
       userContent: userMessage,
       endpointName: endpoint.name,
-      attachments: args.images?.map((img) => img.filename).filter(Boolean) as string[] | undefined,
+      attachments,
     });
     if (!sessionAfterUser) throw new Error('failed to persist user message');
 
     const systemPrompt = this.buildSystemPrompt(sessionAfterUser, userMessage);
-    const baseMessages = withImages(trimMessages(toLLMMessages(sessionAfterUser.messages)), args.images ?? []);
-    // console.log("🚀 ~ ChatService ~ chatStream ~ baseMessages:", JSON.stringify(baseMessages, null, 2))
+    const baseMessages = trimMessages(toLLMMessages(this.projectRoot, sessionAfterUser.messages));
 
     // 用 tracking wrapper 跟踪已推送给前端的文本，abort 时可落盘
     let accumulated = '';
@@ -449,7 +427,12 @@ export class ChatService {
     signal?: AbortSignal;
     toolInvocationsRef?: ToolExecutionTrace[];
     blocksRef?: MessageBlock[];
-  }): Promise<{ content: string; usage?: LLMUsage; toolInvocations: ToolExecutionTrace[]; blocks: MessageBlock[] }> {
+  }): Promise<{
+    content: string;
+    usage?: LLMUsage;
+    toolInvocations: ToolExecutionTrace[];
+    blocks: MessageBlock[];
+  }> {
     let currentMessages = [...args.messages];
     const toolInvocations = args.toolInvocationsRef ?? [];
     const blocks: MessageBlock[] = args.blocksRef ?? [];
@@ -485,8 +468,6 @@ export class ChatService {
         },
         signal: args.signal,
       });
-
-      console.log('src/tide-lobster/src/chat/service.ts result', JSON.stringify(result, null, 2));
 
       // 模型不再要工具：视为本轮对话的最终回复
       if (!result.tool_calls?.length) {
@@ -658,6 +639,43 @@ export class ChatService {
     } catch {
       return '';
     }
+  }
+
+  private async prepareAttachments(attachments: ChatInputAttachment[]): Promise<ChatAttachment[]> {
+    const normalized: ChatAttachment[] = [];
+
+    for (const attachment of attachments) {
+      if (!attachment?.mimeType || (attachment.kind !== 'image' && attachment.kind !== 'file')) {
+        continue;
+      }
+
+      if (attachment.filename) {
+        normalized.push({
+          kind: attachment.kind,
+          filename: attachment.filename,
+          mimeType: attachment.mimeType,
+        });
+        continue;
+      }
+
+      if (!attachment.base64) continue;
+      try {
+        const stored: StoredAttachment = persistUploadedBuffer({
+          buffer: Buffer.from(attachment.base64, 'base64'),
+          mimeType: attachment.mimeType,
+          kind: attachment.kind,
+        });
+        normalized.push({
+          kind: stored.kind,
+          filename: stored.filename,
+          mimeType: stored.mimeType,
+        });
+      } catch (error) {
+        console.warn('[chat.attachments] skip invalid attachment:', error);
+      }
+    }
+
+    return normalized;
   }
 
   /**

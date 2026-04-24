@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, useCallback, memo } from 'react';
 import { Alert, Avatar, Button, Select, Skeleton } from 'antd';
-import { PlusOutlined, RobotOutlined, UserOutlined } from '@ant-design/icons';
+import { FileTextOutlined, PlusOutlined, RobotOutlined, UserOutlined } from '@ant-design/icons';
 import { useAtom } from 'jotai';
 import { atomWithStorage } from 'jotai/utils';
 import { chatGeneratingAtom } from '../../store/chatGenerating';
@@ -17,6 +17,7 @@ import {
 } from './api';
 import { getApiBase } from '../../api/base';
 import type {
+  ChatAttachment,
   ChatMessage,
   ChatStreamEvent,
   ChatSession,
@@ -26,7 +27,7 @@ import type {
   SessionSummary,
   ToolInvocation,
 } from './types';
-import type { UploadedImage } from './components/ImageUploadButton';
+import type { UploadedAttachment } from './components/ImageUploadButton';
 import { SessionList } from './components/SessionList';
 import { ChatComposer } from './components/ChatComposer';
 import { LoadingBubble } from './components/LoadingBubble';
@@ -35,9 +36,21 @@ import { MessageActions } from './components/MessageActions';
 
 const lastPersonaAtom = atomWithStorage<string | null>('chat_last_persona', null);
 
-function attachmentsToImageUrls(attachments?: string[]): string[] | undefined {
+function hydrateAttachments(
+  attachments?: Array<{ kind: 'image' | 'file'; filename: string; mimeType: string }>
+): ChatAttachment[] | undefined {
   if (!attachments?.length) return undefined;
-  return attachments.map((fn) => `${getApiBase()}/api/uploads/${fn}`);
+  return attachments.map((attachment) => ({
+    ...attachment,
+    url: `${getApiBase()}/api/uploads/${attachment.filename}`,
+  }));
+}
+
+function attachmentsToImageUrls(attachments?: ChatAttachment[]): string[] | undefined {
+  const images = attachments
+    ?.filter((attachment) => attachment.kind === 'image')
+    .map((attachment) => attachment.url);
+  return images?.length ? images : undefined;
 }
 
 function upsertSessionSummary(list: SessionSummary[], session: ChatSession): SessionSummary[] {
@@ -288,7 +301,7 @@ export function ChatPage() {
     () => new Map()
   );
   const [input, setInput] = useState('');
-  const [pendingImages, setPendingImages] = useState<UploadedImage[]>([]);
+  const [pendingAttachments, setPendingAttachments] = useState<UploadedAttachment[]>([]);
   const [chatGeneratingSessions, setChatGenerating] = useAtom(chatGeneratingAtom);
 
   // 当前展示的消息（由 activeSessionId 派生，不是独立 state）
@@ -413,7 +426,8 @@ export function ChatPage() {
     setActivePersonaPath(detail.persona_path ?? null);
     const messagesWithImages = (detail.messages || []).map((msg) => ({
       ...msg,
-      imageUrls: attachmentsToImageUrls(msg.attachments),
+      attachments: hydrateAttachments(msg.attachments),
+      imageUrls: attachmentsToImageUrls(hydrateAttachments(msg.attachments)),
     }));
     updateSessionMessages(detail.id, messagesWithImages);
     setSessions((prev) => upsertSessionSummary(prev, detail));
@@ -585,13 +599,15 @@ export function ChatPage() {
       const currentMessages = sessionMessagesMap.get(genSessionId) ?? [];
 
       let userContent = '';
+      let userAttachments: ChatAttachment[] = [];
       for (let i = msgIndex - 1; i >= 0; i--) {
         if (currentMessages[i].role === 'user') {
           userContent = currentMessages[i].content;
+          userAttachments = currentMessages[i].attachments ?? [];
           break;
         }
       }
-      if (!userContent) return;
+      if (!userContent && userAttachments.length === 0) return;
 
       const controller = new AbortController();
       abortRef.current = controller;
@@ -613,6 +629,14 @@ export function ChatPage() {
             conversation_id: genSessionId,
             message: userContent,
             endpoint_name: selectedEndpointName,
+            attachments:
+              userAttachments.length > 0
+                ? userAttachments.map(({ kind, filename, mimeType }) => ({
+                    kind,
+                    filename,
+                    mimeType,
+                  }))
+                : undefined,
           },
           (event) => {
             updateSessionMessages(genSessionId, (prev) => applyStreamEvent(prev, event));
@@ -621,7 +645,8 @@ export function ChatPage() {
         );
         const serverMsgs = (res.session.messages || []).map((msg) => ({
           ...msg,
-          imageUrls: attachmentsToImageUrls(msg.attachments),
+          attachments: hydrateAttachments(msg.attachments),
+          imageUrls: attachmentsToImageUrls(hydrateAttachments(msg.attachments)),
         }));
         updateSessionMessages(genSessionId, (prev) => mergeBlocksFromMemory(serverMsgs, prev));
         setSessions((prev) => upsertSessionSummary(prev, res.session));
@@ -668,7 +693,8 @@ export function ChatPage() {
 
   const send = async () => {
     const text = input.trim();
-    if (!text || chatGeneratingSessions.has(activeSessionId)) return;
+    if ((!text && pendingAttachments.length === 0) || chatGeneratingSessions.has(activeSessionId))
+      return;
 
     // 在 async 前捕获当前 session ID（新会话时可能为空字符串）
     const genSessionId = activeSessionId;
@@ -678,15 +704,23 @@ export function ChatPage() {
     const localUserMessage: ChatMessage = {
       role: 'user',
       content: text,
-      imageUrls: pendingImages.length > 0 ? pendingImages.map((img) => img.previewUrl) : undefined,
+      attachments: pendingAttachments.map((attachment) => ({
+        kind: attachment.kind,
+        filename: attachment.filename,
+        mimeType: attachment.mimeType,
+        url: attachment.previewUrl ?? `${getApiBase()}/api/uploads/${attachment.filename}`,
+      })),
+      imageUrls: pendingAttachments.flatMap((attachment) =>
+        attachment.kind === 'image' && attachment.previewUrl ? [attachment.previewUrl] : []
+      ),
     };
-    const imagesToSend = pendingImages.map(({ base64, mimeType, filename }) => ({
-      base64,
+    const attachmentsToSend = pendingAttachments.map(({ kind, mimeType, filename }) => ({
+      kind,
       mimeType,
       filename,
     }));
     setInput('');
-    setPendingImages([]);
+    setPendingAttachments([]);
     updateSessionMessages(genSessionId, (prev) => [
       ...prev,
       localUserMessage,
@@ -705,7 +739,7 @@ export function ChatPage() {
           conversation_id: genSessionId,
           message: text,
           endpoint_name: selectedEndpointName,
-          images: imagesToSend.length > 0 ? imagesToSend : undefined,
+          attachments: attachmentsToSend.length > 0 ? attachmentsToSend : undefined,
         },
         (event) => {
           updateSessionMessages(genSessionId, (prev) => applyStreamEvent(prev, event));
@@ -723,7 +757,8 @@ export function ChatPage() {
       setActiveSessionId(res.conversation_id);
       const serverMsgs = (res.session.messages || []).map((msg) => ({
         ...msg,
-        imageUrls: attachmentsToImageUrls(msg.attachments),
+        attachments: hydrateAttachments(msg.attachments),
+        imageUrls: attachmentsToImageUrls(hydrateAttachments(msg.attachments)),
       }));
       updateSessionMessages(res.conversation_id, (prev) => mergeBlocksFromMemory(serverMsgs, prev));
       setSessions((prev) => upsertSessionSummary(prev, res.session));
@@ -987,23 +1022,39 @@ export function ChatPage() {
                       }`}
                     >
                       <div className="flex min-w-0 max-w-[min(85%,42rem)] flex-col items-end">
-                        {/* 图片附件 */}
-                        {messageRow?.imageUrls && messageRow.imageUrls.length > 0 && (
-                          <div className="flex flex-wrap gap-1.5 mb-1.5 justify-end">
-                            {messageRow.imageUrls.map((url, idx) => (
-                              <a key={idx} href={url} target="_blank" rel="noreferrer">
-                                <img
-                                  src={url}
-                                  alt=""
-                                  className="h-40 max-w-xs rounded-xl object-cover border border-border hover:opacity-90 transition-opacity"
-                                />
-                              </a>
-                            ))}
+                        {messageRow?.attachments && messageRow.attachments.length > 0 && (
+                          <div className="mb-1.5 flex flex-wrap justify-end gap-1.5">
+                            {messageRow.attachments.map((attachment, idx) =>
+                              attachment.kind === 'image' ? (
+                                <a key={idx} href={attachment.url} target="_blank" rel="noreferrer">
+                                  <img
+                                    src={attachment.url}
+                                    alt=""
+                                    className="h-40 max-w-xs rounded-xl object-cover border border-border hover:opacity-90 transition-opacity"
+                                  />
+                                </a>
+                              ) : (
+                                <a
+                                  key={idx}
+                                  href={attachment.url}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="inline-flex max-w-xs items-center gap-2 rounded-xl border border-border bg-muted px-3 py-2 text-sm text-foreground hover:bg-muted/80"
+                                >
+                                  <FileTextOutlined />
+                                  <span className="truncate">{attachment.filename}</span>
+                                </a>
+                              )
+                            )}
                           </div>
                         )}
-                        <div className="rounded-2xl bg-muted px-4 py-2.5 text-[15px] leading-6 text-foreground">
-                          {item.content}
-                        </div>
+                        {item.content ? (
+                          <div className="flex flex-wrap gap-1.5 mb-1.5 justify-end">
+                            <div className="rounded-2xl bg-muted px-4 py-2.5 text-[15px] leading-6 text-foreground">
+                              {item.content}
+                            </div>
+                          </div>
+                        ) : null}
                         <div className="flex items-center justify-end gap-2">
                           <span className="text-[11px] text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity select-none whitespace-nowrap">
                             {formatRelativeTime(
@@ -1047,9 +1098,13 @@ export function ChatPage() {
               onSend={send}
               onStop={handleStop}
               activeSessionId={activeSessionId}
-              images={pendingImages}
-              onAddImage={(img) => setPendingImages((prev) => [...prev, img])}
-              onRemoveImage={(idx) => setPendingImages((prev) => prev.filter((_, i) => i !== idx))}
+              attachments={pendingAttachments}
+              onAddAttachment={(attachment) =>
+                setPendingAttachments((prev) => [...prev, attachment])
+              }
+              onRemoveAttachment={(idx) =>
+                setPendingAttachments((prev) => prev.filter((_, i) => i !== idx))
+              }
             />
           </div>
         </div>

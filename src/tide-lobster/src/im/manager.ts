@@ -99,8 +99,8 @@ export class IMManager {
       };
 
       if (msg.images?.length) {
-        (chatArgs as Record<string, unknown>).attachments = msg.images.map((img) => ({
-          type: 'image',
+        chatArgs.attachments = msg.images.map((img) => ({
+          kind: 'image',
           base64: img.base64,
           mimeType: img.mimeType,
         }));

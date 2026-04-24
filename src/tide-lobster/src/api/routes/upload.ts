@@ -1,30 +1,25 @@
-import { Hono } from 'hono';
+import { Hono, type Context } from 'hono';
 import { createReadStream, existsSync, statSync } from 'node:fs';
-import { join, extname, basename } from 'node:path';
+import { join, basename } from 'node:path';
 import { Readable } from 'node:stream';
-import { handleImageUpload } from '../../upload/handler.js';
+import { handleAttachmentUpload, getUploadMimeTypeByFilename } from '../../upload/handler.js';
 import { settings } from '../../config.js';
 
 export const uploadRouter = new Hono();
 
-uploadRouter.post('/api/upload/image', async (c) => {
+async function handleUploadRequest(c: Context) {
   try {
     const formData = await c.req.formData();
-    const result = await handleImageUpload(formData);
+    const result = await handleAttachmentUpload(formData);
     return c.json(result);
   } catch (e) {
     const msg = String((e as Error)?.message || e || 'upload failed');
     return c.json({ detail: msg }, 400);
   }
-});
+}
 
-const MIME_MAP: Record<string, string> = {
-  '.jpg': 'image/jpeg',
-  '.jpeg': 'image/jpeg',
-  '.png': 'image/png',
-  '.gif': 'image/gif',
-  '.webp': 'image/webp',
-};
+uploadRouter.post('/api/upload/image', handleUploadRequest);
+uploadRouter.post('/api/upload/file', handleUploadRequest);
 
 uploadRouter.get('/api/uploads/:filename', (c) => {
   const raw = c.req.param('filename');
@@ -36,8 +31,7 @@ uploadRouter.get('/api/uploads/:filename', (c) => {
     return c.json({ detail: 'not found' }, 404);
   }
 
-  const ext = extname(filename).toLowerCase();
-  const mimeType = MIME_MAP[ext] ?? 'application/octet-stream';
+  const mimeType = getUploadMimeTypeByFilename(filename || raw);
   const size = statSync(filePath).size;
 
   const nodeStream = createReadStream(filePath);

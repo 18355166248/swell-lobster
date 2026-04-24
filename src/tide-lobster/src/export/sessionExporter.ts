@@ -33,6 +33,16 @@ function sessionToMarkdown(session: ChatSession): string {
     const label = msg.role === 'user' ? '**User**' : '**Assistant**';
     lines.push(`${label}：`);
     lines.push('');
+    if (msg.attachments?.length) {
+      lines.push('附件：');
+      lines.push('');
+      for (const attachment of msg.attachments) {
+        lines.push(
+          `- [${attachment.kind === 'image' ? '图片' : '文件'}] ${attachment.filename} (${attachment.mimeType})`
+        );
+      }
+      lines.push('');
+    }
     lines.push(msg.content);
     lines.push('');
     lines.push('---');

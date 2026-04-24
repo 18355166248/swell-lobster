@@ -2,6 +2,12 @@ import type { ToolExecutionTrace } from '../tools/types.js';
 
 export type ChatRole = 'user' | 'assistant';
 
+export type ChatAttachment = {
+  kind: 'image' | 'file';
+  filename: string;
+  mimeType: string;
+};
+
 /** 助手消息的有序内容块：文本段或工具调用，保留原始执行顺序。 */
 export type MessageBlock =
   | { type: 'text'; content: string }
@@ -14,7 +20,7 @@ export type ChatMessage = {
   created_at?: string;
   tool_invocations?: ToolExecutionTrace[]; // 工具执行轨迹（非流式时仅最后一轮）
   blocks?: MessageBlock[]; // 有序内容块，含顺序信息；新会话存库，历史会话无此字段
-  attachments?: string[]; // 图片文件名列表，存储在 data/tmp/uploads/
+  attachments?: ChatAttachment[]; // 用户上传附件，物理文件存储于 data/tmp/uploads/
 };
 
 export type ChatSession = {

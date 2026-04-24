@@ -23,7 +23,7 @@ async function extractPdfText(filePath: string): Promise<string> {
     const page = await pdf.getPage(i);
     const textContent = await page.getTextContent();
     const pageText = textContent.items
-      .map((item) => ('str' in item ? item.str : ''))
+      .map((item: { str?: string }) => ('str' in item ? (item.str ?? '') : ''))
       .join(' ');
     pages.push(`[第 ${i} 页]\n${pageText}`);
   }

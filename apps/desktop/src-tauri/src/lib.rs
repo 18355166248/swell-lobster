@@ -10,6 +10,7 @@ struct SidecarState(Mutex<Option<CommandChild>>);
 /// 从 Windows 注册表读取系统代理地址（Clash 等工具写入）。
 /// 仅当 ProxyEnable=1 且 ProxyServer 不为空时返回 `http://<server>`。
 #[cfg(windows)]
+#[cfg_attr(debug_assertions, allow(dead_code))]
 fn detect_windows_system_proxy() -> Option<String> {
     let key = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings";
 
@@ -91,6 +92,7 @@ fn resolve_log_path(app: &AppHandle) -> PathBuf {
 }
 
 /// 启动 tide-lobster sidecar，将 stdout/stderr 写入日志文件。
+#[cfg_attr(debug_assertions, allow(dead_code))]
 fn start_tide_lobster(app: &AppHandle) -> Result<CommandChild, String> {
     let output_dir = resolve_output_dir(app);
     std::fs::create_dir_all(&output_dir).ok();
@@ -222,6 +224,7 @@ fn start_tide_lobster(app: &AppHandle) -> Result<CommandChild, String> {
 }
 
 /// 轮询等待 tide-lobster 健康检查通过（最多 10 秒）。
+#[cfg_attr(debug_assertions, allow(dead_code))]
 async fn wait_for_backend() -> bool {
     let client = reqwest::Client::new();
     for _ in 0..20 {

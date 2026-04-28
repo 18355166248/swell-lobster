@@ -109,7 +109,8 @@ journalRouter.post('/api/journal', async (c) => {
 
     // 自动提取记忆（fire-and-forget）
     if (body.content && body.content.length > 50) {
-      const endpoint = endpointStore.getDefaultEndpoint();
+      const endpoints = endpointStore.listEndpoints();
+      const endpoint = endpoints.find((ep) => ep.enabled && ep.priority === 0) ?? endpoints.find((ep) => ep.enabled);
       if (endpoint && endpoint.api_key_env) {
         const apiKey = process.env[endpoint.api_key_env] ?? '';
         extractorService
@@ -180,7 +181,8 @@ journalRouter.put('/api/journal/:id', async (c) => {
 
     // 如果内容有变化，重新提取记忆
     if (contentChanged && body.content && body.content.length > 50) {
-      const endpoint = endpointStore.getDefaultEndpoint();
+      const endpoints = endpointStore.listEndpoints();
+      const endpoint = endpoints.find((ep) => ep.enabled && ep.priority === 0) ?? endpoints.find((ep) => ep.enabled);
       if (endpoint && endpoint.api_key_env) {
         const apiKey = process.env[endpoint.api_key_env] ?? '';
 

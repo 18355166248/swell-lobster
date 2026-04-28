@@ -70,7 +70,8 @@ async function main() {
     // auto-routing 在每次 chat 请求时动态构建，无需手动同步
   });
   // 启动时加载已启用的 MCP 子进程与 Cron 任务（失败项仅日志，不阻塞 HTTP）
-  await mcpManager.loadAll();
+  // MCP 远端可能需要数十秒握手，这里 fire-and-forget，HTTP 服务先起来
+  void mcpManager.loadAll().catch((e) => console.error('[mcp] loadAll error:', e));
   cronManager.loadAll();
   // 注入共享 ChatService，并对 imStore 中 enabled 的通道启动适配器（如 Telegram long polling）
   imManager.setChatService(chatService);

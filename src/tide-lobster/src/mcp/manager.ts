@@ -30,7 +30,7 @@ function mergeEnv(extra: Record<string, string>): Record<string, string> {
 
 function buildRemoteRequestInit(
   url: string,
-  headers: Record<string, string>,
+  headers: Record<string, string>
 ): RequestInit & { dispatcher: unknown } {
   return {
     ...(Object.keys(headers).length > 0 ? { headers: { ...headers } } : {}),
@@ -65,21 +65,52 @@ function createTransport(config: MCPServerConfig): Transport {
   return new StreamableHTTPClientTransport(parsedUrl, opts);
 }
 
+/** 单个 MCP 启动（连接 + listTools）的客户端侧超时，避免远端无响应时拖到 SDK 默认 60s */
+const MCP_CONNECT_TIMEOUT_MS = (() => {
+  const raw = Number(process.env.SWELL_MCP_CONNECT_TIMEOUT_MS);
+  return Number.isFinite(raw) && raw > 0 ? raw : 15_000;
+})();
+
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      reject(new Error(`${label} timed out after ${ms}ms`));
+    }, ms);
+    promise.then(
+      (v) => {
+        clearTimeout(timer);
+        resolve(v);
+      },
+      (e) => {
+        clearTimeout(timer);
+        reject(e);
+      }
+    );
+  });
+}
+
 export class MCPManager {
   private readonly clients = new Map<string, ManagedClient>();
 
   /** 启动并连接；先停旧实例，再注册工具并更新 store 状态 */
   async startServer(config: MCPServerConfig): Promise<void> {
     await this.stopServer(config.id);
+    const transport = createTransport(config);
+    const client = new Client({
+      name: 'swell-lobster',
+      version: '1.0.0',
+    });
     try {
-      const transport = createTransport(config);
-      const client = new Client({
-        name: 'swell-lobster',
-        version: '1.0.0',
-      });
-
-      await client.connect(transport);
-      const result = await client.listTools();
+      await withTimeout(
+        client.connect(transport),
+        MCP_CONNECT_TIMEOUT_MS,
+        `MCP[${config.name}] connect`
+      );
+      const result = await withTimeout(
+        client.listTools(),
+        MCP_CONNECT_TIMEOUT_MS,
+        `MCP[${config.name}] listTools`
+      );
       const tools = Array.isArray(result.tools) ? (result.tools as MCPToolInfo[]) : [];
       for (const tool of tools) {
         mcpToolBridge.registerMCPTool(config.id, tool, client);
@@ -88,6 +119,17 @@ export class MCPManager {
       this.clients.set(config.id, { client, transport });
       mcpStore.setStatus(config.id, 'running');
     } catch (error) {
+      // 超时或连接失败时主动释放 transport，避免句柄泄漏
+      try {
+        await client.close();
+      } catch {
+        // ignore
+      }
+      try {
+        await transport.close();
+      } catch {
+        // ignore
+      }
       const message = error instanceof Error ? error.message : String(error);
       mcpStore.setStatus(config.id, 'error', message);
       throw error;
@@ -129,16 +171,18 @@ export class MCPManager {
     await this.startServer(config);
   }
 
-  /** 进程启动时加载：为 store 中所有 enabled 项尝试 start（失败仅打日志） */
+  /** 进程启动时加载：为 store 中所有 enabled 项并行 start（失败仅打日志，互不阻塞） */
   async loadAll(): Promise<void> {
     const configs = mcpStore.list().filter((item) => item.enabled);
-    for (const config of configs) {
-      try {
-        await this.startServer(config);
-      } catch (error) {
-        console.error(`[mcp] failed to start ${config.name}:`, error);
-      }
-    }
+    await Promise.allSettled(
+      configs.map(async (config) => {
+        try {
+          await this.startServer(config);
+        } catch (error) {
+          console.error(`[mcp] failed to start ${config.name}:`, error);
+        }
+      })
+    );
   }
 
   /** 优雅退出：停止全部 MCP 连接 */

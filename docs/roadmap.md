@@ -6,7 +6,7 @@
 
 ---
 
-## 当前状态（2026-03）
+## 当前状态（2026-04）
 
 ### 已完成（可用）
 
@@ -17,21 +17,24 @@
 | Identity 文件读写                                             | ✅   | ✅   |
 | 阶段 1：身份注入 system prompt、persona、消息操作、上下文截断 | ✅   | ✅   |
 | 阶段 2：Token 统计 + 会话搜索                                 | ✅   | ✅   |
+| 阶段 3：记忆管理 + 工具调用                                   | ✅   | ✅   |
+| 阶段 4：MCP 服务器 + 计划任务                                 | ✅   | ✅   |
+| 阶段 5：IM 通道 + 技能系统                                    | ✅   | ✅   |
 | Markdown + LaTeX + Mermaid 渲染                               | —    | ✅   |
+| 文件上传与附件管理                                            | ✅   | ✅   |
+| 会话导出（Markdown）                                          | ✅   | ✅   |
+| 日记功能                                                      | ✅   | ✅   |
 
-### 已有骨架，未实现
+### 核心功能完整度
 
-| 功能                 | 后端               | 前端    |
-| -------------------- | ------------------ | ------- |
-| 记忆管理             | 占位（返回空数组） | UI 框架 |
-| 技能 (Skills)        | 占位               | UI 框架 |
-| MCP 服务器           | 占位               | UI 框架 |
-| 计划任务 (Scheduler) | 占位               | UI 框架 |
-| IM 通道              | 占位               | UI 框架 |
+所有规划的 5 个阶段已全部完成，系统具备：
 
-### 关键缺口
-
-- `llmClient.ts` 尚不支持 `tools` / Function Calling（阶段 3）
+- 多模态对话（文字 + 图片）
+- 长期记忆（自动提取 + 手动管理）
+- 工具调用（内置工具 + MCP 扩展）
+- 定时任务（Cron + Webhook）
+- IM 通道（Telegram Bot）
+- 技能系统（5 个内置技能）
 
 ---
 
@@ -40,9 +43,9 @@
 ```
 阶段1：身份系统激活 ✅     → identity 文件注入 system prompt，persona 切换（已完成，见 phases/phase1-identity.md 文首状态）
 阶段2：Token统计 + 搜索 ✅ → 记录 token 消耗，会话关键词搜索（已完成，见 phases/phase2-token-search.md 文首状态）
-阶段3：记忆 + 工具调用    → 长期记忆，Function Calling 内置工具
-阶段4：MCP + 计划任务     → MCP 工具生态，Cron 定时任务
-阶段5：IM + 技能系统      → Telegram Bot 接入，技能可扩展
+阶段3：记忆 + 工具调用 ✅  → 长期记忆，Function Calling 内置工具（已完成，见 phases/phase3-memory-tools.md 文首状态）
+阶段4：MCP + 计划任务 ✅   → MCP 工具生态，Cron 定时任务（已完成，见 phases/phase4-mcp-scheduler.md 文首状态）
+阶段5：IM + 技能系统 ✅    → Telegram Bot 接入，技能可扩展（已完成，见 phases/phase5-im-skills.md 文首状态）
 ```
 
 ### 依赖关系图

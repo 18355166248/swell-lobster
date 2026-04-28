@@ -146,7 +146,11 @@
       "WebFetch(domain:github.com)",
       "Bash(mkdir -p F:/FrontEnd/Code/swell-lobster/src/tide-lobster/src/upload)",
       "Bash(mkdir -p F:/FrontEnd/Code/swell-lobster/data/tmp/uploads)",
-      "Bash(npm rebuild *)"
+      "Bash(npm rebuild *)",
+      "Skill(claude-hud:setup)",
+      "Skill(update-config)",
+      "Skill(claude-hud:setup)",
+      "Skill(update-config)"
     ]
   }
 }

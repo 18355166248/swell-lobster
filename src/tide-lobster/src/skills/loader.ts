@@ -147,6 +147,7 @@ export function loadAllSkills(): SkillDef[] {
   const disabled = getDisabledSet();
   const dirs: Array<{ path: string; source: 'builtin' | 'user' }> = [
     { path: join(settings.projectRoot, 'SKILLS'), source: 'builtin' },
+    { path: join(settings.identityDir, 'skills'), source: 'builtin' },
     { path: join(settings.dataDir, 'skills'), source: 'user' },
   ];
 
@@ -220,7 +221,11 @@ export function startSkillFileWatcher(onReload: () => void): void {
   if (watchersStarted) return;
   watchersStarted = true;
 
-  const dirs = [join(settings.projectRoot, 'SKILLS'), join(settings.dataDir, 'skills')];
+  const dirs = [
+    join(settings.projectRoot, 'SKILLS'),
+    join(settings.identityDir, 'skills'),
+    join(settings.dataDir, 'skills'),
+  ];
   const triggerReload = () => {
     if (reloadTimer) clearTimeout(reloadTimer);
     reloadTimer = setTimeout(() => {

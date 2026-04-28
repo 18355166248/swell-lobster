@@ -23,11 +23,13 @@ export async function fetchSessionDetail(sessionId: string): Promise<ChatSession
 
 export async function createSession(
   endpointName?: string,
-  personaPath?: string | null
+  personaPath?: string | null,
+  templateId?: string | null
 ): Promise<ChatSession> {
   const res = await apiPost<{ session: ChatSession }>('/api/sessions', {
     endpoint_name: endpointName,
     ...(personaPath != null ? { persona_path: personaPath } : {}),
+    ...(templateId != null ? { template_id: templateId } : {}),
   });
   return res.session;
 }

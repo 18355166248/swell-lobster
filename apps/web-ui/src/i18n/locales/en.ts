@@ -114,6 +114,8 @@ const en = {
     exportMarkdown: 'Export Markdown',
     exportJson: 'Export JSON',
     exportFailed: 'Export failed',
+    selectTemplate: 'Select Agent Template',
+    skipTemplate: 'Skip, create blank session',
   },
 
   persona: {

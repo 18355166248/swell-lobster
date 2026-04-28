@@ -120,6 +120,8 @@ const zh = {
     exportMarkdown: '导出 Markdown',
     exportJson: '导出 JSON',
     exportFailed: '导出失败',
+    selectTemplate: '选择 Agent 模板',
+    skipTemplate: '跳过，创建空白会话',
   },
 
   // 人设

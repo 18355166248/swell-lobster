@@ -200,8 +200,16 @@ chatRouter.get('/api/sessions/search', (c) => {
 
 chatRouter.post('/api/sessions', async (c) => {
   try {
-    const body = await c.req.json<{ endpoint_name?: string; persona_path?: string }>();
-    const session = service.createSession(body?.endpoint_name, body?.persona_path);
+    const body = await c.req.json<{
+      endpoint_name?: string;
+      persona_path?: string;
+      template_id?: string;
+    }>();
+    const session = service.createSession(
+      body?.endpoint_name,
+      body?.persona_path,
+      body?.template_id
+    );
     return c.json({ session });
   } catch (e) {
     return c.json({ detail: String((e as Error)?.message || e || 'create session failed') }, 400);

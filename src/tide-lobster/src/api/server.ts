@@ -26,6 +26,7 @@ import { journalRouter } from './routes/journal.js';
 import { logsRouter } from './routes/logs.js';
 import { uploadRouter } from './routes/upload.js';
 import { exportRouter } from './routes/export.js';
+import { agentTemplatesRouter } from './routes/agentTemplates.js';
 
 export function createApp(): Hono {
   const app = new Hono();
@@ -70,6 +71,7 @@ export function createApp(): Hono {
   app.route('/', logsRouter);
   app.route('/', uploadRouter);
   app.route('/', exportRouter);
+  app.route('/', agentTemplatesRouter); // /api/agent-templates/* — Agent 模板
 
   return app;
 }

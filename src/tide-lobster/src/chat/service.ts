@@ -21,6 +21,7 @@ import { EndpointStore } from '../store/endpointStore.js';
 import { IdentityService } from '../identity/identityService.js';
 import { getDb } from '../db/index.js';
 import { memoryStore } from '../memory/store.js';
+import { getTemplate } from '../agent-templates/store.js';
 import { extractorService } from '../memory/extractorService.js';
 import { globalToolRegistry } from '../tools/registry.js';
 import type { ToolCall, ToolExecutionTrace } from '../tools/types.js';
@@ -85,6 +86,7 @@ export class ChatService {
   private readonly store: ChatStore;
   private readonly endpointStore: EndpointStore;
   private readonly db = getDb();
+  private templateSystemPrompts = new Map<string, string>();
 
   constructor(private readonly projectRoot: string) {
     this.store = new ChatStore();
@@ -100,7 +102,11 @@ export class ChatService {
   }
 
   /** 新建会话；可指定默认端点名与 persona 文件路径。未传人格时落库默认助手人格（见 IdentityService.getDefaultAssistantPersonaPath）。 */
-  createSession(endpointName?: string | null, personaPath?: string | null): ChatSession {
+  createSession(
+    endpointName?: string | null,
+    personaPath?: string | null,
+    templateId?: string | null
+  ): ChatSession {
     const endpoint = this.getEndpointConfig(endpointName);
     if (endpointName && !endpoint) {
       throw new Error(`endpoint not found: ${endpointName}`);
@@ -109,7 +115,17 @@ export class ChatService {
     const resolvedPersona = trimmed
       ? trimmed
       : (new IdentityService().getDefaultAssistantPersonaPath() ?? null);
-    return this.store.createSession(endpoint?.name ?? endpointName ?? null, resolvedPersona);
+    const session = this.store.createSession(endpoint?.name ?? endpointName ?? null, resolvedPersona);
+
+    // 处理模板 system prompt
+    if (templateId) {
+      const template = getTemplate(templateId);
+      if (template) {
+        this.templateSystemPrompts.set(session.id, template.systemPrompt);
+      }
+    }
+
+    return session;
   }
 
   /** 会话尚无 persona_path 时补全为默认助手人格并写回 SQLite（兼容历史会话与 IM 等直接插库场景）。 */
@@ -210,6 +226,7 @@ export class ChatService {
 
   /** 删除会话（JSON 存储侧）。 */
   deleteSession(sessionId: string): boolean {
+    this.templateSystemPrompts.delete(sessionId);
     return this.store.deleteSession(sessionId);
   }
 
@@ -391,6 +408,10 @@ export class ChatService {
 
     const parts: string[] = [];
     if (basePrompt) parts.push(basePrompt);
+
+    // 插入模板 system prompt
+    const templatePrompt = this.templateSystemPrompts.get(session.id);
+    if (templatePrompt) parts.push(templatePrompt);
 
     if (relevantMemories.length > 0) {
       const MAX_MEMORY_BLOCK_CHARS = 2000;

@@ -28,6 +28,7 @@ import type {
   ToolInvocation,
 } from './types';
 import type { UploadedAttachment } from './components/ImageUploadButton';
+import { TemplatePickerModal } from './components/TemplatePickerModal';
 import { SessionList } from './components/SessionList';
 import { ChatComposer } from './components/ChatComposer';
 import { LoadingBubble } from './components/LoadingBubble';
@@ -321,6 +322,7 @@ export function ChatPage() {
   const [bootLoading, setBootLoading] = useState(true);
   const [sessionLoading, setSessionLoading] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [templatePickerOpen, setTemplatePickerOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastPersona, setLastPersona] = useAtom(lastPersonaAtom);
   const abortRef = useRef<AbortController | null>(null);
@@ -476,12 +478,12 @@ export function ChatPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const handleCreateSession = async () => {
+  const handleCreateSession = async (templateId?: string | null) => {
     if (creating) return;
     setCreating(true);
     setError(null);
     try {
-      const session = await createSession(selectedEndpointName, lastPersona);
+      const session = await createSession(selectedEndpointName, lastPersona, templateId);
       setSessions((prev) => upsertSessionSummary(prev, session));
       setActiveSessionId(session.id);
       setActivePersonaPath(session.persona_path ?? null);
@@ -815,7 +817,7 @@ export function ChatPage() {
         <Button
           type="primary"
           icon={<PlusOutlined />}
-          onClick={handleCreateSession}
+          onClick={() => setTemplatePickerOpen(true)}
           loading={creating}
         >
           {t('chat.newSession')}
@@ -1109,6 +1111,15 @@ export function ChatPage() {
           </div>
         </div>
       </div>
+
+      <TemplatePickerModal
+        open={templatePickerOpen}
+        onCancel={() => setTemplatePickerOpen(false)}
+        onSelect={(templateId) => {
+          setTemplatePickerOpen(false);
+          void handleCreateSession(templateId);
+        }}
+      />
     </div>
   );
 }

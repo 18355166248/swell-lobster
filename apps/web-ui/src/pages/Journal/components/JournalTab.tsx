@@ -95,7 +95,7 @@ export function JournalTab({ year, month, onDateChange }: JournalTabProps) {
   const openCreate = () => {
     setEditing(null);
     form.resetFields();
-    form.setFieldsValue({ entry_date: dayjs(selectedDate) });
+    form.setFieldsValue({ entry_date: dayjs(selectedDate), mood: undefined });
     setModalOpen(true);
   };
 
@@ -107,6 +107,9 @@ export function JournalTab({ year, month, onDateChange }: JournalTabProps) {
       category: entry.category,
       tags: entry.tags,
       entry_date: dayjs(entry.entry_date),
+      mood: entry.mood,
+      weather: entry.weather,
+      location: entry.location,
     });
     setModalOpen(true);
   };
@@ -117,6 +120,9 @@ export function JournalTab({ year, month, onDateChange }: JournalTabProps) {
       ...values,
       entry_date: (values.entry_date as Dayjs).format('YYYY-MM-DD'),
       tags: values.tags ?? [],
+      mood: values.mood ?? undefined,
+      weather: values.weather ?? undefined,
+      location: values.location ?? undefined,
     };
     if (editing) {
       await updateJournalEntry(editing.id, data);
@@ -184,6 +190,17 @@ export function JournalTab({ year, month, onDateChange }: JournalTabProps) {
                   }
                   description={
                     <Space wrap size={4} className="mt-1">
+                      {entry.mood && (
+                        <Tag>
+                          {entry.mood === 'happy' && '😊'}
+                          {entry.mood === 'sad' && '😢'}
+                          {entry.mood === 'neutral' && '😐'}
+                          {entry.mood === 'excited' && '🤩'}
+                          {entry.mood === 'anxious' && '😰'}
+                          {entry.mood === 'calm' && '😌'}
+                          {entry.mood === 'angry' && '😠'}
+                        </Tag>
+                      )}
                       {entry.category && <Tag color="blue">{entry.category}</Tag>}
                       {entry.tags.map((tag) => (
                         <Tag key={tag}>{tag}</Tag>
@@ -219,6 +236,19 @@ export function JournalTab({ year, month, onDateChange }: JournalTabProps) {
           <Form.Item name="entry_date" label={t('journal.fields.entryDate')}>
             <DatePicker className="w-full" />
           </Form.Item>
+
+          <Form.Item name="mood" label={t('journal.fields.mood')}>
+            <Select placeholder={t('journal.fields.moodPlaceholder')} allowClear>
+              <Select.Option value="happy">😊 {t('journal.moods.happy')}</Select.Option>
+              <Select.Option value="sad">😢 {t('journal.moods.sad')}</Select.Option>
+              <Select.Option value="neutral">😐 {t('journal.moods.neutral')}</Select.Option>
+              <Select.Option value="excited">🤩 {t('journal.moods.excited')}</Select.Option>
+              <Select.Option value="anxious">😰 {t('journal.moods.anxious')}</Select.Option>
+              <Select.Option value="calm">😌 {t('journal.moods.calm')}</Select.Option>
+              <Select.Option value="angry">😠 {t('journal.moods.angry')}</Select.Option>
+            </Select>
+          </Form.Item>
+
           <Form.Item name="title" label={t('journal.fields.title')}>
             <Input placeholder={t('journal.fields.title')} />
           </Form.Item>

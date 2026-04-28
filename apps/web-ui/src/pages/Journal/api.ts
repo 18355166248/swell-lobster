@@ -1,5 +1,11 @@
 import { apiGet, apiPost, apiPut, apiDelete } from '../../api/base';
-import type { JournalEntry, JournalListResponse, LogsResponse } from './types';
+import type {
+  JournalEntry,
+  JournalListResponse,
+  LogsResponse,
+  Memory,
+  TimelineStats,
+} from './types';
 
 export function fetchJournalMonth(year: number, month: number): Promise<JournalListResponse> {
   return apiGet(`/api/journal?year=${year}&month=${month}`);
@@ -15,6 +21,9 @@ export function createJournalEntry(data: {
   category?: string;
   tags?: string[];
   entry_date?: string;
+  mood?: string;
+  weather?: string;
+  location?: string;
 }): Promise<{ entry: JournalEntry }> {
   return apiPost('/api/journal', data);
 }
@@ -27,6 +36,9 @@ export function updateJournalEntry(
     category?: string;
     tags?: string[];
     entry_date?: string;
+    mood?: string;
+    weather?: string;
+    location?: string;
   }
 ): Promise<{ entry: JournalEntry }> {
   return apiPut(`/api/journal/${id}`, data);
@@ -34,6 +46,18 @@ export function updateJournalEntry(
 
 export function deleteJournalEntry(id: number): Promise<{ ok: boolean }> {
   return apiDelete(`/api/journal/${id}`);
+}
+
+export function extractMemoryFromJournal(id: number): Promise<{ ok: boolean }> {
+  return apiPost(`/api/journal/${id}/extract-memory`, {});
+}
+
+export function fetchJournalMemories(id: number): Promise<{ memories: Memory[] }> {
+  return apiGet(`/api/journal/${id}/memories`);
+}
+
+export function fetchJournalTimeline(year: number): Promise<{ stats: TimelineStats[] }> {
+  return apiGet(`/api/journal/timeline?year=${year}`);
 }
 
 export function fetchLogs(params: {

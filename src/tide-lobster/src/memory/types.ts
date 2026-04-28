@@ -1,11 +1,16 @@
 /** 记忆类型：与 memories 表的约束保持一致。 */
 export type MemoryType = 'fact' | 'preference' | 'event' | 'rule';
 
+/** 记忆来源类型 */
+export type MemorySourceType = 'chat' | 'journal' | 'manual';
+
 export interface Memory {
   id: string;
   content: string;
   memory_type: MemoryType;
   source_session_id?: string;
+  source_type?: MemorySourceType;
+  source_id?: string;
   tags: string[];
   importance: number;
   access_count: number;
@@ -21,6 +26,8 @@ export interface CreateMemoryInput {
   content: string;
   memory_type: MemoryType;
   source_session_id?: string;
+  source_type?: MemorySourceType;
+  source_id?: string;
   tags?: string[];
   importance?: number;
   is_explicit?: boolean;

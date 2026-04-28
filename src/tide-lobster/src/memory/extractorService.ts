@@ -187,6 +187,131 @@ ${fullText}
       console.error('[memory.extractor] extract failed:', error);
     }
   }
+
+  /**
+   * 从日记内容提取记忆
+   * @param journalId 日记ID
+   * @param content 日记内容
+   * @param title 日记标题
+   * @param entryDate 日记日期
+   * @param endpoint 端点配置
+   * @param apiKey API密钥
+   */
+  async extractFromJournal(
+    journalId: number,
+    content: string,
+    title: string,
+    entryDate: string,
+    endpoint: EndpointConfig,
+    apiKey: string
+  ): Promise<void> {
+    // 应用与聊天相同的 pre-filter 规则
+    if (isTooShort(content)) return;
+    if (POLITE_ONLY_RE.test(content.trim())) return;
+
+    const prompt = `
+你是记忆提取助手。分析以下日记内容，提取值得长期记住的信息。
+
+日记标题：${title || '(无标题)'}
+日记日期：${entryDate}
+日记内容：
+${content}
+
+提取规则：
+1. 重要的事件或经历
+2. 用户的偏好、习惯或个人信息
+3. 情感状态或心理变化
+4. 重要的决定或计划
+
+以 JSON 数组格式返回，每条记忆：
+{
+  "content": "...",
+  "memory_type": "event|preference|fact|rule",
+  "importance": 1-10,
+  "tags": ["标签1", "标签2"]
+}
+
+如果没有值得记录的信息，返回 []
+    `.trim();
+
+    try {
+      const result = await requestWithFallback({
+        endpoint,
+        apiKey,
+        messages: [{ role: 'user', content: prompt }],
+        resolveFallback: (endpointId) => {
+          const raw = this.endpointStore
+            .listEndpoints()
+            .find((item: any) => String(item.id ?? '') === endpointId && item.enabled !== 0);
+          if (!raw) return undefined;
+          return {
+            id: raw.id ? String(raw.id) : undefined,
+            name: String(raw.name ?? ''),
+            model: String(raw.model ?? ''),
+            api_type: String(raw.api_type ?? 'openai'),
+            base_url: String(raw.base_url ?? '').replace(/\/+$/, ''),
+            api_key_env: String(raw.api_key_env ?? ''),
+            timeout: Number(raw.timeout ?? 120),
+            max_tokens: Number(raw.max_tokens ?? 0),
+            fallback_endpoint_id: raw.fallback_endpoint_id
+              ? String(raw.fallback_endpoint_id)
+              : undefined,
+          } satisfies EndpointConfig;
+        },
+        resolveApiKey: (fallback) => {
+          if (!fallback.api_key_env) return apiKey;
+          return String(process.env[fallback.api_key_env] ?? apiKey);
+        },
+      });
+
+      let raw = result.content.trim();
+      if (!raw) return;
+
+      // 去除思维链和工具调用标签
+      raw = raw.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
+      raw = raw.replace(/<tool_call>[\s\S]*?<\/tool_call>/g, '').trim();
+      if (!raw || raw.startsWith('<')) return;
+
+      // 去除代码块标记
+      const fenceMatch = raw.match(/```(?:json)?\s*([\s\S]*?)```/);
+      if (fenceMatch) raw = fenceMatch[1].trim();
+
+      // 提取 JSON 数组
+      if (!raw.startsWith('[')) {
+        const arrayMatch = raw.match(/\[[\s\S]*\]/);
+        if (!arrayMatch) return;
+        raw = arrayMatch[0];
+      }
+
+      let parsed: Array<{ content?: string; memory_type?: MemoryType; importance?: number; tags?: string[] }>;
+      try {
+        parsed = JSON.parse(raw) as typeof parsed;
+      } catch {
+        return;
+      }
+      if (!Array.isArray(parsed)) return;
+
+      // 保存提取的记忆，标记来源为日记
+      for (const item of parsed) {
+        const memoryContent = String(item.content ?? '').trim();
+        const memoryType = item.memory_type;
+        if (!memoryContent || !memoryType) continue;
+
+        memoryStore.create({
+          content: memoryContent,
+          memory_type: memoryType,
+          importance: item.importance,
+          tags: item.tags,
+          is_explicit: false,
+          confidence: 0.8,
+          source_type: 'journal',
+          source_id: String(journalId),
+        } satisfies CreateMemoryInput);
+      }
+    } catch (error) {
+      console.error('[memory.extractor] extract from journal failed:', error);
+    }
+  }
 }
 
 export const extractorService = new MemoryExtractorService();

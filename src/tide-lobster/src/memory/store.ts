@@ -28,6 +28,8 @@ function mapMemoryRow(row: Record<string, unknown>): Memory {
     content: String(row.content ?? ''),
     memory_type: row.memory_type as MemoryType,
     source_session_id: row.source_session_id ? String(row.source_session_id) : undefined,
+    source_type: row.source_type ? String(row.source_type) as 'chat' | 'journal' | 'manual' : undefined,
+    source_id: row.source_id ? String(row.source_id) : undefined,
     tags: JSON.parse(String(row.tags ?? '[]')) as string[],
     importance: Number(row.importance ?? 5),
     access_count: Number(row.access_count ?? 0),
@@ -96,10 +98,10 @@ export class MemoryStore {
       .prepare(
         `
         INSERT INTO memories (
-          id, content, memory_type, source_session_id, tags, importance,
+          id, content, memory_type, source_session_id, source_type, source_id, tags, importance,
           access_count, is_explicit, confidence, fingerprint, created_at, updated_at, expires_at
         )
-        VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(fingerprint) DO UPDATE SET
           confidence = MAX(confidence, excluded.confidence),
           access_count = access_count + 1,
@@ -111,6 +113,8 @@ export class MemoryStore {
         content,
         input.memory_type,
         input.source_session_id ?? null,
+        input.source_type ?? 'chat',
+        input.source_id ?? null,
         JSON.stringify(tags),
         clampImportance(input.importance),
         isExplicit,
@@ -217,6 +221,42 @@ export class MemoryStore {
       memory.updated_at = now;
     }
     return memories;
+  }
+
+  /**
+   * 根据来源查找记忆
+   * @param sourceType 来源类型 ('chat' | 'journal' | 'manual')
+   * @param sourceId 来源ID
+   * @returns 记忆列表
+   */
+  findBySource(sourceType: string, sourceId: string): Memory[] {
+    const rows = this.db
+      .prepare(
+        `
+        SELECT *
+        FROM memories
+        WHERE source_type = ? AND source_id = ?
+        ORDER BY importance DESC, created_at DESC
+      `
+      )
+      .all(sourceType, sourceId) as Record<string, unknown>[];
+    return rows.map(mapMemoryRow);
+  }
+
+  /**
+   * 删除指定来源的所有记忆
+   * @param sourceType 来源类型
+   * @param sourceId 来源ID
+   */
+  deleteBySource(sourceType: string, sourceId: string): void {
+    this.db
+      .prepare(
+        `
+        DELETE FROM memories
+        WHERE source_type = ? AND source_id = ?
+      `
+      )
+      .run(sourceType, sourceId);
   }
 }
 

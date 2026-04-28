@@ -383,6 +383,32 @@ const migrations: Array<{ version: number; up: (db: Database.Database) => void }
       db.exec(`ALTER TABLE chat_messages ADD COLUMN attachments TEXT`);
     },
   },
+  {
+    version: 18,
+    up: (db) => {
+      // 日记功能增强：心情、天气、地点、记忆提取标记
+      const execSafe = (sql: string) => {
+        try {
+          db.exec(sql);
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          if (!message.includes('duplicate column name')) throw error;
+        }
+      };
+
+      execSafe(`ALTER TABLE journal_entries ADD COLUMN mood TEXT`);
+      execSafe(`ALTER TABLE journal_entries ADD COLUMN weather TEXT`);
+      execSafe(`ALTER TABLE journal_entries ADD COLUMN location TEXT`);
+      execSafe(`ALTER TABLE journal_entries ADD COLUMN memory_extracted INTEGER NOT NULL DEFAULT 0`);
+
+      // 记忆来源追踪：区分来自聊天、日记还是手动创建
+      execSafe(`ALTER TABLE memories ADD COLUMN source_type TEXT NOT NULL DEFAULT 'chat'`);
+      execSafe(`ALTER TABLE memories ADD COLUMN source_id TEXT`);
+
+      // 为记忆来源创建索引，加速查询
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_memories_source ON memories(source_type, source_id)`);
+    },
+  },
 ];
 
 function runMigrations(db: Database.Database): void {

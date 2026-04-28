@@ -76,18 +76,21 @@ export function JournalTab({ year, month, onDateChange }: JournalTabProps) {
     setSelectedDate(date.format('YYYY-MM-DD'));
   };
 
-  const cellRender: CalendarProps<Dayjs>['cellRender'] = (current, info) => {
-    if (info.type !== 'date') return info.originNode;
+  const fullCellRender: CalendarProps<Dayjs>['fullCellRender'] = (current, info) => {
+    if (info.type !== 'date') return <div className="ant-picker-cell-inner">{info.originNode}</div>;
     const dateStr = current.format('YYYY-MM-DD');
-    if (datesWithEntries.has(dateStr)) {
-      return (
-        <div className="relative">
-          {info.originNode}
-          <Badge status="processing" className="absolute bottom-1 left-1/2 -translate-x-1/2" />
+    const hasEntry = datesWithEntries.has(dateStr);
+    return (
+      <div className="ant-picker-cell-inner ant-picker-calendar-date">
+        <div className="ant-picker-calendar-date-value relative">
+          {current.date()}
+          {hasEntry && (
+            <Badge status="processing" className="absolute left-1/2 -translate-x-1/2 top-5" />
+          )}
         </div>
-      );
-    }
-    return info.originNode;
+        <div className="ant-picker-calendar-date-content" />
+      </div>
+    );
   };
 
   const dayEntries = entries.filter((e) => e.entry_date === selectedDate);
@@ -146,7 +149,7 @@ export function JournalTab({ year, month, onDateChange }: JournalTabProps) {
           fullscreen={false}
           onPanelChange={handlePanelChange}
           onSelect={handleSelect}
-          cellRender={cellRender}
+          fullCellRender={fullCellRender}
         />
       </div>
 
@@ -167,55 +170,73 @@ export function JournalTab({ year, month, onDateChange }: JournalTabProps) {
           <List
             dataSource={dayEntries}
             renderItem={(entry) => (
-              <List.Item
-                className="!px-4 !py-3 rounded-xl border border-border bg-background mb-2 hover:bg-muted/50 transition-colors"
-                actions={[
-                  <Button key="edit" size="small" type="text" onClick={() => openEdit(entry)}>
-                    {t('common.edit')}
-                  </Button>,
-                  <Popconfirm
-                    key="del"
-                    title={t('journal.deleteConfirm')}
-                    onConfirm={() => handleDelete(entry.id)}
-                  >
-                    <Button size="small" type="text" danger>
-                      {t('common.delete')}
-                    </Button>
-                  </Popconfirm>,
-                ]}
-              >
-                <List.Item.Meta
-                  title={
-                    entry.title || <span className="text-muted-foreground italic">(无标题)</span>
-                  }
-                  description={
-                    <Space wrap size={4} className="mt-1">
-                      {entry.mood && (
-                        <Tag>
-                          {entry.mood === 'happy' && '😊'}
-                          {entry.mood === 'sad' && '😢'}
-                          {entry.mood === 'neutral' && '😐'}
-                          {entry.mood === 'excited' && '🤩'}
-                          {entry.mood === 'anxious' && '😰'}
-                          {entry.mood === 'calm' && '😌'}
-                          {entry.mood === 'angry' && '😠'}
-                        </Tag>
+              <List.Item className="!px-0 !py-0 !border-none mb-2">
+                <div className="w-full px-4 py-3 rounded-xl border border-border bg-background hover:bg-muted/30 transition-colors">
+                  {/* 操作按钮 */}
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex-1 min-w-0">
+                      {/* 第一行：标题 */}
+                      <div className="flex items-center gap-2 mb-1">
+                        {entry.mood && (
+                          <span className="text-base leading-none flex-shrink-0">
+                            {entry.mood === 'happy' && '😊'}
+                            {entry.mood === 'sad' && '😢'}
+                            {entry.mood === 'neutral' && '😐'}
+                            {entry.mood === 'excited' && '🤩'}
+                            {entry.mood === 'anxious' && '😰'}
+                            {entry.mood === 'calm' && '😌'}
+                            {entry.mood === 'angry' && '😠'}
+                          </span>
+                        )}
+                        <span className="font-medium text-sm truncate">
+                          {entry.title || (
+                            <span className="text-muted-foreground italic font-normal">
+                              {t('journal.noTitle')}
+                            </span>
+                          )}
+                        </span>
+                      </div>
+                      {/* 第二行：分类 + 标签 */}
+                      {(entry.category || entry.tags.length > 0) && (
+                        <div className="flex flex-wrap gap-1 mb-1">
+                          {entry.category && (
+                            <Tag color="blue" className="!text-xs !m-0">
+                              {entry.category}
+                            </Tag>
+                          )}
+                          {entry.tags.map((tag) => (
+                            <Tag key={tag} className="!text-xs !m-0">
+                              {tag}
+                            </Tag>
+                          ))}
+                        </div>
                       )}
-                      {entry.category && <Tag color="blue">{entry.category}</Tag>}
-                      {entry.tags.map((tag) => (
-                        <Tag key={tag}>{tag}</Tag>
-                      ))}
+                      {/* 第三行：内容预览 */}
+                      {entry.content && (
+                        <Typography.Paragraph
+                          ellipsis={{ rows: 2 }}
+                          className="!text-xs !text-muted-foreground !mb-0 !mt-0.5"
+                        >
+                          {entry.content}
+                        </Typography.Paragraph>
+                      )}
+                    </div>
+                    {/* 操作按钮 */}
+                    <Space size={0} className="flex-shrink-0">
+                      <Button size="small" type="text" onClick={() => openEdit(entry)}>
+                        {t('common.edit')}
+                      </Button>
+                      <Popconfirm
+                        title={t('journal.deleteConfirm')}
+                        onConfirm={() => handleDelete(entry.id)}
+                      >
+                        <Button size="small" type="text" danger>
+                          {t('common.delete')}
+                        </Button>
+                      </Popconfirm>
                     </Space>
-                  }
-                />
-                {entry.content && (
-                  <Typography.Paragraph
-                    ellipsis={{ rows: 2 }}
-                    className="text-sm text-muted-foreground mt-1 mb-0"
-                  >
-                    {entry.content}
-                  </Typography.Paragraph>
-                )}
+                  </div>
+                </div>
               </List.Item>
             )}
           />

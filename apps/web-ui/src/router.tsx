@@ -17,8 +17,6 @@ import { ConfigToolsPage } from './pages/config/Tools';
 import { ConfigIdentityPage } from './pages/config/Identity';
 import { ConfigAdvancedPage } from './pages/config/Advanced';
 import { ROUTES } from './routes';
-
-export { ROUTES } from './routes';
 export const router = createBrowserRouter([
   {
     path: '/',

@@ -43,7 +43,9 @@ export function Topbar() {
   };
 
   useEffect(() => {
-    refresh();
+    queueMicrotask(() => {
+      void refresh();
+    });
   }, []);
 
   const statusLabel = {

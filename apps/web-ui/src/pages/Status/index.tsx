@@ -32,7 +32,7 @@ export function StatusPage() {
     setOpeningLog(true);
     try {
       await openLog();
-    } catch (e) {
+    } catch {
       message.error(t('status.openLogFailed'));
     } finally {
       setOpeningLog(false);

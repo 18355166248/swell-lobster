@@ -197,7 +197,7 @@ export function SessionList({
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
-    } catch (e) {
+    } catch {
       void message.error(t('chat.exportFailed'));
     }
   };

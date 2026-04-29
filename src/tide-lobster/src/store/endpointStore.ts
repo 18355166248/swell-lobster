@@ -1,16 +1,32 @@
 import { getDb } from '../db/index.js';
 import { randomUUID } from 'node:crypto';
+import type { EndpointConfig } from '../chat/models.js';
+
+type StoredEndpoint = EndpointConfig & {
+  enabled: boolean;
+  priority?: number | null;
+  provider?: string | null;
+  capabilities: string[];
+  context_window?: number | null;
+  rpm_limit?: number | null;
+  cost_per_1m_input?: number | null;
+  cost_per_1m_output?: number | null;
+};
 
 export class EndpointStore {
   private db = getDb();
 
-  listEndpoints(): any[] {
+  listEndpoints(): StoredEndpoint[] {
     const stmt = this.db.prepare('SELECT * FROM llm_endpoints ORDER BY priority ASC');
     return stmt.all().map((row: any) => ({
       ...row,
       enabled: Boolean(row.enabled),
       capabilities: this.parseCapabilities(row.capabilities),
     }));
+  }
+
+  getDefaultEndpoint(): StoredEndpoint | null {
+    return this.listEndpoints().find((endpoint) => endpoint.enabled) ?? null;
   }
 
   updateEndpoints(endpoints: any[]): void {

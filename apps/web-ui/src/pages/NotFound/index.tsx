@@ -1,7 +1,7 @@
 import { Link } from 'react-router';
 import { Typography, Result } from 'antd';
 import { useTranslation } from 'react-i18next';
-import { ROUTES } from '../../router';
+import { ROUTES } from '../../routes';
 
 const { Link: AntLink } = Typography;
 

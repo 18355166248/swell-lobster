@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback, useMemo, useId } from 'react';
+import React, { useState, useRef, useEffect, useMemo, useId } from 'react';
 import type { ComponentPropsWithoutRef } from 'react';
 import { FileCard } from '../FileCard';
 import ReactMarkdown from 'react-markdown';
@@ -448,7 +448,7 @@ const CodeBlock: Components['code'] = ({ node, className, children, ...props }) 
     []
   );
 
-  const handleCopy = useCallback(async () => {
+  const handleCopy = async () => {
     try {
       await navigator.clipboard.writeText(trimmedCodeText);
       setIsCopied(true);
@@ -459,7 +459,7 @@ const CodeBlock: Components['code'] = ({ node, className, children, ...props }) 
     } catch (error) {
       console.error('Failed to copy code block: ', error);
     }
-  }, [trimmedCodeText]);
+  };
 
   if (!isInline) {
     // Check if this is a mermaid code block

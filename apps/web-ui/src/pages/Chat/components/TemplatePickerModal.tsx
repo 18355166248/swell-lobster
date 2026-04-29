@@ -16,13 +16,23 @@ export function TemplatePickerModal({ open, onCancel, onSelect }: TemplatePicker
   const [loading, setLoading] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 
+  const loadTemplates = async () => {
+    setLoading(true);
+    try {
+      const res = await apiGet<{ templates: AgentTemplate[] }>('/api/agent-templates');
+      setTemplates(res.templates);
+    } catch {
+      setTemplates([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (open) {
-      setLoading(true);
-      apiGet<{ templates: AgentTemplate[] }>('/api/agent-templates')
-        .then((res) => setTemplates(res.templates))
-        .catch(() => setTemplates([]))
-        .finally(() => setLoading(false));
+      queueMicrotask(() => {
+        void loadTemplates();
+      });
     }
   }, [open]);
 

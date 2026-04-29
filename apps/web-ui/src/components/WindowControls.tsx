@@ -1,31 +1,32 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { getCurrentWindow, type Window } from '@tauri-apps/api/window';
 import { isTauri } from '../utils/platform';
+
+const tauriWindow: Window | null = isTauri() ? getCurrentWindow() : null;
 
 export function WindowControls() {
   const [maximized, setMaximized] = useState(false);
   const [focused, setFocused] = useState(true);
-  const winRef = useRef<Window | null>(null);
 
   useEffect(() => {
-    if (!isTauri()) return;
-    const win = getCurrentWindow();
-    winRef.current = win;
+    if (!tauriWindow) return;
 
-    win.isMaximized().then(setMaximized);
-    win.isFocused().then(setFocused);
+    tauriWindow.isMaximized().then(setMaximized);
+    tauriWindow.isFocused().then(setFocused);
 
     const unlisteners: (() => void)[] = [];
 
-    win.onResized(() => win.isMaximized().then(setMaximized)).then((fn) => unlisteners.push(fn));
-    win.onFocusChanged(({ payload }) => setFocused(payload)).then((fn) => unlisteners.push(fn));
+    tauriWindow
+      .onResized(() => tauriWindow.isMaximized().then(setMaximized))
+      .then((fn) => unlisteners.push(fn));
+    tauriWindow
+      .onFocusChanged(({ payload }) => setFocused(payload))
+      .then((fn) => unlisteners.push(fn));
 
     return () => unlisteners.forEach((fn) => fn());
   }, []);
 
-  if (!isTauri()) return null;
-
-  const win = winRef.current ?? getCurrentWindow();
+  if (!tauriWindow) return null;
 
   return (
     <div
@@ -33,7 +34,7 @@ export function WindowControls() {
     >
       <button
         type="button"
-        onClick={() => win.minimize()}
+        onClick={() => tauriWindow.minimize()}
         className="h-8 w-8 inline-flex items-center justify-center rounded-lg transition-colors text-foreground/50 hover:bg-muted hover:text-foreground"
         aria-label="最小化"
       >
@@ -51,7 +52,7 @@ export function WindowControls() {
       </button>
       <button
         type="button"
-        onClick={() => (maximized ? win.unmaximize() : win.maximize())}
+        onClick={() => (maximized ? tauriWindow.unmaximize() : tauriWindow.maximize())}
         className="h-8 w-8 inline-flex items-center justify-center rounded-lg transition-colors text-foreground/50 hover:bg-muted hover:text-foreground"
         aria-label={maximized ? '还原' : '最大化'}
       >
@@ -84,7 +85,7 @@ export function WindowControls() {
       </button>
       <button
         type="button"
-        onClick={() => win.close()}
+        onClick={() => tauriWindow.close()}
         className="h-8 w-8 inline-flex items-center justify-center rounded-lg transition-colors text-foreground/50 hover:bg-red-500 hover:text-white"
         aria-label="关闭"
       >

@@ -34,10 +34,10 @@ export function ConfigAdvancedPage() {
     setError(null);
     try {
       const [viewsData, envData] = await Promise.all([
-        apiGet<{ disabled_views: string[] }>('/api/config/disabled-views'),
+        apiGet<{ disabled?: string[] }>('/api/config/views'),
         apiGet<EnvData>('/api/config/env'),
       ]);
-      setDisabledViews(viewsData.disabled_views ?? []);
+      setDisabledViews(viewsData.disabled ?? []);
       const env = envData.env ?? {};
       setSearchConfig({
         embeddingBaseUrl: env.SWELL_EMBEDDING_BASE_URL ?? '',
@@ -62,7 +62,7 @@ export function ConfigAdvancedPage() {
     setSaving(true);
     setError(null);
     try {
-      await apiPost('/api/config/disabled-views', { views: disabledViews });
+      await apiPost('/api/config/views', { disabled: disabledViews });
       await apiPost('/api/config/env', {
         entries: {
           SWELL_EMBEDDING_BASE_URL: searchConfig.embeddingBaseUrl,

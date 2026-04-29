@@ -13,7 +13,6 @@ import {
   BarChartOutlined,
   CloudServerOutlined,
   CommentOutlined,
-  ToolOutlined,
   UserOutlined,
   SettingOutlined,
   LoadingOutlined,
@@ -24,11 +23,20 @@ import { ROUTES } from '../routes';
 import { isTauri } from '../utils/platform';
 import { chatGeneratingAtom } from '../store/chatGenerating';
 
+const CONFIG_ROUTES = [
+  ROUTES.CONFIG_LLM,
+  ROUTES.CONFIG_IM,
+  ROUTES.CONFIG_IDENTITY,
+  ROUTES.CONFIG_ADVANCED,
+];
+
 export function Sidebar() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { pathname } = useLocation();
   const chatGenerating = useAtomValue(chatGeneratingAtom).size > 0;
+
+  const inConfig = CONFIG_ROUTES.includes(pathname as (typeof CONFIG_ROUTES)[number]);
 
   const items: MenuProps['items'] = [
     {
@@ -42,16 +50,17 @@ export function Sidebar() {
     { key: ROUTES.SCHEDULER, icon: <ScheduleOutlined />, label: t('sidebar.scheduler') },
     { key: ROUTES.MEMORY, icon: <DatabaseOutlined />, label: t('sidebar.memory') },
     { key: ROUTES.JOURNAL, icon: <BookOutlined />, label: t('journal.title') },
+    { type: 'divider' },
     { key: ROUTES.STATUS, icon: <DashboardOutlined />, label: t('sidebar.status') },
     { key: ROUTES.TOKEN_STATS, icon: <BarChartOutlined />, label: t('sidebar.tokenStats') },
     { type: 'divider' },
     {
-      type: 'group',
+      key: 'config',
+      icon: <SettingOutlined />,
       label: t('sidebar.config'),
       children: [
         { key: ROUTES.CONFIG_LLM, icon: <CloudServerOutlined />, label: t('sidebar.llmEndpoints') },
         { key: ROUTES.CONFIG_IM, icon: <CommentOutlined />, label: t('sidebar.imChannel') },
-        { key: ROUTES.CONFIG_TOOLS, icon: <ToolOutlined />, label: t('sidebar.toolsSkills') },
         { key: ROUTES.CONFIG_IDENTITY, icon: <UserOutlined />, label: t('sidebar.identity') },
         { key: ROUTES.CONFIG_ADVANCED, icon: <SettingOutlined />, label: t('sidebar.advanced') },
       ],
@@ -85,8 +94,11 @@ export function Sidebar() {
         <Menu
           mode="inline"
           selectedKeys={[pathname]}
+          defaultOpenKeys={inConfig ? ['config'] : []}
           items={items}
-          onClick={({ key }) => navigate(key)}
+          onClick={({ key }) => {
+            if (key !== 'config') navigate(key);
+          }}
         />
       </nav>
 

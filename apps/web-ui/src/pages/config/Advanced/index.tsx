@@ -1,33 +1,49 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Button, Alert, Spin, Typography, Input, Form, Divider, message } from 'antd';
+import { Button, Alert, Spin, Typography, Input, Form, Divider, Checkbox, message } from 'antd';
 import { useTranslation } from 'react-i18next';
 import { apiGet, apiPost } from '../../../api/base';
+import { ROUTES } from '../../../routes';
 
 const { Title, Text } = Typography;
 
 type EnvData = { env: Record<string, string> };
 
-type SearchConfig = {
+type EmbeddingConfig = {
   embeddingBaseUrl: string;
   embeddingModel: string;
   embeddingApiKeyEnv: string;
-  braveApiKeyEnv: string;
-  tavilyApiKeyEnv: string;
 };
+
+type SearchKeys = {
+  braveApiKey: string;
+  tavilyApiKey: string;
+};
+
+const HIDEABLE_VIEWS = [
+  { key: ROUTES.IM, labelKey: 'sidebar.im' },
+  { key: ROUTES.SKILLS, labelKey: 'sidebar.skills' },
+  { key: ROUTES.MCP, labelKey: 'sidebar.mcp' },
+  { key: ROUTES.SCHEDULER, labelKey: 'sidebar.scheduler' },
+  { key: ROUTES.MEMORY, labelKey: 'sidebar.memory' },
+  { key: ROUTES.JOURNAL, labelKey: 'journal.title' },
+  { key: ROUTES.STATUS, labelKey: 'sidebar.status' },
+  { key: ROUTES.TOKEN_STATS, labelKey: 'sidebar.tokenStats' },
+] as const;
 
 export function ConfigAdvancedPage() {
   const { t } = useTranslation();
-  const [disabledViews, setDisabledViews] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const [searchConfig, setSearchConfig] = useState<SearchConfig>({
+  const [error, setError] = useState<string | null>(null);
+
+  const [agentName, setAgentName] = useState('');
+  const [disabledViews, setDisabledViews] = useState<string[]>([]);
+  const [embeddingConfig, setEmbeddingConfig] = useState<EmbeddingConfig>({
     embeddingBaseUrl: '',
     embeddingModel: 'text-embedding-3-small',
     embeddingApiKeyEnv: 'OPENAI_API_KEY',
-    braveApiKeyEnv: 'BRAVE_SEARCH_API_KEY',
-    tavilyApiKeyEnv: 'TAVILY_API_KEY',
   });
+  const [searchKeys, setSearchKeys] = useState<SearchKeys>({ braveApiKey: '', tavilyApiKey: '' });
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -39,16 +55,18 @@ export function ConfigAdvancedPage() {
       ]);
       setDisabledViews(viewsData.disabled ?? []);
       const env = envData.env ?? {};
-      setSearchConfig({
+      setAgentName(env.SWELL_AGENT_NAME ?? '');
+      setEmbeddingConfig({
         embeddingBaseUrl: env.SWELL_EMBEDDING_BASE_URL ?? '',
         embeddingModel: env.SWELL_EMBEDDING_MODEL ?? 'text-embedding-3-small',
         embeddingApiKeyEnv: env.SWELL_EMBEDDING_API_KEY_ENV ?? 'OPENAI_API_KEY',
-        braveApiKeyEnv: env.SWELL_BRAVE_SEARCH_API_KEY_ENV ?? 'BRAVE_SEARCH_API_KEY',
-        tavilyApiKeyEnv: env.SWELL_TAVILY_API_KEY_ENV ?? 'TAVILY_API_KEY',
+      });
+      setSearchKeys({
+        braveApiKey: env.BRAVE_SEARCH_API_KEY ?? '',
+        tavilyApiKey: env.TAVILY_API_KEY ?? '',
       });
     } catch (e) {
       setError(e instanceof Error ? e.message : t('configAdvanced.loadFailed'));
-      setDisabledViews([]);
     } finally {
       setLoading(false);
     }
@@ -63,15 +81,22 @@ export function ConfigAdvancedPage() {
     setError(null);
     try {
       await apiPost('/api/config/views', { disabled: disabledViews });
-      await apiPost('/api/config/env', {
-        entries: {
-          SWELL_EMBEDDING_BASE_URL: searchConfig.embeddingBaseUrl,
-          SWELL_EMBEDDING_MODEL: searchConfig.embeddingModel,
-          SWELL_EMBEDDING_API_KEY_ENV: searchConfig.embeddingApiKeyEnv,
-          SWELL_BRAVE_SEARCH_API_KEY_ENV: searchConfig.braveApiKeyEnv,
-          SWELL_TAVILY_API_KEY_ENV: searchConfig.tavilyApiKeyEnv,
-        },
-      });
+
+      const envEntries: Record<string, string> = {
+        SWELL_AGENT_NAME: agentName,
+        SWELL_EMBEDDING_BASE_URL: embeddingConfig.embeddingBaseUrl,
+        SWELL_EMBEDDING_MODEL: embeddingConfig.embeddingModel,
+        SWELL_EMBEDDING_API_KEY_ENV: embeddingConfig.embeddingApiKeyEnv,
+      };
+      // 跳过脱敏占位值（含 *** 说明是后端返回的掩码，不回写）
+      if (searchKeys.braveApiKey && !searchKeys.braveApiKey.includes('***')) {
+        envEntries.BRAVE_SEARCH_API_KEY = searchKeys.braveApiKey;
+      }
+      if (searchKeys.tavilyApiKey && !searchKeys.tavilyApiKey.includes('***')) {
+        envEntries.TAVILY_API_KEY = searchKeys.tavilyApiKey;
+      }
+
+      await apiPost('/api/config/env', { entries: envEntries });
       void message.success(t('configAdvanced.saveSuccess'));
       await load();
     } catch (e) {
@@ -99,18 +124,43 @@ export function ConfigAdvancedPage() {
 
       {error && <Alert type="error" message={error} className="mt-3" showIcon />}
 
+      {/* 基本设置 */}
       <div className="mt-6">
-        <Title level={5}>隐藏模块</Title>
-        <Text type="secondary" className="block mb-2">
-          在此配置的模块将不在侧栏显示（如 skills、im、token_stats 等）
-        </Text>
-        <Text className="text-sm">
-          当前已隐藏：{disabledViews.length ? disabledViews.join(', ') : '无'}
-        </Text>
+        <Form layout="vertical" size="small">
+          <Form.Item label={t('configAdvanced.agentName')} help={t('configAdvanced.agentNameHint')}>
+            <Input
+              value={agentName}
+              placeholder={t('configAdvanced.agentNamePlaceholder')}
+              onChange={(e) => setAgentName(e.target.value)}
+            />
+          </Form.Item>
+        </Form>
       </div>
 
       <Divider />
 
+      {/* 隐藏模块 */}
+      <div>
+        <Title level={5}>{t('configAdvanced.hiddenModules')}</Title>
+        <Text type="secondary" className="block mb-3">
+          {t('configAdvanced.hiddenModulesHint')}
+        </Text>
+        <Checkbox.Group
+          value={disabledViews}
+          onChange={(vals) => setDisabledViews(vals as string[])}
+          className="flex flex-wrap gap-x-6 gap-y-2"
+        >
+          {HIDEABLE_VIEWS.map(({ key, labelKey }) => (
+            <Checkbox key={key} value={key}>
+              {t(labelKey as Parameters<typeof t>[0])}
+            </Checkbox>
+          ))}
+        </Checkbox.Group>
+      </div>
+
+      <Divider />
+
+      {/* 向量 Embedding */}
       <div>
         <Title level={5}>{t('configAdvanced.embeddingTitle')}</Title>
         <Text type="secondary" className="block mb-4">
@@ -119,28 +169,28 @@ export function ConfigAdvancedPage() {
         <Form layout="vertical" size="small">
           <Form.Item label={t('configAdvanced.embeddingBaseUrl')}>
             <Input
-              value={searchConfig.embeddingBaseUrl}
+              value={embeddingConfig.embeddingBaseUrl}
               placeholder={t('configAdvanced.embeddingBaseUrlPlaceholder')}
               onChange={(e) =>
-                setSearchConfig((prev) => ({ ...prev, embeddingBaseUrl: e.target.value }))
+                setEmbeddingConfig((prev) => ({ ...prev, embeddingBaseUrl: e.target.value }))
               }
             />
           </Form.Item>
           <Form.Item label={t('configAdvanced.embeddingModel')}>
             <Input
-              value={searchConfig.embeddingModel}
+              value={embeddingConfig.embeddingModel}
               placeholder={t('configAdvanced.embeddingModelPlaceholder')}
               onChange={(e) =>
-                setSearchConfig((prev) => ({ ...prev, embeddingModel: e.target.value }))
+                setEmbeddingConfig((prev) => ({ ...prev, embeddingModel: e.target.value }))
               }
             />
           </Form.Item>
           <Form.Item label={t('configAdvanced.embeddingApiKeyEnv')}>
             <Input
-              value={searchConfig.embeddingApiKeyEnv}
+              value={embeddingConfig.embeddingApiKeyEnv}
               placeholder={t('configAdvanced.embeddingApiKeyEnvPlaceholder')}
               onChange={(e) =>
-                setSearchConfig((prev) => ({ ...prev, embeddingApiKeyEnv: e.target.value }))
+                setEmbeddingConfig((prev) => ({ ...prev, embeddingApiKeyEnv: e.target.value }))
               }
             />
           </Form.Item>
@@ -149,28 +199,33 @@ export function ConfigAdvancedPage() {
 
       <Divider />
 
+      {/* 网络搜索 */}
       <div>
         <Title level={5}>{t('configAdvanced.searchTitle')}</Title>
         <Text type="secondary" className="block mb-4">
           {t('configAdvanced.searchSubtitle')}
         </Text>
         <Form layout="vertical" size="small">
-          <Form.Item label={t('configAdvanced.braveApiKeyEnv')}>
-            <Input
-              value={searchConfig.braveApiKeyEnv}
-              placeholder="BRAVE_SEARCH_API_KEY"
-              onChange={(e) =>
-                setSearchConfig((prev) => ({ ...prev, braveApiKeyEnv: e.target.value }))
+          <Form.Item label={t('configAdvanced.braveApiKey')}>
+            <Input.Password
+              value={searchKeys.braveApiKey}
+              placeholder={
+                searchKeys.braveApiKey.includes('***')
+                  ? t('configAdvanced.searchKeyConfigured')
+                  : t('configAdvanced.searchKeyPlaceholder')
               }
+              onChange={(e) => setSearchKeys((prev) => ({ ...prev, braveApiKey: e.target.value }))}
             />
           </Form.Item>
-          <Form.Item label={t('configAdvanced.tavilyApiKeyEnv')}>
-            <Input
-              value={searchConfig.tavilyApiKeyEnv}
-              placeholder="TAVILY_API_KEY"
-              onChange={(e) =>
-                setSearchConfig((prev) => ({ ...prev, tavilyApiKeyEnv: e.target.value }))
+          <Form.Item label={t('configAdvanced.tavilyApiKey')}>
+            <Input.Password
+              value={searchKeys.tavilyApiKey}
+              placeholder={
+                searchKeys.tavilyApiKey.includes('***')
+                  ? t('configAdvanced.searchKeyConfigured')
+                  : t('configAdvanced.searchKeyPlaceholder')
               }
+              onChange={(e) => setSearchKeys((prev) => ({ ...prev, tavilyApiKey: e.target.value }))}
             />
           </Form.Item>
         </Form>

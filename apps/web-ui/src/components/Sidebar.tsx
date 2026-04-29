@@ -19,9 +19,11 @@ import {
   BookOutlined,
 } from '@ant-design/icons';
 import { useAtomValue } from 'jotai';
+import { useEffect, useState } from 'react';
 import { ROUTES } from '../routes';
 import { isTauri } from '../utils/platform';
 import { chatGeneratingAtom } from '../store/chatGenerating';
+import { apiGet } from '../api/base';
 
 const CONFIG_ROUTES = [
   ROUTES.CONFIG_LLM,
@@ -35,6 +37,13 @@ export function Sidebar() {
   const navigate = useNavigate();
   const { pathname } = useLocation();
   const chatGenerating = useAtomValue(chatGeneratingAtom).size > 0;
+  const [disabledViews, setDisabledViews] = useState<string[]>([]);
+
+  useEffect(() => {
+    apiGet<{ disabled?: string[] }>('/api/config/views')
+      .then((data) => setDisabledViews(data.disabled ?? []))
+      .catch(() => {});
+  }, []);
 
   const inConfig = CONFIG_ROUTES.includes(pathname as (typeof CONFIG_ROUTES)[number]);
 
@@ -67,6 +76,11 @@ export function Sidebar() {
     },
   ];
 
+  const visibleItems = items.filter((item) => {
+    if (!item || !('key' in item) || item.type === 'divider') return true;
+    return !disabledViews.includes(item.key as string);
+  });
+
   return (
     <>
       <div
@@ -95,7 +109,7 @@ export function Sidebar() {
           mode="inline"
           selectedKeys={[pathname]}
           defaultOpenKeys={inConfig ? ['config'] : []}
-          items={items}
+          items={visibleItems}
           onClick={({ key }) => {
             if (key !== 'config') navigate(key);
           }}

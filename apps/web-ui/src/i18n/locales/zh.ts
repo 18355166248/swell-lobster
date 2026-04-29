@@ -556,10 +556,13 @@ const zh = {
   // 配置-高级
   configAdvanced: {
     title: '高级配置',
-    subtitle: '环境变量、日志级别等高级设置',
-    envHint: '当前为只读预览，直接编辑 .env 文件生效',
-    noEnv: '暂无环境变量',
+    subtitle: '基本设置、隐藏模块、向量检索、网络搜索',
     loadFailed: '加载失败',
+    agentName: 'Agent 名称',
+    agentNamePlaceholder: 'Swell-Lobster',
+    agentNameHint: '助手的名称，用于身份标识（SWELL_AGENT_NAME）',
+    hiddenModules: '隐藏模块',
+    hiddenModulesHint: '勾选后该模块将不在侧栏显示',
     embeddingTitle: '向量 Embedding',
     embeddingSubtitle:
       '配置 OpenAI 兼容的 Embedding 端点，用于语义记忆检索。未配置时降级为关键词检索。',
@@ -571,9 +574,11 @@ const zh = {
     embeddingApiKeyEnvPlaceholder: 'OPENAI_API_KEY',
     searchTitle: '网络搜索',
     searchSubtitle:
-      '配置搜索提供商 API Key 环境变量名。优先使用 Brave Search，其次 Tavily，默认 DuckDuckGo（免费）。',
-    braveApiKeyEnv: 'Brave Search API Key 环境变量名',
-    tavilyApiKeyEnv: 'Tavily API Key 环境变量名',
+      '配置搜索提供商 API Key。优先使用 Brave Search，其次 Tavily，默认 DuckDuckGo（免费，无需 Key）。',
+    braveApiKey: 'Brave Search API Key',
+    tavilyApiKey: 'Tavily API Key',
+    searchKeyPlaceholder: '输入 API Key',
+    searchKeyConfigured: '已配置（重新输入以修改）',
     saveFailed: '保存失败',
     saveSuccess: '保存成功',
   },

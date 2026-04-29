@@ -540,10 +540,13 @@ const en = {
 
   configAdvanced: {
     title: 'Advanced Config',
-    subtitle: 'Environment variables, log levels and other advanced settings',
-    envHint: 'Read-only preview — edit .env file directly to apply changes',
-    noEnv: 'No environment variables',
+    subtitle: 'Basic settings, hidden modules, vector search, web search',
     loadFailed: 'Load failed',
+    agentName: 'Agent Name',
+    agentNamePlaceholder: 'Swell-Lobster',
+    agentNameHint: 'Name used for identity (SWELL_AGENT_NAME)',
+    hiddenModules: 'Hidden Modules',
+    hiddenModulesHint: 'Checked modules will not appear in the sidebar',
     embeddingTitle: 'Vector Embedding',
     embeddingSubtitle:
       'Configure an OpenAI-compatible embedding endpoint for semantic memory search. Falls back to keyword search when not configured.',
@@ -555,9 +558,11 @@ const en = {
     embeddingApiKeyEnvPlaceholder: 'OPENAI_API_KEY',
     searchTitle: 'Web Search',
     searchSubtitle:
-      'Configure search provider API key env var names. Priority: Brave Search > Tavily > DuckDuckGo (free, no key needed).',
-    braveApiKeyEnv: 'Brave Search API Key Env Var',
-    tavilyApiKeyEnv: 'Tavily API Key Env Var',
+      'Configure search provider API keys. Priority: Brave Search > Tavily > DuckDuckGo (free, no key needed).',
+    braveApiKey: 'Brave Search API Key',
+    tavilyApiKey: 'Tavily API Key',
+    searchKeyPlaceholder: 'Enter API Key',
+    searchKeyConfigured: 'Configured (re-enter to change)',
     saveFailed: 'Save failed',
     saveSuccess: 'Saved',
   },

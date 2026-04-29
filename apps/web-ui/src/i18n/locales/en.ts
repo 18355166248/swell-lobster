@@ -544,6 +544,22 @@ const en = {
     envHint: 'Read-only preview — edit .env file directly to apply changes',
     noEnv: 'No environment variables',
     loadFailed: 'Load failed',
+    embeddingTitle: 'Vector Embedding',
+    embeddingSubtitle:
+      'Configure an OpenAI-compatible embedding endpoint for semantic memory search. Falls back to keyword search when not configured.',
+    embeddingBaseUrl: 'Embedding API Base URL',
+    embeddingBaseUrlPlaceholder: 'https://api.openai.com/v1',
+    embeddingModel: 'Model Name',
+    embeddingModelPlaceholder: 'text-embedding-3-small',
+    embeddingApiKeyEnv: 'API Key Env Var Name',
+    embeddingApiKeyEnvPlaceholder: 'OPENAI_API_KEY',
+    searchTitle: 'Web Search',
+    searchSubtitle:
+      'Configure search provider API key env var names. Priority: Brave Search > Tavily > DuckDuckGo (free, no key needed).',
+    braveApiKeyEnv: 'Brave Search API Key Env Var',
+    tavilyApiKeyEnv: 'Tavily API Key Env Var',
+    saveFailed: 'Save failed',
+    saveSuccess: 'Saved',
   },
 
   notFound: {

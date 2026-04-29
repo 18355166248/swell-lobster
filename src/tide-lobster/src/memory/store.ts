@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { getDb } from '../db/index.js';
+import { cosineSimilarity, getEmbeddingService } from './embeddingService.js';
 import type { CreateMemoryInput, Memory, MemoryType, UpdateMemoryInput } from './types.js';
 
 function nowIso(): string {
@@ -40,6 +41,17 @@ function mapMemoryRow(row: Record<string, unknown>): Memory {
     updated_at: String(row.updated_at ?? ''),
     expires_at: row.expires_at ? String(row.expires_at) : undefined,
   };
+}
+
+function parseEmbedding(raw: unknown): number[] | null {
+  if (!raw) return null;
+  try {
+    const arr = JSON.parse(String(raw)) as unknown;
+    if (Array.isArray(arr) && arr.length > 0) return arr as number[];
+  } catch {
+    // ignore
+  }
+  return null;
 }
 
 export class MemoryStore {
@@ -129,7 +141,24 @@ export class MemoryStore {
     const existing = this.db
       .prepare(`SELECT * FROM memories WHERE fingerprint = ?`)
       .get(fingerprint) as Record<string, unknown> | undefined;
-    return existing ? mapMemoryRow(existing) : this.get(id)!;
+    const saved = existing ? mapMemoryRow(existing) : this.get(id)!;
+
+    // 异步生成并写入 embedding（不阻塞主流程）
+    const embSvc = getEmbeddingService();
+    if (embSvc && !existing) {
+      embSvc
+        .embed(content)
+        .then((vec) => {
+          this.db
+            .prepare(`UPDATE memories SET embedding = ? WHERE id = ?`)
+            .run(JSON.stringify(vec), saved.id);
+        })
+        .catch(() => {
+          // embedding 失败不影响记忆写入
+        });
+    }
+
+    return saved;
   }
 
   update(id: string, patch: UpdateMemoryInput): Memory {
@@ -257,6 +286,32 @@ export class MemoryStore {
       `
       )
       .run(sourceType, sourceId);
+  }
+
+  /** 向量语义检索：对所有有 embedding 的记忆计算余弦相似度，返回 top-k。 */
+  semanticSearch(queryVec: number[], limit = 5): Array<Memory & { score: number }> {
+    const rows = this.db
+      .prepare(
+        `
+        SELECT *
+        FROM memories
+        WHERE embedding IS NOT NULL
+          AND (expires_at IS NULL OR expires_at > datetime('now'))
+      `
+      )
+      .all() as Array<Record<string, unknown>>;
+
+    const scored = rows
+      .map((row) => {
+        const vec = parseEmbedding(row.embedding);
+        if (!vec) return null;
+        return { ...mapMemoryRow(row), score: cosineSimilarity(queryVec, vec) };
+      })
+      .filter((x): x is Memory & { score: number } => x !== null)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, Math.max(1, limit));
+
+    return scored;
   }
 }
 

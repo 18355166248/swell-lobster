@@ -28,6 +28,7 @@ export type ChatSession = {
   title: string;
   endpoint_name?: string | null;
   persona_path?: string | null;
+  template_id?: string | null;
   created_at: string;
   updated_at: string;
   messages: ChatMessage[];

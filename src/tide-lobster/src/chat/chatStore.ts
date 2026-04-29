@@ -86,7 +86,7 @@ export class ChatStore {
   getSession(sessionId: string): ChatSession | undefined {
     // Get session
     const sessionStmt = this.db.prepare(`
-      SELECT id, title, endpoint_name, persona_path, created_at, updated_at
+      SELECT id, title, endpoint_name, persona_path, template_id, created_at, updated_at
       FROM chat_sessions
       WHERE id = ?
     `);
@@ -168,29 +168,31 @@ export class ChatStore {
       title: sessionRow.title,
       endpoint_name: sessionRow.endpoint_name,
       persona_path: sessionRow.persona_path ?? null,
+      template_id: sessionRow.template_id ?? null,
       created_at: sessionRow.created_at,
       updated_at: sessionRow.updated_at,
       messages,
     };
   }
 
-  createSession(endpointName?: string | null, personaPath?: string | null): ChatSession {
+  createSession(endpointName?: string | null, personaPath?: string | null, templateId?: string | null): ChatSession {
     const now = nowIso();
     const sessionId = randomUUID?.()
       ? `chat_${randomUUID().replace(/-/g, '').slice(0, 10)}`
       : fallbackSessionId();
 
     const stmt = this.db.prepare(`
-      INSERT INTO chat_sessions (id, title, endpoint_name, persona_path, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?)
+      INSERT INTO chat_sessions (id, title, endpoint_name, persona_path, template_id, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
     `);
-    stmt.run(sessionId, '新对话', endpointName ?? null, personaPath ?? null, now, now);
+    stmt.run(sessionId, '新对话', endpointName ?? null, personaPath ?? null, templateId ?? null, now, now);
 
     return {
       id: sessionId,
       title: '新对话',
       endpoint_name: endpointName ?? null,
       persona_path: personaPath ?? null,
+      template_id: templateId ?? null,
       created_at: now,
       updated_at: now,
       messages: [],
@@ -238,6 +240,14 @@ export class ChatStore {
     const result = stmt.run(sessionId);
 
     return result.changes > 0;
+  }
+
+  /** 返回所有绑定了 template_id 的会话（id + template_id），用于启动时恢复内存映射。 */
+  listSessionTemplates(): Array<{ id: string; template_id: string }> {
+    const rows = this.db
+      .prepare(`SELECT id, template_id FROM chat_sessions WHERE template_id IS NOT NULL`)
+      .all() as Array<{ id: string; template_id: string }>;
+    return rows;
   }
 
   // 追加用户消息

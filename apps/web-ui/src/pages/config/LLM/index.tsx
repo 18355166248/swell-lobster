@@ -30,7 +30,7 @@ export function ConfigLLMPage() {
   const [editEndpointOpen, setEditEndpointOpen] = useState(false);
   const [editingTarget, setEditingTarget] = useState<EndpointItem | null>(null);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -44,11 +44,11 @@ export function ConfigLLMPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [t]);
 
   useEffect(() => {
-    load();
-  }, []);
+    void load();
+  }, [load]);
 
   const handleSave = async () => {
     setSaving(true);

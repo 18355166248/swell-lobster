@@ -409,6 +409,36 @@ const migrations: Array<{ version: number; up: (db: Database.Database) => void }
       db.exec(`CREATE INDEX IF NOT EXISTS idx_memories_source ON memories(source_type, source_id)`);
     },
   },
+  {
+    version: 19,
+    up: (db) => {
+      // 向量记忆：存储 embedding 向量（JSON 序列化的 float 数组），用于语义检索
+      const execSafe = (sql: string) => {
+        try {
+          db.exec(sql);
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          if (!message.includes('duplicate column name')) throw error;
+        }
+      };
+      execSafe(`ALTER TABLE memories ADD COLUMN embedding TEXT`);
+    },
+  },
+  {
+    version: 20,
+    up: (db) => {
+      // 持久化 Agent 模板 ID，重启后可恢复 templateSystemPrompts
+      const execSafe = (sql: string) => {
+        try {
+          db.exec(sql);
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          if (!message.includes('duplicate column name')) throw error;
+        }
+      };
+      execSafe(`ALTER TABLE chat_sessions ADD COLUMN template_id TEXT`);
+    },
+  },
 ];
 
 function runMigrations(db: Database.Database): void {

@@ -91,6 +91,18 @@ export class ChatService {
   constructor(private readonly projectRoot: string) {
     this.store = new ChatStore();
     this.endpointStore = new EndpointStore();
+    this.restoreTemplatePrompts();
+  }
+
+  /** 启动时从 DB 恢复 templateSystemPrompts，避免重启后模板失效。 */
+  private restoreTemplatePrompts(): void {
+    const rows = this.store.listSessionTemplates();
+    for (const { id, template_id } of rows) {
+      const template = getTemplate(template_id);
+      if (template) {
+        this.templateSystemPrompts.set(id, template.systemPrompt);
+      }
+    }
   }
 
   listSessions(): SessionSummary[] {
@@ -115,7 +127,7 @@ export class ChatService {
     const resolvedPersona = trimmed
       ? trimmed
       : (new IdentityService().getDefaultAssistantPersonaPath() ?? null);
-    const session = this.store.createSession(endpoint?.name ?? endpointName ?? null, resolvedPersona);
+    const session = this.store.createSession(endpoint?.name ?? endpointName ?? null, resolvedPersona, templateId ?? null);
 
     // 处理模板 system prompt
     if (templateId) {

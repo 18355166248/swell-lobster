@@ -560,6 +560,22 @@ const zh = {
     envHint: '当前为只读预览，直接编辑 .env 文件生效',
     noEnv: '暂无环境变量',
     loadFailed: '加载失败',
+    embeddingTitle: '向量 Embedding',
+    embeddingSubtitle:
+      '配置 OpenAI 兼容的 Embedding 端点，用于语义记忆检索。未配置时降级为关键词检索。',
+    embeddingBaseUrl: 'Embedding API 地址',
+    embeddingBaseUrlPlaceholder: 'https://api.openai.com/v1',
+    embeddingModel: '模型名称',
+    embeddingModelPlaceholder: 'text-embedding-3-small',
+    embeddingApiKeyEnv: 'API Key 环境变量名',
+    embeddingApiKeyEnvPlaceholder: 'OPENAI_API_KEY',
+    searchTitle: '网络搜索',
+    searchSubtitle:
+      '配置搜索提供商 API Key 环境变量名。优先使用 Brave Search，其次 Tavily，默认 DuckDuckGo（免费）。',
+    braveApiKeyEnv: 'Brave Search API Key 环境变量名',
+    tavilyApiKeyEnv: 'Tavily API Key 环境变量名',
+    saveFailed: '保存失败',
+    saveSuccess: '保存成功',
   },
 
   // 404

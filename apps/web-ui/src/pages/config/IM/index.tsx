@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Button, Alert, Spin, Typography } from 'antd';
 import { useTranslation } from 'react-i18next';
 import { apiGet, apiPost } from '../../../api/base';
@@ -14,7 +14,7 @@ export function ConfigIMPage() {
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -26,11 +26,11 @@ export function ConfigIMPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [t]);
 
   useEffect(() => {
-    load();
-  }, []);
+    void load();
+  }, [load]);
 
   const handleSave = async () => {
     setSaving(true);

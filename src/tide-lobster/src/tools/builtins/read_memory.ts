@@ -1,3 +1,4 @@
+import { getEmbeddingService } from '../../memory/embeddingService.js';
 import { memoryStore } from '../../memory/store.js';
 import type { ToolDef } from '../types.js';
 
@@ -20,8 +21,26 @@ export const readMemoryTool: ToolDef = {
     const keyword = String(query ?? '').trim();
     if (!keyword) return '未提供搜索关键词';
 
-    const memories = memoryStore.search(keyword, Number(limit ?? 5));
+    const k = Number(limit ?? 5);
+    const embSvc = getEmbeddingService();
+
+    if (embSvc) {
+      try {
+        const vec = await embSvc.embed(keyword);
+        const results = memoryStore.semanticSearch(vec, k);
+        if (results.length > 0) {
+          return results
+            .map((m) => `[${m.memory_type}] ${m.content} (相似度: ${m.score.toFixed(3)})`)
+            .join('\n');
+        }
+      } catch {
+        // embedding 失败时降级到 LIKE 检索
+      }
+    }
+
+    const memories = memoryStore.search(keyword, k);
     if (memories.length === 0) return '未找到相关记忆';
-    return memories.map((item) => `[${item.memory_type}] ${item.content}`).join('\n');
+    return memories.map((m) => `[${m.memory_type}] ${m.content}`).join('\n');
   },
 };
+

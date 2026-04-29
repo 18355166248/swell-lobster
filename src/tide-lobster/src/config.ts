@@ -75,6 +75,13 @@ export const settings = {
   agentName: env('AGENT_NAME', 'Swell-Lobster'),
   port: parseInt(process.env.API_PORT ?? '18900', 10),
   host: process.env.API_HOST ?? '127.0.0.1',
+  // 向量 embedding 配置（可选，未配置时降级为 LIKE 检索）
+  embeddingBaseUrl: process.env.SWELL_EMBEDDING_BASE_URL?.trim() ?? '',
+  embeddingModel: process.env.SWELL_EMBEDDING_MODEL?.trim() ?? 'text-embedding-3-small',
+  embeddingApiKeyEnv: process.env.SWELL_EMBEDDING_API_KEY_ENV?.trim() ?? '',
+  // 网络搜索配置（可选）
+  braveSearchApiKeyEnv: process.env.SWELL_BRAVE_SEARCH_API_KEY_ENV?.trim() ?? 'BRAVE_SEARCH_API_KEY',
+  tavilyApiKeyEnv: process.env.SWELL_TAVILY_API_KEY_ENV?.trim() ?? 'TAVILY_API_KEY',
 } as const;
 
 export type Settings = typeof settings;

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Button, Alert, Spin, Typography, Tree } from 'antd';
 import type { TreeDataNode } from 'antd';
 import { useTranslation } from 'react-i18next';
@@ -62,7 +62,7 @@ export function ConfigIdentityPage() {
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
-  const loadFiles = async () => {
+  const loadFiles = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -74,11 +74,11 @@ export function ConfigIdentityPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [t]);
 
   useEffect(() => {
-    loadFiles();
-  }, []);
+    void loadFiles();
+  }, [loadFiles]);
 
   const loadContent = async (path: string) => {
     setSelected(path);

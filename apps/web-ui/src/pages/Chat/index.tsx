@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, useCallback, memo } from 'react';
+import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { Alert, Avatar, Button, Select, Skeleton } from 'antd';
 import { FileTextOutlined, PlusOutlined, RobotOutlined, UserOutlined } from '@ant-design/icons';
 import { useAtom } from 'jotai';
@@ -15,7 +15,7 @@ import {
   sendMessageStream,
   updateSession,
 } from './api';
-import { getApiBase } from '../../api/base';
+import { getApiBase, apiGet } from '../../api/base';
 import type {
   ChatAttachment,
   ChatMessage,
@@ -59,6 +59,8 @@ function upsertSessionSummary(list: SessionSummary[], session: ChatSession): Ses
     id: session.id,
     title: session.title,
     endpoint_name: session.endpoint_name,
+    persona_path: session.persona_path ?? null,
+    template_id: session.template_id ?? null,
     updated_at: session.updated_at,
     message_count: session.messages.length,
   };
@@ -291,6 +293,11 @@ function ToolInvocationPanel({
   );
 }
 
+function ChatMarkdown({ text }: { text: string }) {
+  return <MarkdownContent content={text} />;
+}
+ChatMarkdown.displayName = 'ChatMarkdown';
+
 export function ChatPage() {
   const { t } = useTranslation();
   const [sessions, setSessions] = useState<SessionSummary[]>([]);
@@ -306,7 +313,10 @@ export function ChatPage() {
   const [chatGeneratingSessions, setChatGenerating] = useAtom(chatGeneratingAtom);
 
   // 当前展示的消息（由 activeSessionId 派生，不是独立 state）
-  const messages = sessionMessagesMap.get(activeSessionId) ?? [];
+  const messages = useMemo(
+    () => sessionMessagesMap.get(activeSessionId) ?? [],
+    [sessionMessagesMap, activeSessionId]
+  );
 
   // 更新指定会话的消息
   const updateSessionMessages = useCallback(
@@ -320,6 +330,7 @@ export function ChatPage() {
     []
   );
   const [bootLoading, setBootLoading] = useState(true);
+  const [templates, setTemplates] = useState<import('./types').AgentTemplate[]>([]);
   const [sessionLoading, setSessionLoading] = useState(false);
   const [creating, setCreating] = useState(false);
   const [templatePickerOpen, setTemplatePickerOpen] = useState(false);
@@ -411,6 +422,12 @@ export function ChatPage() {
     [sessions, activeSessionId]
   );
 
+  const activeTemplate = useMemo(
+    () =>
+      activeSession?.template_id ? templates.find((t) => t.id === activeSession.template_id) : null,
+    [activeSession, templates]
+  );
+
   const enabledEndpoints = useMemo(
     () =>
       [...endpoints]
@@ -444,6 +461,11 @@ export function ChatPage() {
         const epList = Array.isArray(data.endpoints) ? data.endpoints : [];
         setEndpoints(epList);
 
+        // 加载模板列表（用于头部显示当前模板名称）
+        apiGet<{ templates: import('./types').AgentTemplate[] }>('/api/agent-templates')
+          .then((res) => setTemplates(res.templates ?? []))
+          .catch(() => {});
+
         let sessionList = Array.isArray(data.sessions) ? data.sessions : [];
         if (sessionList.length === 0) {
           const created = await createSession(epList[0]?.name, lastPersona);
@@ -453,6 +475,7 @@ export function ChatPage() {
               title: created.title,
               endpoint_name: created.endpoint_name,
               persona_path: created.persona_path ?? null,
+              template_id: created.template_id ?? null,
               updated_at: created.updated_at,
               message_count: created.messages.length,
             },
@@ -552,6 +575,7 @@ export function ChatPage() {
               title: created.title,
               endpoint_name: created.endpoint_name,
               persona_path: created.persona_path ?? null,
+              template_id: created.template_id ?? null,
               updated_at: created.updated_at,
               message_count: created.messages.length,
             },
@@ -689,10 +713,6 @@ export function ChatPage() {
     ]
   );
 
-  const ChatMarkdown = memo(({ text }: { text: string }) => {
-    return <MarkdownContent content={text} />;
-  });
-
   const send = async () => {
     const text = input.trim();
     if ((!text && pendingAttachments.length === 0) || chatGeneratingSessions.has(activeSessionId))
@@ -792,24 +812,20 @@ export function ChatPage() {
     }
   };
 
-  const bubbleItems = useMemo(
-    () => {
-      const isGenerating = chatGeneratingSessions.has(activeSessionId);
-      return messages.map((m, i) => {
-        const isLastAssistant = isGenerating && m.role === 'assistant' && i === messages.length - 1;
-        return {
-          key: i,
-          role: m.role === 'user' ? 'user' : 'assistant',
-          rawContent: m.content,
-          content: <ChatMarkdown text={m.content} />,
-          loading: isLastAssistant && m.content === '',
-          streaming: isLastAssistant && m.content !== '',
-        };
-      });
-    },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [sessionMessagesMap, activeSessionId, chatGeneratingSessions]
-  );
+  const bubbleItems = useMemo(() => {
+    const isGenerating = chatGeneratingSessions.has(activeSessionId);
+    return messages.map((m, i) => {
+      const isLastAssistant = isGenerating && m.role === 'assistant' && i === messages.length - 1;
+      return {
+        key: i,
+        role: m.role === 'user' ? 'user' : 'assistant',
+        rawContent: m.content,
+        content: <ChatMarkdown text={m.content} />,
+        loading: isLastAssistant && m.content === '',
+        streaming: isLastAssistant && m.content !== '',
+      };
+    });
+  }, [messages, activeSessionId, chatGeneratingSessions]);
 
   return (
     <div className="flex h-full animate-in fade-in-50 duration-200">
@@ -842,6 +858,12 @@ export function ChatPage() {
             <p className="text-xs text-muted-foreground mt-0.5">{t('chat.subtitle')}</p>
           </div>
           <div className="flex items-center gap-2">
+            {activeTemplate && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary border border-primary/20">
+                {activeTemplate.icon && <span>{activeTemplate.icon}</span>}
+                {activeTemplate.name}
+              </span>
+            )}
             {activeSessionId && (
               <PersonaSelect
                 sessionId={activeSessionId}

@@ -34,6 +34,7 @@ export function buildSkillsAutoRoutingPrompt(): string {
     `## Skills (mandatory)`,
     `Before replying: scan <available_skills> <description> entries.`,
     `- If exactly one skill clearly applies: read its SKILL.md at <location> with the read_skill tool, then follow it.`,
+    `- Never call a skill id or skill name as a tool name. Skills are not callable tools; use read_skill only.`,
     `- If no skill clearly applies: answer directly.`,
     `<available_skills>`,
     entries,

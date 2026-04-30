@@ -10,7 +10,21 @@ describe('ChatService', () => {
     repoRoot = mkdtempSync(join(tmpdir(), 'swell-chat-svc-test-'));
     mkdirSync(join(repoRoot, 'identity'), { recursive: true });
     mkdirSync(join(repoRoot, 'data'), { recursive: true });
+    mkdirSync(join(repoRoot, 'SKILLS', 'skill-creator'), { recursive: true });
     writeFileSync(join(repoRoot, 'identity', 'assistant.md'), 'You are a test assistant.');
+    writeFileSync(
+      join(repoRoot, 'SKILLS', 'skill-creator', 'SKILL.md'),
+      [
+        '---',
+        'name: skill-creator',
+        'description: Create and improve skills.',
+        '---',
+        '',
+        '# Skill Creator',
+        '',
+        'Use this skill when the user wants to create a skill.',
+      ].join('\n')
+    );
     process.env.SWELL_PROJECT_ROOT = repoRoot;
     process.env.SWELL_DATA_DIR = join(repoRoot, 'data');
     process.env.SWELL_IDENTITY_DIR = join(repoRoot, 'identity');
@@ -107,6 +121,36 @@ describe('ChatService', () => {
       expect(() =>
         svc.updateSession(session.id, { endpoint_name: 'nonexistent' })
       ).toThrow('endpoint not found');
+    });
+  });
+
+  describe('tool fallback', () => {
+    it('auto-routes direct skill-name tool calls to read_skill', async () => {
+      const { initializeBuiltinTools } = await import('../tools/index.js');
+      initializeBuiltinTools();
+      const { ChatService } = await import('./service.js');
+      const svc = new ChatService(repoRoot);
+
+      const trace = await (
+        svc as unknown as {
+          executeTool: (
+            toolCall: { id: string; name: string; arguments: Record<string, unknown> },
+            toolInvocations: unknown[],
+            onEvent?: undefined,
+            sessionId?: string
+          ) => Promise<{ status: string; result?: string }>;
+        }
+      ).executeTool(
+        { id: 'tc-1', name: 'skill-creator', arguments: {} },
+        [],
+        undefined,
+        'session-1'
+      );
+
+      expect(trace.status).toBe('completed');
+      expect(trace.result).toContain('Auto-routed skill fallback');
+      expect(trace.result).toContain('name: skill-creator');
+      expect(trace.result).toContain('Use this skill when the user wants to create a skill.');
     });
   });
 });

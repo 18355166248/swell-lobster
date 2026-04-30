@@ -26,6 +26,7 @@ import { extractorService } from '../memory/extractorService.js';
 import { globalToolRegistry } from '../tools/registry.js';
 import type { ToolCall, ToolExecutionTrace } from '../tools/types.js';
 import { buildSkillsAutoRoutingPrompt } from '../skills/autoRouting.js';
+import { getSkill } from '../skills/loader.js';
 import { persistUploadedBuffer, type StoredAttachment } from '../upload/handler.js';
 import { toLLMMessages, type ChatInputAttachment } from './attachments.js';
 
@@ -76,6 +77,16 @@ async function emitTextAsChunks(
   for (let index = 0; index < content.length; index += chunkSize) {
     await emit(content.slice(index, index + chunkSize));
   }
+}
+
+function buildSkillFallbackResult(skillName: string, skillPath: string, skillContent: string): string {
+  return [
+    `Auto-routed skill fallback: the model attempted to call skill "${skillName}" as a tool.`,
+    `Skills are not callable tools in this runtime. Read and follow the SKILL.md below instead.`,
+    `Skill path: ${skillPath}`,
+    ``,
+    skillContent,
+  ].join('\n');
 }
 
 /**
@@ -592,6 +603,30 @@ export class ChatService {
 
     const tool = globalToolRegistry.get(toolCall.name);
     if (!tool) {
+      const skill = getSkill(toolCall.name);
+      if (skill?.enabled) {
+        const readSkill = globalToolRegistry.get('read_skill');
+        if (readSkill) {
+          const skillContent = await readSkill.execute(
+            { path: skill.file_path },
+            { sessionId }
+          );
+          trace.status = 'completed';
+          trace.result = buildSkillFallbackResult(
+            skill.name,
+            skill.file_path,
+            skillContent
+          );
+          await onEvent?.({
+            type: 'tool_result',
+            name: toolCall.name,
+            status: 'completed',
+            content: trace.result,
+          });
+          return trace;
+        }
+      }
+
       trace.status = 'failed';
       trace.result = `工具 ${toolCall.name} 不存在`;
       await onEvent?.({

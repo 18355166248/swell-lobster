@@ -1,13 +1,26 @@
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { Outlet, useLocation } from 'react-router';
 import { Sidebar } from '../components/Sidebar';
 import { GlobalLoading } from '../components/GlobalLoading';
+import { PageLoading } from '../components/PageLoading';
 import { Topbar } from '../components/Topbar';
-import { ChatPage } from '../pages/Chat';
 import { ROUTES } from '../routes';
+
+const ChatPage = lazy(async () => {
+  const module = await import('../pages/Chat');
+  return { default: module.ChatPage };
+});
 
 export function RootLayout() {
   const { pathname } = useLocation();
   const isChatRoute = pathname === ROUTES.CHAT;
+  const [hasVisitedChat, setHasVisitedChat] = useState(isChatRoute);
+
+  useEffect(() => {
+    if (!isChatRoute || hasVisitedChat) return;
+    const timer = window.setTimeout(() => setHasVisitedChat(true), 0);
+    return () => window.clearTimeout(timer);
+  }, [hasVisitedChat, isChatRoute]);
 
   return (
     <>
@@ -19,9 +32,13 @@ export function RootLayout() {
           <Topbar />
           <main className={`flex-1 ${isChatRoute ? 'overflow-hidden' : 'overflow-auto'}`}>
             {/* Chat 始终挂载，切换菜单后通过 CSS 隐藏，生成状态不中断 */}
-            <div className={isChatRoute ? 'h-full' : 'hidden'}>
-              <ChatPage />
-            </div>
+            {hasVisitedChat && (
+              <div className={isChatRoute ? 'h-full' : 'hidden'}>
+                <Suspense fallback={<PageLoading />}>
+                  <ChatPage />
+                </Suspense>
+              </div>
+            )}
             {/* 其他页面通过 Outlet 渲染 */}
             {!isChatRoute && <Outlet />}
           </main>

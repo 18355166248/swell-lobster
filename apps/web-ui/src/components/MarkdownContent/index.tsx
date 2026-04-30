@@ -4,16 +4,11 @@ import { FileCard } from '../FileCard';
 import ReactMarkdown from 'react-markdown';
 import type { Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import remarkMath from 'remark-math';
-import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
 import 'katex/contrib/mhchem';
-import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
-import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { CopyOutlined, CheckOutlined, ExpandOutlined, FolderOpenOutlined } from '@ant-design/icons';
 import { Modal } from 'antd';
 import { useTranslation } from 'react-i18next'; // Using useTranslation instead of i18nService
-import mermaid from 'mermaid';
 import { invoke } from '@tauri-apps/api/core';
 import { getApiBase } from '../../api/base';
 import { isTauri } from '../../utils/platform';
@@ -94,13 +89,91 @@ const SYNTAX_HIGHLIGHTER_STYLE = {
   background: '#282c34',
 };
 
-// Initialize mermaid with configuration
-mermaid.initialize({
-  startOnLoad: false, // 禁用自动渲染 自定义渲染
-  theme: 'default',
-  securityLevel: 'strict',
-});
 const SAFE_URL_PROTOCOLS = new Set(['http', 'https', 'mailto', 'tel', 'file']);
+const MATH_BLOCK_RE = /(^|[^\\])\$\$[\s\S]+?\$\$|(^|[^\\])\$[^$\n]+\$/m;
+
+type HighlighterModule = {
+  SyntaxHighlighter: (typeof import('react-syntax-highlighter'))['Prism'];
+  style: Record<string, React.CSSProperties>;
+};
+
+let highlighterModulePromise: Promise<HighlighterModule> | null = null;
+let remarkMathPromise: Promise<typeof import('remark-math').default> | null = null;
+let rehypeKatexPromise: Promise<typeof import('rehype-katex').default> | null = null;
+let mermaidPromise: Promise<typeof import('mermaid').default> | null = null;
+
+function loadHighlighterModule(): Promise<HighlighterModule> {
+  highlighterModulePromise ??= Promise.all([
+    import('react-syntax-highlighter'),
+    import('react-syntax-highlighter/dist/esm/styles/prism'),
+  ]).then(([highlighter, styles]) => ({
+    SyntaxHighlighter: highlighter.Prism,
+    style: styles.oneDark,
+  }));
+  return highlighterModulePromise;
+}
+
+function loadRemarkMath() {
+  remarkMathPromise ??= import('remark-math').then((module) => module.default);
+  return remarkMathPromise;
+}
+
+function loadRehypeKatex() {
+  rehypeKatexPromise ??= import('rehype-katex').then((module) => module.default);
+  return rehypeKatexPromise;
+}
+
+function loadMermaid() {
+  mermaidPromise ??= import('mermaid').then((module) => {
+    module.default.initialize({
+      startOnLoad: false,
+      theme: 'default',
+      securityLevel: 'strict',
+    });
+    return module.default;
+  });
+  return mermaidPromise;
+}
+
+const LazyHighlightedCode: React.FC<{ code: string; language: string }> = ({ code, language }) => {
+  const [module, setModule] = useState<HighlighterModule | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    loadHighlighterModule()
+      .then((loaded) => {
+        if (!cancelled) setModule(loaded);
+      })
+      .catch(() => {
+        if (!cancelled) setModule(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  if (!module) {
+    return (
+      <div className="m-0 overflow-x-auto bg-[#282c34] text-[13px] leading-6">
+        <code className="block px-4 py-3 font-mono text-claude-darkText whitespace-pre">
+          {code}
+        </code>
+      </div>
+    );
+  }
+
+  const { SyntaxHighlighter, style } = module;
+  return (
+    <SyntaxHighlighter
+      style={style}
+      language={language}
+      PreTag="div"
+      customStyle={SYNTAX_HIGHLIGHTER_STYLE}
+    >
+      {code}
+    </SyntaxHighlighter>
+  );
+};
 
 const MermaidBlock: React.FC<{ code: string }> = ({ code }) => {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -138,6 +211,7 @@ const MermaidBlock: React.FC<{ code: string }> = ({ code }) => {
 
       try {
         setError('');
+        const mermaid = await loadMermaid();
 
         // First validate the diagram syntax
         try {
@@ -513,14 +587,7 @@ const CodeBlock: Components['code'] = ({ node, className, children, ...props }) 
           </button>
         </div>
         {shouldHighlight ? (
-          <SyntaxHighlighter
-            style={oneDark}
-            language={match[1]}
-            PreTag="div"
-            customStyle={SYNTAX_HIGHLIGHTER_STYLE}
-          >
-            {trimmedCodeText}
-          </SyntaxHighlighter>
+          <LazyHighlightedCode code={trimmedCodeText} language={match[1]} />
         ) : (
           <div className="m-0 overflow-x-auto bg-[#282c34] text-[13px] leading-6">
             <code className="block px-4 py-3 font-mono text-claude-darkText whitespace-pre">
@@ -716,6 +783,46 @@ interface MarkdownContentProps {
 const MarkdownContent: React.FC<MarkdownContentProps> = ({ content, className = '' }) => {
   const components = useMemo(() => createMarkdownComponents(), []);
   const segments = useMemo(() => splitThinkBlocks(content), [content]);
+  const [remarkMathPlugin, setRemarkMathPlugin] = useState<Awaited<
+    ReturnType<typeof loadRemarkMath>
+  > | null>(null);
+  const [rehypeKatexPlugin, setRehypeKatexPlugin] = useState<Awaited<
+    ReturnType<typeof loadRehypeKatex>
+  > | null>(null);
+  const hasMath = useMemo(
+    () => segments.some((seg) => seg.type === 'text' && MATH_BLOCK_RE.test(seg.content)),
+    [segments]
+  );
+
+  useEffect(() => {
+    if (!hasMath) return;
+
+    let cancelled = false;
+    Promise.all([loadRemarkMath(), loadRehypeKatex()])
+      .then(([remarkMathLoaded, rehypeKatexLoaded]) => {
+        if (cancelled) return;
+        setRemarkMathPlugin(() => remarkMathLoaded);
+        setRehypeKatexPlugin(() => rehypeKatexLoaded);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setRemarkMathPlugin(null);
+        setRehypeKatexPlugin(null);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [hasMath]);
+
+  const remarkPlugins = useMemo(
+    () => (remarkMathPlugin ? [remarkGfm, remarkMathPlugin] : [remarkGfm]),
+    [remarkMathPlugin]
+  );
+  const rehypePlugins = useMemo(
+    () => (rehypeKatexPlugin ? [rehypeKatexPlugin] : []),
+    [rehypeKatexPlugin]
+  );
 
   return (
     <div className={`markdown-content text-[15px] leading-6 ${className}`}>
@@ -727,8 +834,8 @@ const MarkdownContent: React.FC<MarkdownContentProps> = ({ content, className = 
         return (
           <ReactMarkdown
             key={i}
-            remarkPlugins={[remarkGfm, remarkMath]}
-            rehypePlugins={[rehypeKatex]}
+            remarkPlugins={remarkPlugins}
+            rehypePlugins={rehypePlugins}
             urlTransform={safeUrlTransform}
             components={components}
           >

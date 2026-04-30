@@ -134,3 +134,47 @@ export NO_PROXY=localhost,127.0.0.1
 | ------- | -------------------------------------------------------------------------- |
 | Windows | `C:\Users\{用户名}\AppData\Roaming\ai.swell.lobster\logs\tide-lobster.log` |
 | macOS   | `~/Library/Logs/ai.swell.lobster/tide-lobster.log`                         |
+
+---
+
+## MCP 启动超时快速定位
+
+若日志中出现类似错误：
+
+```text
+[mcp] failed to start Tavily: Error: MCP[Tavily] connect timed out after 15000ms
+```
+
+按下面顺序排查：
+
+1. 先确认该 MCP 是否通过 `npx` / `bunx` / `pnpm dlx` 启动。
+2. 如果是临时执行器，优先检查 `npm` 当前 registry，而不是先怀疑 MCP 代码本身。
+3. 若机器配置了公司内网源，例如 `http://xnpm.ximalaya.com/`，要确认目标包是否存在且可访问；内网源返回 `502` 或无该包时，`npx` 往往只表现为启动超时。
+4. 再检查代理是否对终端进程生效。注意：项目根 `.env` 会被桌面内置后端读取，但不会自动影响你手动执行的 `npm` / `npx` 命令。
+
+推荐的快速验证命令：
+
+```bash
+npm config get registry
+curl -I https://registry.npmjs.org/
+curl -I https://registry.npmjs.org/tavily-mcp
+curl -I https://registry.npmjs.org/bilibili-mcp-js
+```
+
+若你本地使用代理端口 `7897`，手动排查时要显式带上代理环境变量：
+
+```bash
+HTTPS_PROXY=http://127.0.0.1:7897 \
+HTTP_PROXY=http://127.0.0.1:7897 \
+ALL_PROXY=http://127.0.0.1:7897 \
+npm config get registry
+```
+
+### 本次案例结论
+
+- 现象：`Tavily` 和 `bilibili-search` 均报 `MCP[...] connect timed out`
+- 干扰项：`telegram connected`、`IMKCFRunLoopWakeUpReliable`、`page has no displayID` 不是根因
+- 根因：全局 npm registry 指向 `http://xnpm.ximalaya.com/`，而目标 MCP 包在该源上不可用或返回 `502`
+- 修复方向：
+  - 临时：切换 `nrm` / `npm config set registry https://registry.npmjs.org/`
+  - 长期：对 `npx` 型 MCP 显式指定 registry，避免继承全局错误源

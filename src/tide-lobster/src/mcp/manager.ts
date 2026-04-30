@@ -8,6 +8,7 @@ import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
+import { basename } from 'node:path';
 import { mcpStore } from './store.js';
 import { mcpToolBridge } from './toolBridge.js';
 import type { MCPServerConfig, MCPToolInfo } from './types.js';
@@ -20,9 +21,20 @@ type ManagedClient = {
 };
 
 /** 合并进程环境与子进程专属 env，并去掉非 string 项（SDK 要求） */
-function mergeEnv(extra: Record<string, string>): Record<string, string> {
+function mergeEnv(
+  extra: Record<string, string>,
+  config?: MCPServerConfig
+): Record<string, string> {
+  const merged = { ...process.env, ...extra };
+  if (config && usesEphemeralPackageExecutor(config)) {
+    const registry = resolveEphemeralRegistryOverride(config);
+    if (registry) {
+      merged.npm_config_registry = registry;
+      merged.NPM_CONFIG_REGISTRY = registry;
+    }
+  }
   return Object.fromEntries(
-    Object.entries({ ...process.env, ...extra }).filter(
+    Object.entries(merged).filter(
       (entry): entry is [string, string] => typeof entry[1] === 'string'
     )
   );
@@ -44,7 +56,7 @@ function createTransport(config: MCPServerConfig): Transport {
     return new StdioClientTransport({
       command: config.command,
       args: config.args,
-      env: mergeEnv(config.env),
+      env: mergeEnv(config.env, config),
     });
   }
   const rawUrl = config.url?.trim();
@@ -65,11 +77,63 @@ function createTransport(config: MCPServerConfig): Transport {
   return new StreamableHTTPClientTransport(parsedUrl, opts);
 }
 
-/** 单个 MCP 启动（连接 + listTools）的客户端侧超时，避免远端无响应时拖到 SDK 默认 60s */
-const MCP_CONNECT_TIMEOUT_MS = (() => {
-  const raw = Number(process.env.SWELL_MCP_CONNECT_TIMEOUT_MS);
-  return Number.isFinite(raw) && raw > 0 ? raw : 15_000;
-})();
+function readTimeoutMs(
+  value: string | undefined,
+  fallback: number
+): number {
+  const raw = Number(value);
+  return Number.isFinite(raw) && raw > 0 ? raw : fallback;
+}
+
+function commandBase(command: string): string {
+  return basename(command.trim()).toLowerCase();
+}
+
+export function resolveEphemeralRegistryOverride(
+  config: MCPServerConfig,
+  env: NodeJS.ProcessEnv = process.env
+): string {
+  if (!usesEphemeralPackageExecutor(config)) return '';
+  return env.SWELL_MCP_NPX_REGISTRY?.trim() ?? '';
+}
+
+export function usesEphemeralPackageExecutor(config: MCPServerConfig): boolean {
+  if ((config.type ?? 'stdio') !== 'stdio') return false;
+  const base = commandBase(config.command);
+  if (base === 'npx' || base === 'bunx') return true;
+  if (base === 'pnpm') {
+    return (config.args[0] ?? '').trim().toLowerCase() === 'dlx';
+  }
+  return false;
+}
+
+export function resolveConnectTimeoutMs(
+  config: MCPServerConfig,
+  env: NodeJS.ProcessEnv = process.env
+): number {
+  const baseTimeoutMs = readTimeoutMs(env.SWELL_MCP_CONNECT_TIMEOUT_MS, 15_000);
+  if (!usesEphemeralPackageExecutor(config)) return baseTimeoutMs;
+  const ephemeralTimeoutMs = readTimeoutMs(
+    env.SWELL_MCP_EPHEMERAL_CONNECT_TIMEOUT_MS,
+    60_000
+  );
+  return Math.max(baseTimeoutMs, ephemeralTimeoutMs);
+}
+
+export function buildTimeoutMessage(
+  config: MCPServerConfig,
+  stage: 'connect' | 'listTools',
+  timeoutMs: number
+): string {
+  const prefix = `MCP[${config.name}] ${stage} timed out after ${timeoutMs}ms`;
+  if ((config.type ?? 'stdio') === 'stdio') {
+    if (usesEphemeralPackageExecutor(config)) {
+      return `${prefix}. This server is started via ${commandBase(config.command)}, which may need extra time on first launch to download packages. Retry after the package is cached, preinstall the package locally, or raise SWELL_MCP_EPHEMERAL_CONNECT_TIMEOUT_MS / SWELL_MCP_CONNECT_TIMEOUT_MS.`;
+    }
+    return `${prefix}. Verify the command starts an MCP stdio server without interactive prompts and that it can launch from the current environment.`;
+  }
+  return `${prefix}. Verify the MCP endpoint URL, authentication headers, and network connectivity.`;
+}
 
 function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
   return new Promise<T>((resolve, reject) => {
@@ -100,15 +164,16 @@ export class MCPManager {
       name: 'swell-lobster',
       version: '1.0.0',
     });
+    const connectTimeoutMs = resolveConnectTimeoutMs(config);
     try {
       await withTimeout(
         client.connect(transport),
-        MCP_CONNECT_TIMEOUT_MS,
+        connectTimeoutMs,
         `MCP[${config.name}] connect`
       );
       const result = await withTimeout(
         client.listTools(),
-        MCP_CONNECT_TIMEOUT_MS,
+        connectTimeoutMs,
         `MCP[${config.name}] listTools`
       );
       const tools = Array.isArray(result.tools) ? (result.tools as MCPToolInfo[]) : [];
@@ -130,9 +195,18 @@ export class MCPManager {
       } catch {
         // ignore
       }
-      const message = error instanceof Error ? error.message : String(error);
+      const message =
+        error instanceof Error
+          ? error.message.replace(
+              `MCP[${config.name}] connect timed out after ${connectTimeoutMs}ms`,
+              buildTimeoutMessage(config, 'connect', connectTimeoutMs)
+            ).replace(
+              `MCP[${config.name}] listTools timed out after ${connectTimeoutMs}ms`,
+              buildTimeoutMessage(config, 'listTools', connectTimeoutMs)
+            )
+          : String(error);
       mcpStore.setStatus(config.id, 'error', message);
-      throw error;
+      throw new Error(message);
     }
   }
 

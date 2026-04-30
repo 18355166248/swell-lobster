@@ -1,4 +1,4 @@
-import { StrictMode, useEffect } from 'react';
+import { StrictMode, Suspense, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
 import { useAtomValue } from 'jotai';
 import { RouterProvider } from 'react-router';
@@ -7,6 +7,7 @@ import zhCN from 'antd/locale/zh_CN';
 import enUS from 'antd/locale/en_US';
 import { I18nextProvider } from 'react-i18next';
 import { invoke } from '@tauri-apps/api/core';
+import { PageLoading } from './components/PageLoading';
 import './i18n';
 import i18n from './i18n';
 import './index.css';
@@ -17,7 +18,6 @@ import { localeAtom } from './store/locale';
 import { brandTheme, applyBrandToCss } from './theme';
 import { isTauri } from './utils/platform';
 import { reportFrontendLog } from './pages/Journal/api';
-import mermaid from 'mermaid';
 
 // 全局前端错误收集 → 写入 app_logs
 window.addEventListener('error', (e) => {
@@ -49,8 +49,6 @@ if (isTauri()) {
     }
   });
 }
-
-mermaid.initialize({ startOnLoad: true });
 
 function AppWithTheme() {
   const mode = useAtomValue(themeModeAtom);
@@ -95,7 +93,9 @@ function AppWithTheme() {
     >
       <App>
         <ThemeSync />
-        <RouterProvider router={router} />
+        <Suspense fallback={<PageLoading />}>
+          <RouterProvider router={router} />
+        </Suspense>
       </App>
     </ConfigProvider>
   );

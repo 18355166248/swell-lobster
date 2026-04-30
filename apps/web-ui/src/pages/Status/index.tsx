@@ -2,14 +2,13 @@ import { useEffect, useState } from 'react';
 import { Badge, Alert, Spin, Typography, Button, message } from 'antd';
 import { FileTextOutlined } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
+import { invoke } from '@tauri-apps/api/core';
 import { apiGet } from '../../api/base';
+import { isTauri } from '../../utils/platform';
 
 const { Title, Text } = Typography;
 
-const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
-
 async function openLog(): Promise<void> {
-  const { invoke } = await import('@tauri-apps/api/core');
   const path = await invoke<string>('get_log_path');
   await invoke('open_file', { path });
 }
@@ -66,7 +65,7 @@ export function StatusPage() {
         </div>
       )}
 
-      {isTauri && (
+      {isTauri() && (
         <div className="mt-6">
           <Button icon={<FileTextOutlined />} loading={openingLog} onClick={handleViewLog}>
             {t('status.viewLog')}

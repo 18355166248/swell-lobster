@@ -556,6 +556,13 @@ scheduler: {
 - [x] 服务器进程异常退出时状态变为 error，不影响主进程
 - [x] 进程退出时所有 MCP 子进程被清理（无残留进程）
 
+### MCP 故障排查补充
+
+- `stdio` MCP 若通过 `npx` / `bunx` / `pnpm dlx` 启动，超时不一定是 MCP 协议问题，常见根因是首次拉包慢或 npm registry 配置错误。
+- 若日志表现为 `MCP[xxx] connect timed out`，先执行 `npm config get registry`，确认是否落在不可用的内网源。
+- 对需要代理的环境，桌面应用读取 `.env` 不代表你手动执行的 `npm` / `npx` 也会自动继承同样代理；终端排查时要显式带 `HTTP_PROXY` / `HTTPS_PROXY`。
+- 已知案例：`Tavily` / `bilibili-search` 在全局 registry 指向 `http://xnpm.ximalaya.com/` 时会表现为启动超时；切回 npm 官方源后可快速恢复。
+
 ### Scheduler
 
 - [x] 创建 Cron 任务 `* * * * *`（每分钟），1分钟内在列表展开行中看到执行历史

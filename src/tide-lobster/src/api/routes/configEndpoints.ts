@@ -13,15 +13,147 @@
 import { Hono } from 'hono';
 import { EndpointStore } from '../../store/endpointStore.js';
 import { getDb } from '../../db/index.js';
+import { KeyValueStore } from '../../store/keyValueStore.js';
 import { listProviders, providerInfoToDict } from '../../llm/registries/index.js';
 import { listModelsAnthropic, listModelsOpenAI } from '../../llm/bridge.js';
+import { randomUUID } from 'node:crypto';
 
 export const configEndpointsRouter = new Hono();
 const store = new EndpointStore();
+const kvStore = new KeyValueStore();
+
+const COMPILER_ENDPOINT_KEY = 'llm:compiler_endpoint';
+const STT_ENDPOINTS_KEY = 'llm:stt_endpoints';
+
+function readJsonValue<T>(key: string, fallback: T): T {
+  const raw = kvStore.getValue(key);
+  if (!raw) return fallback;
+  try {
+    return JSON.parse(raw) as T;
+  } catch {
+    return fallback;
+  }
+}
+
+function writeJsonValue(key: string, value: unknown): void {
+  kvStore.setValue(key, JSON.stringify(value));
+}
 
 configEndpointsRouter.get('/api/config/endpoints', (c) => {
   const endpoints = store.listEndpoints();
   return c.json({ endpoints });
+});
+
+configEndpointsRouter.get('/api/config/compiler-endpoint', (c) => {
+  const value = readJsonValue<{ endpoint_id?: string | null }>(COMPILER_ENDPOINT_KEY, {
+    endpoint_id: null,
+  });
+  return c.json(value);
+});
+
+configEndpointsRouter.post('/api/config/compiler-endpoint', async (c) => {
+  try {
+    const body = await c.req.json<{ endpoint_id?: string | null }>();
+    const endpointId = body.endpoint_id ?? null;
+    if (endpointId) {
+      const exists = store.getEndpointById(endpointId);
+      if (!exists) return c.json({ detail: 'endpoint not found' }, 404);
+    }
+    writeJsonValue(COMPILER_ENDPOINT_KEY, { endpoint_id: endpointId });
+    return c.json({ status: 'ok', endpoint_id: endpointId });
+  } catch (e) {
+    return c.json({ detail: String((e as Error)?.message || e) }, 500);
+  }
+});
+
+configEndpointsRouter.get('/api/config/stt-endpoints', (c) => {
+  const endpoints = readJsonValue<Record<string, unknown>[]>(STT_ENDPOINTS_KEY, []);
+  return c.json({ endpoints });
+});
+
+configEndpointsRouter.post('/api/config/stt-endpoints/item', async (c) => {
+  try {
+    const body = await c.req.json<{ endpoint: Record<string, unknown> }>();
+    const endpoint = body.endpoint;
+    if (!endpoint || typeof endpoint !== 'object') {
+      return c.json({ detail: 'endpoint is required' }, 400);
+    }
+    const endpoints = readJsonValue<Record<string, unknown>[]>(STT_ENDPOINTS_KEY, []);
+    const created = { ...endpoint, id: String(endpoint.id ?? randomUUID()) };
+    endpoints.push(created);
+    writeJsonValue(STT_ENDPOINTS_KEY, endpoints);
+    return c.json({ endpoint: created }, 201);
+  } catch (e) {
+    return c.json({ detail: String((e as Error)?.message || e) }, 500);
+  }
+});
+
+configEndpointsRouter.patch('/api/config/stt-endpoints/:id', async (c) => {
+  try {
+    const id = c.req.param('id');
+    const body = await c.req.json<{ endpoint: Record<string, unknown> }>();
+    const endpoint = body.endpoint;
+    if (!endpoint || typeof endpoint !== 'object') {
+      return c.json({ detail: 'endpoint is required' }, 400);
+    }
+    const endpoints = readJsonValue<Record<string, unknown>[]>(STT_ENDPOINTS_KEY, []);
+    const index = endpoints.findIndex((item) => String(item.id ?? '') === id);
+    if (index === -1) return c.json({ detail: 'endpoint not found' }, 404);
+    const updated = { ...endpoint, id };
+    endpoints[index] = updated;
+    writeJsonValue(STT_ENDPOINTS_KEY, endpoints);
+    return c.json({ endpoint: updated });
+  } catch (e) {
+    return c.json({ detail: String((e as Error)?.message || e) }, 500);
+  }
+});
+
+configEndpointsRouter.delete('/api/config/stt-endpoints/:id', (c) => {
+  const id = c.req.param('id');
+  const endpoints = readJsonValue<Record<string, unknown>[]>(STT_ENDPOINTS_KEY, []);
+  const next = endpoints.filter((item) => String(item.id ?? '') !== id);
+  if (next.length === endpoints.length) {
+    return c.json({ detail: 'endpoint not found' }, 404);
+  }
+  writeJsonValue(STT_ENDPOINTS_KEY, next);
+  return c.json({ status: 'ok', id });
+});
+
+configEndpointsRouter.post('/api/config/endpoints/item', async (c) => {
+  try {
+    const body = await c.req.json<{ endpoint: Record<string, unknown> }>();
+    const endpoint = body.endpoint;
+    if (!endpoint || typeof endpoint !== 'object') {
+      return c.json({ detail: 'endpoint is required' }, 400);
+    }
+    const created = store.createEndpoint(endpoint);
+    return c.json({ endpoint: created }, 201);
+  } catch (e) {
+    return c.json({ detail: String((e as Error)?.message || e) }, 500);
+  }
+});
+
+configEndpointsRouter.patch('/api/config/endpoints/:id', async (c) => {
+  try {
+    const id = c.req.param('id');
+    const body = await c.req.json<{ endpoint: Record<string, unknown> }>();
+    const endpoint = body.endpoint;
+    if (!endpoint || typeof endpoint !== 'object') {
+      return c.json({ detail: 'endpoint is required' }, 400);
+    }
+    const updated = store.updateEndpoint(id, endpoint);
+    if (!updated) return c.json({ detail: 'endpoint not found' }, 404);
+    return c.json({ endpoint: updated });
+  } catch (e) {
+    return c.json({ detail: String((e as Error)?.message || e) }, 500);
+  }
+});
+
+configEndpointsRouter.delete('/api/config/endpoints/:id', (c) => {
+  const id = c.req.param('id');
+  const ok = store.deleteEndpoint(id);
+  if (!ok) return c.json({ detail: 'endpoint not found' }, 404);
+  return c.json({ status: 'ok', id });
 });
 
 // 1. 获取 endpoint id

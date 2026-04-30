@@ -50,7 +50,8 @@ function localPlaceholderKey(p: ProviderInfo | null | undefined): string {
 export type AddEndpointDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onConfirm: (data: EndpointFormData) => void;
+  onConfirm: (data: EndpointFormData) => void | Promise<void>;
+  saving?: boolean;
   existingNames?: string[];
   endpointCount?: number;
   mode?: 'add' | 'edit';
@@ -62,6 +63,7 @@ export function AddEndpointDialog({
   open,
   onOpenChange,
   onConfirm,
+  saving = false,
   existingNames = [],
   endpointCount = 0,
   mode = 'add',
@@ -154,11 +156,11 @@ export function AddEndpointDialog({
 
   useEffect(() => {
     if (!open) return;
-    setBaseUrlExpanded(false);
     setModels([]);
     setConnTestResult(null);
     form.resetFields();
     if (mode === 'edit' && initial) {
+      setBaseUrlExpanded(true);
       form.setFieldsValue({
         providerSlug: initial.provider || '',
         baseUrl: initial.base_url || '',
@@ -178,6 +180,7 @@ export function AddEndpointDialog({
         costPer1mOutput: initial.cost_per_1m_output ?? undefined,
       });
     } else {
+      setBaseUrlExpanded(false);
       form.setFieldsValue({
         providerSlug: '',
         baseUrl: '',
@@ -223,6 +226,16 @@ export function AddEndpointDialog({
     syncWatchedFromForm();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [providers]);
+
+  useEffect(() => {
+    if (!open || mode !== 'edit' || !initial || !selectedProvider) return;
+    const currentBaseUrl = String(initial.base_url ?? '').trim();
+    const providerDefault = String(selectedProvider.default_base_url ?? '').trim();
+    const shouldExpand =
+      ['custom', 'ollama', 'lmstudio'].includes(selectedProvider.slug) ||
+      (!!currentBaseUrl && currentBaseUrl !== providerDefault);
+    setBaseUrlExpanded(shouldExpand);
+  }, [initial, mode, open, selectedProvider]);
 
   const applyModelCapabilities = useCallback(
     (modelId: string) => {
@@ -322,7 +335,7 @@ export function AddEndpointDialog({
   }, [selectedProvider, apiKeyValue, form]);
 
   const onFinish = useCallback(
-    (values: FormValues) => {
+    async (values: FormValues) => {
       const url = (values.baseUrl ?? '').trim() || selectedProvider?.default_base_url || '';
       const name =
         (values.endpointName ?? '').trim() ||
@@ -378,7 +391,7 @@ export function AddEndpointDialog({
             : undefined,
       };
 
-      onConfirm(payload);
+      await onConfirm(payload);
       onOpenChange(false);
     },
     [selectedProvider, existingNames, form, onConfirm, onOpenChange, t]
@@ -393,7 +406,7 @@ export function AddEndpointDialog({
         <Button onClick={testConnection} disabled={!canTest || connTesting} loading={connTesting}>
           {connTesting ? t('addEndpoint.testing') : t('addEndpoint.testConnection')}
         </Button>
-        <Button type="primary" onClick={() => form.submit()}>
+        <Button type="primary" onClick={() => form.submit()} loading={saving} disabled={saving}>
           {t('common.confirm')}
         </Button>
       </Space>

@@ -1,9 +1,9 @@
-import { useCallback, useEffect, useState } from 'react';
-import { Button, Table, Alert, Space, Badge, Typography } from 'antd';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Button, Table, Alert, Space, Badge, Typography, Select, message } from 'antd';
 import { DeleteOutlined, EditOutlined } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
 import { TableActions } from '../../../components/TableActions';
-import { apiGet, apiPost } from '../../../api/base';
+import { apiDelete, apiGet, apiPatch, apiPost } from '../../../api/base';
 import { AddEndpointDialog } from './AddEndpointDialog';
 import type { EndpointFormData, EndpointItem } from './types';
 
@@ -11,36 +11,51 @@ const { Title, Text } = Typography;
 
 type EndpointsResponse = {
   endpoints: EndpointItem[];
-  raw?: {
-    endpoints?: EndpointItem[];
-    compiler_endpoints?: EndpointItem[];
-    stt_endpoints?: EndpointItem[];
-  };
+};
+
+type CompilerEndpointResponse = {
+  endpoint_id?: string | null;
+};
+
+type SttEndpointsResponse = {
+  endpoints: EndpointItem[];
 };
 
 export function ConfigLLMPage() {
   const { t } = useTranslation();
+  const [messageApi, contextHolder] = message.useMessage();
   const [endpoints, setEndpoints] = useState<EndpointItem[]>([]);
-  const [raw, setRaw] = useState<Record<string, unknown>>({});
+  const [compilerEndpointId, setCompilerEndpointId] = useState<string | null>(null);
+  const [sttEndpoints, setSttEndpoints] = useState<EndpointItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
+  const [savingId, setSavingId] = useState<string | null>(null);
+  const [compilerSaving, setCompilerSaving] = useState(false);
   const [reloading, setReloading] = useState(false);
   const [addEndpointOpen, setAddEndpointOpen] = useState(false);
   const [editEndpointOpen, setEditEndpointOpen] = useState(false);
   const [editingTarget, setEditingTarget] = useState<EndpointItem | null>(null);
+  const [addSttEndpointOpen, setAddSttEndpointOpen] = useState(false);
+  const [editSttEndpointOpen, setEditSttEndpointOpen] = useState(false);
+  const [editingSttTarget, setEditingSttTarget] = useState<EndpointItem | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const data = await apiGet<EndpointsResponse>('/api/config/endpoints');
-      setEndpoints(data.endpoints ?? []);
-      setRaw((data.raw as Record<string, unknown>) ?? {});
+      const [endpointData, compilerData, sttData] = await Promise.all([
+        apiGet<EndpointsResponse>('/api/config/endpoints'),
+        apiGet<CompilerEndpointResponse>('/api/config/compiler-endpoint'),
+        apiGet<SttEndpointsResponse>('/api/config/stt-endpoints'),
+      ]);
+      setEndpoints(endpointData.endpoints ?? []);
+      setCompilerEndpointId(compilerData.endpoint_id ?? null);
+      setSttEndpoints(sttData.endpoints ?? []);
     } catch (e) {
       setError(e instanceof Error ? e.message : t('llm.loadFailed'));
       setEndpoints([]);
-      setRaw({});
+      setCompilerEndpointId(null);
+      setSttEndpoints([]);
     } finally {
       setLoading(false);
     }
@@ -49,19 +64,6 @@ export function ConfigLLMPage() {
   useEffect(() => {
     void load();
   }, [load]);
-
-  const handleSave = async () => {
-    setSaving(true);
-    setError(null);
-    try {
-      await apiPost('/api/config/endpoints', { content: { ...raw, endpoints } });
-      await load();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : t('llm.saveFailed'));
-    } finally {
-      setSaving(false);
-    }
-  };
 
   const handleApplyRestart = async () => {
     setReloading(true);
@@ -75,84 +77,126 @@ export function ConfigLLMPage() {
     }
   };
 
+  const compilerOptions = useMemo(
+    () =>
+      endpoints
+        .filter((item) => item.id && item.name)
+        .map((item) => ({ value: String(item.id), label: String(item.name) })),
+    [endpoints]
+  );
+
   const handleAddEndpoint = useCallback(
     async (data: EndpointFormData) => {
       setError(null);
+      setSavingId('__new__');
       if (data.api_key_value && data.api_key_env) {
         try {
           await apiPost('/api/config/env', { entries: { [data.api_key_env]: data.api_key_value } });
         } catch (e) {
           setError(e instanceof Error ? e.message : t('llm.writeKeyFailed'));
+          setSavingId(null);
+          throw e;
         }
       }
-      const newItem: EndpointItem = {
-        name: data.name,
-        model: data.model,
-        api_type: data.api_type,
-        base_url: data.base_url,
-        api_key_env: data.api_key_env,
-        priority: data.priority,
-        enabled: data.enabled !== false,
-        provider: data.provider,
-        capabilities: data.capabilities,
-        max_tokens: data.max_tokens,
-        context_window: data.context_window,
-        timeout: data.timeout,
-        rpm_limit: data.rpm_limit,
-        fallback_endpoint_id: data.fallback_endpoint_id,
-        cost_per_1m_input: data.cost_per_1m_input,
-        cost_per_1m_output: data.cost_per_1m_output,
-      };
-      setEndpoints((prev) =>
-        [...prev, newItem].sort((a, b) => (a.priority ?? 999) - (b.priority ?? 999))
-      );
+      try {
+        await apiPost('/api/config/endpoints/item', {
+          endpoint: {
+            name: data.name,
+            model: data.model,
+            api_type: data.api_type,
+            base_url: data.base_url,
+            api_key_env: data.api_key_env,
+            priority: data.priority,
+            enabled: data.enabled !== false,
+            provider: data.provider,
+            capabilities: data.capabilities,
+            max_tokens: data.max_tokens,
+            context_window: data.context_window,
+            timeout: data.timeout,
+            rpm_limit: data.rpm_limit,
+            fallback_endpoint_id: data.fallback_endpoint_id,
+            cost_per_1m_input: data.cost_per_1m_input,
+            cost_per_1m_output: data.cost_per_1m_output,
+          },
+        });
+        await load();
+      } catch (e) {
+        setError(e instanceof Error ? e.message : t('llm.saveFailed'));
+        throw e;
+      } finally {
+        setSavingId(null);
+      }
     },
-    [t]
+    [load, t]
   );
 
   const handleEditEndpoint = useCallback(
     async (data: EndpointFormData) => {
       setError(null);
+      const targetId = String(editingTarget?.id ?? '');
+      if (!targetId) return;
+      setSavingId(targetId);
       if (data.api_key_value && data.api_key_env) {
         try {
           await apiPost('/api/config/env', { entries: { [data.api_key_env]: data.api_key_value } });
         } catch (e) {
           setError(e instanceof Error ? e.message : t('llm.writeKeyFailed'));
+          setSavingId(null);
+          throw e;
         }
       }
-      setEndpoints((prev) => {
-        const nameToMatch = String(editingTarget?.name ?? '');
-        const updated: EndpointItem = {
-          id: editingTarget?.id,
-          name: data.name,
-          model: data.model,
-          api_type: data.api_type,
-          base_url: data.base_url,
-          api_key_env: data.api_key_env,
-          priority: data.priority,
-          enabled: data.enabled !== false,
-          provider: data.provider,
-          capabilities: data.capabilities,
-          max_tokens: data.max_tokens,
-          context_window: data.context_window,
-          timeout: data.timeout,
-          rpm_limit: data.rpm_limit,
-          fallback_endpoint_id: data.fallback_endpoint_id,
-          cost_per_1m_input: data.cost_per_1m_input,
-          cost_per_1m_output: data.cost_per_1m_output,
-        };
-        const next = prev.map((item) => (String(item.name ?? '') === nameToMatch ? updated : item));
-        return next.sort((a, b) => (a.priority ?? 999) - (b.priority ?? 999));
-      });
-      setEditEndpointOpen(false);
-      setEditingTarget(null);
+      try {
+        await apiPatch(`/api/config/endpoints/${targetId}`, {
+          endpoint: {
+            id: targetId,
+            name: data.name,
+            model: data.model,
+            api_type: data.api_type,
+            base_url: data.base_url,
+            api_key_env: data.api_key_env,
+            priority: data.priority,
+            enabled: data.enabled !== false,
+            provider: data.provider,
+            capabilities: data.capabilities,
+            max_tokens: data.max_tokens,
+            context_window: data.context_window,
+            timeout: data.timeout,
+            rpm_limit: data.rpm_limit,
+            fallback_endpoint_id: data.fallback_endpoint_id,
+            cost_per_1m_input: data.cost_per_1m_input,
+            cost_per_1m_output: data.cost_per_1m_output,
+          },
+        });
+        setEditEndpointOpen(false);
+        setEditingTarget(null);
+        await load();
+      } catch (e) {
+        setError(e instanceof Error ? e.message : t('llm.saveFailed'));
+        throw e;
+      } finally {
+        setSavingId(null);
+      }
     },
-    [editingTarget, t]
+    [editingTarget, load, t]
   );
 
-  const handleDeleteEndpoint = useCallback((name: string) => {
-    setEndpoints((prev) => prev.filter((item) => String(item.name ?? '') !== name));
-  }, []);
+  const handleDeleteEndpoint = useCallback(
+    async (record: EndpointItem) => {
+      const id = String(record.id ?? '');
+      if (!id) return;
+      setSavingId(id);
+      setError(null);
+      try {
+        await apiDelete(`/api/config/endpoints/${id}`);
+        await load();
+      } catch (e) {
+        setError(e instanceof Error ? e.message : t('llm.saveFailed'));
+      } finally {
+        setSavingId(null);
+      }
+    },
+    [load, t]
+  );
 
   const columns = [
     {
@@ -199,7 +243,7 @@ export function ConfigLLMPage() {
               danger: true,
               popconfirm: {
                 title: t('llm.deleteConfirm'),
-                onConfirm: () => handleDeleteEndpoint(String(record.name ?? '')),
+                onConfirm: () => handleDeleteEndpoint(record),
                 okText: t('common.confirm'),
                 cancelText: t('common.cancel'),
               },
@@ -230,6 +274,7 @@ export function ConfigLLMPage() {
           open={addEndpointOpen}
           onOpenChange={setAddEndpointOpen}
           onConfirm={handleAddEndpoint}
+          saving={savingId === '__new__'}
           existingNames={endpoints.map((e) => String(e.name ?? '')).filter(Boolean)}
           endpointCount={endpoints.length}
           fallbackOptions={endpoints
@@ -254,8 +299,35 @@ export function ConfigLLMPage() {
         <Text type="secondary" className="block mb-2">
           {t('llm.compilerModelHint')}
         </Text>
-        <div className="px-4 py-6 border border-dashed border-border rounded-xl text-center text-muted-foreground text-sm">
-          {t('llm.emptyEndpointsHint')}
+        <div className="flex gap-3 items-center mt-3">
+          <Select
+            allowClear
+            className="min-w-[320px]"
+            value={compilerEndpointId ?? undefined}
+            options={compilerOptions}
+            placeholder={t('llm.emptyEndpointsHint')}
+            onChange={(value) => setCompilerEndpointId(value ?? null)}
+          />
+          <Button
+            onClick={async () => {
+              setCompilerSaving(true);
+              setError(null);
+              try {
+                await apiPost('/api/config/compiler-endpoint', {
+                  endpoint_id: compilerEndpointId,
+                });
+                messageApi.success(t('configAdvanced.saveSuccess'));
+              } catch (e) {
+                setError(e instanceof Error ? e.message : t('llm.saveFailed'));
+              } finally {
+                setCompilerSaving(false);
+              }
+            }}
+            loading={compilerSaving}
+            disabled={compilerSaving}
+          >
+            {t('common.save')}
+          </Button>
         </div>
       </div>
 
@@ -264,15 +336,90 @@ export function ConfigLLMPage() {
         <Text type="secondary" className="block mb-2">
           {t('llm.sttHint')}
         </Text>
-        <div className="px-4 py-6 border border-dashed border-border rounded-xl text-center text-muted-foreground text-sm">
-          {t('llm.emptyEndpointsHint')}
+        <div className="mt-3 flex items-center justify-between">
+          <div />
+          <Button type="primary" onClick={() => setAddSttEndpointOpen(true)}>
+            {t('llm.addEndpoint')}
+          </Button>
         </div>
+        <Table
+          className="mt-2"
+          size="small"
+          dataSource={sttEndpoints}
+          columns={[
+            {
+              title: t('llm.colEndpoint'),
+              dataIndex: 'name',
+              render: (v: string) => v ?? '-',
+            },
+            {
+              title: t('llm.colModel'),
+              dataIndex: 'model',
+              render: (v: string) => v ?? '-',
+            },
+            {
+              title: t('llm.colKey'),
+              dataIndex: 'api_key_env',
+              render: (v: string) =>
+                v ? (
+                  <Badge status="success" text={t('llm.configured')} />
+                ) : (
+                  <Text type="secondary">-</Text>
+                ),
+            },
+            {
+              title: t('common.actions'),
+              key: 'actions',
+              width: 100,
+              render: (_: unknown, record: EndpointItem) => (
+                <TableActions
+                  actions={[
+                    {
+                      key: 'edit',
+                      icon: <EditOutlined />,
+                      tooltip: t('common.edit'),
+                      onClick: () => {
+                        setEditingSttTarget(record);
+                        setEditSttEndpointOpen(true);
+                      },
+                    },
+                    {
+                      key: 'delete',
+                      icon: <DeleteOutlined />,
+                      tooltip: t('common.delete'),
+                      danger: true,
+                      popconfirm: {
+                        title: t('llm.deleteConfirm'),
+                        onConfirm: async () => {
+                          const id = String(record.id ?? '');
+                          if (!id) return;
+                          setSavingId(`stt-${id}`);
+                          setError(null);
+                          try {
+                            await apiDelete(`/api/config/stt-endpoints/${id}`);
+                            await load();
+                          } catch (e) {
+                            setError(e instanceof Error ? e.message : t('llm.saveFailed'));
+                          } finally {
+                            setSavingId(null);
+                          }
+                        },
+                        okText: t('common.confirm'),
+                        cancelText: t('common.cancel'),
+                      },
+                    },
+                  ]}
+                />
+              ),
+            },
+          ]}
+          rowKey={(r) => String(r.id ?? r.name ?? '')}
+          locale={{ emptyText: t('llm.emptyEndpoints') }}
+          pagination={false}
+        />
       </div>
 
       <Space className="mt-8">
-        <Button onClick={handleSave} loading={saving} disabled={saving}>
-          {t('llm.saveConfig')}
-        </Button>
         <Button
           type="primary"
           onClick={handleApplyRestart}
@@ -294,10 +441,122 @@ export function ConfigLLMPage() {
         endpointCount={endpoints.length}
         mode="edit"
         initial={editingTarget}
+        saving={savingId === String(editingTarget?.id ?? '')}
         fallbackOptions={endpoints
           .filter((item) => item.id && item.name && item.id !== editingTarget?.id)
           .map((item) => ({ value: item.id!, label: String(item.name) }))}
       />
+      <AddEndpointDialog
+        open={addSttEndpointOpen}
+        onOpenChange={setAddSttEndpointOpen}
+        onConfirm={async (data) => {
+          setError(null);
+          setSavingId('stt-new');
+          if (data.api_key_value && data.api_key_env) {
+            try {
+              await apiPost('/api/config/env', {
+                entries: { [data.api_key_env]: data.api_key_value },
+              });
+            } catch (e) {
+              setError(e instanceof Error ? e.message : t('llm.writeKeyFailed'));
+              setSavingId(null);
+              throw e;
+            }
+          }
+          try {
+            await apiPost('/api/config/stt-endpoints/item', {
+              endpoint: {
+                name: data.name,
+                model: data.model,
+                api_type: data.api_type,
+                base_url: data.base_url,
+                api_key_env: data.api_key_env,
+                priority: data.priority,
+                enabled: data.enabled !== false,
+                provider: data.provider,
+                capabilities: data.capabilities,
+                max_tokens: data.max_tokens,
+                context_window: data.context_window,
+                timeout: data.timeout,
+                rpm_limit: data.rpm_limit,
+                fallback_endpoint_id: data.fallback_endpoint_id,
+                cost_per_1m_input: data.cost_per_1m_input,
+                cost_per_1m_output: data.cost_per_1m_output,
+              },
+            });
+            await load();
+          } catch (e) {
+            setError(e instanceof Error ? e.message : t('llm.saveFailed'));
+            throw e;
+          } finally {
+            setSavingId(null);
+          }
+        }}
+        saving={savingId === 'stt-new'}
+        existingNames={sttEndpoints.map((e) => String(e.name ?? '')).filter(Boolean)}
+        endpointCount={sttEndpoints.length}
+      />
+      <AddEndpointDialog
+        open={editSttEndpointOpen}
+        onOpenChange={setEditSttEndpointOpen}
+        onConfirm={async (data) => {
+          const targetId = String(editingSttTarget?.id ?? '');
+          if (!targetId) return;
+          setError(null);
+          setSavingId(`stt-${targetId}`);
+          if (data.api_key_value && data.api_key_env) {
+            try {
+              await apiPost('/api/config/env', {
+                entries: { [data.api_key_env]: data.api_key_value },
+              });
+            } catch (e) {
+              setError(e instanceof Error ? e.message : t('llm.writeKeyFailed'));
+              setSavingId(null);
+              throw e;
+            }
+          }
+          try {
+            await apiPatch(`/api/config/stt-endpoints/${targetId}`, {
+              endpoint: {
+                id: targetId,
+                name: data.name,
+                model: data.model,
+                api_type: data.api_type,
+                base_url: data.base_url,
+                api_key_env: data.api_key_env,
+                priority: data.priority,
+                enabled: data.enabled !== false,
+                provider: data.provider,
+                capabilities: data.capabilities,
+                max_tokens: data.max_tokens,
+                context_window: data.context_window,
+                timeout: data.timeout,
+                rpm_limit: data.rpm_limit,
+                fallback_endpoint_id: data.fallback_endpoint_id,
+                cost_per_1m_input: data.cost_per_1m_input,
+                cost_per_1m_output: data.cost_per_1m_output,
+              },
+            });
+            setEditSttEndpointOpen(false);
+            setEditingSttTarget(null);
+            await load();
+          } catch (e) {
+            setError(e instanceof Error ? e.message : t('llm.saveFailed'));
+            throw e;
+          } finally {
+            setSavingId(null);
+          }
+        }}
+        saving={savingId === `stt-${String(editingSttTarget?.id ?? '')}`}
+        existingNames={sttEndpoints
+          .map((e) => String(e.name ?? ''))
+          .filter(Boolean)
+          .filter((n) => n !== String(editingSttTarget?.name ?? ''))}
+        endpointCount={sttEndpoints.length}
+        mode="edit"
+        initial={editingSttTarget}
+      />
+      {contextHolder}
     </div>
   );
 }

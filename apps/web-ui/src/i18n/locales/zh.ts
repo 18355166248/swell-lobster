@@ -202,7 +202,7 @@ const zh = {
     costPer1mHint: '可选；填写后可在 Token 统计页按用量估算美元成本',
     testConnection: '测试连接',
     testing: '测试中…',
-    testSuccess: '连接成功 · {{ms}}ms · 模型数：{{count}}',
+    testSuccess: '连接成功 · {{ms}}ms',
     testFailed: '连接失败：{{error}} ({{ms}}ms)',
     fetchSuccess: '成功拉取 {{count}} 个模型',
     fetchFailed: '拉取失败：{{error}}',

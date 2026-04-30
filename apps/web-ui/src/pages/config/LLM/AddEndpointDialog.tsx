@@ -79,6 +79,7 @@ export function AddEndpointDialog({
     providerSlug: '',
     baseUrl: '',
     apiKeyValue: '',
+    apiKeyEnv: '',
     selectedModelId: '',
   });
   const syncWatchedFromForm = useCallback(() => {
@@ -87,6 +88,7 @@ export function AddEndpointDialog({
       providerSlug: (v.providerSlug as string) ?? '',
       baseUrl: (v.baseUrl as string) ?? '',
       apiKeyValue: (v.apiKeyValue as string) ?? '',
+      apiKeyEnv: (v.apiKeyEnv as string) ?? '',
       selectedModelId: (v.selectedModelId as string) ?? '',
     });
   }, [form]);
@@ -101,13 +103,14 @@ export function AddEndpointDialog({
     ok: boolean;
     latencyMs: number;
     error?: string;
-    modelCount?: number;
+    preview?: string;
   } | null>(null);
   const [baseUrlExpanded, setBaseUrlExpanded] = useState(false);
 
   const providerSlug = watched.providerSlug;
   const baseUrl = watched.baseUrl ?? '';
   const apiKeyValue = watched.apiKeyValue ?? '';
+  const apiKeyEnv = watched.apiKeyEnv ?? '';
   const selectedModelId = watched.selectedModelId ?? '';
   const selectedProvider = useMemo(
     () => providers.find((p) => p.slug === providerSlug) ?? providers[0] ?? null,
@@ -275,6 +278,7 @@ export function AddEndpointDialog({
           base_url: currentBaseUrl,
           provider_slug: selectedProvider?.slug ?? null,
           api_key: effectiveKey,
+          api_key_env: (form.getFieldValue('apiKeyEnv') as string) || '',
         }
       );
       const list = Array.isArray(data.models) ? data.models : [];
@@ -302,31 +306,37 @@ export function AddEndpointDialog({
       '';
     setConnTesting(true);
     setConnTestResult(null);
-    const t0 = performance.now();
     try {
-      const data = await apiPost<{ models?: unknown[]; error?: string }>(
-        '/api/config/list-models',
-        {
-          api_type: currentApiType,
-          base_url: currentBaseUrl,
-          provider_slug: selectedProvider?.slug ?? null,
-          api_key: effectiveKey,
-        }
-      );
-      const latency = Math.round(performance.now() - t0);
-      if (data.error) {
+      const data = await apiPost<{
+        ok?: boolean;
+        error?: string;
+        latency_ms?: number;
+        preview?: string;
+      }>('/api/config/test-endpoint', {
+        api_type: currentApiType,
+        base_url: currentBaseUrl,
+        provider_slug: selectedProvider?.slug ?? null,
+        api_key: effectiveKey,
+        api_key_env: (form.getFieldValue('apiKeyEnv') as string) || '',
+        model: (form.getFieldValue('selectedModelId') as string) || '',
+        timeout: (form.getFieldValue('timeoutSec') as number) || DEFAULT_TIMEOUT,
+        max_tokens: (form.getFieldValue('maxTokens') as number) || 8,
+        endpoint_name: (form.getFieldValue('endpointName') as string) || '',
+      });
+      const latency = Math.max(0, Math.round(data.latency_ms ?? 0));
+      if (data.ok === false || data.error) {
         setConnTestResult({ ok: false, latencyMs: latency, error: data.error });
       } else {
         setConnTestResult({
           ok: true,
           latencyMs: latency,
-          modelCount: Array.isArray(data.models) ? data.models.length : 0,
+          preview: data.preview,
         });
       }
     } catch (e) {
       setConnTestResult({
         ok: false,
-        latencyMs: Math.round(performance.now() - t0),
+        latencyMs: 0,
         error: e instanceof Error ? e.message : '请求失败',
       });
     } finally {
@@ -397,7 +407,10 @@ export function AddEndpointDialog({
     [selectedProvider, existingNames, form, onConfirm, onOpenChange, t]
   );
 
-  const canTest = !!effectiveBaseUrl && (!!apiKeyValue.trim() || isLocalProvider(selectedProvider));
+  const canTest =
+    !!effectiveBaseUrl &&
+    !!selectedModelId.trim() &&
+    (!!apiKeyValue.trim() || !!apiKeyEnv.trim() || isLocalProvider(selectedProvider));
 
   const footer = (
     <div className="flex items-center justify-between gap-4 flex-wrap">
@@ -507,6 +520,7 @@ export function AddEndpointDialog({
               providerSlug: all.providerSlug ?? '',
               baseUrl: all.baseUrl ?? '',
               apiKeyValue: all.apiKeyValue ?? '',
+              apiKeyEnv: all.apiKeyEnv ?? '',
               selectedModelId: all.selectedModelId ?? '',
             });
           }}
@@ -672,12 +686,16 @@ export function AddEndpointDialog({
               connTestResult.ok
                 ? t('addEndpoint.testSuccess', {
                     ms: connTestResult.latencyMs,
-                    count: connTestResult.modelCount ?? 0,
                   })
                 : t('addEndpoint.testFailed', {
                     error: connTestResult.error ?? '未知',
                     ms: connTestResult.latencyMs,
                   })
+            }
+            description={
+              connTestResult.ok && connTestResult.preview ? (
+                <span className="break-all">Reply: {connTestResult.preview}</span>
+              ) : undefined
             }
             showIcon
           />

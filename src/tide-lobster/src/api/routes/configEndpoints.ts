@@ -11,12 +11,17 @@
  */
 
 import { Hono } from 'hono';
+import { existsSync, readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { EndpointStore } from '../../store/endpointStore.js';
 import { getDb } from '../../db/index.js';
 import { KeyValueStore } from '../../store/keyValueStore.js';
 import { listProviders, providerInfoToDict } from '../../llm/registries/index.js';
 import { listModelsAnthropic, listModelsOpenAI } from '../../llm/bridge.js';
 import { randomUUID } from 'node:crypto';
+import { parseEnv } from '../../utils/envUtils.js';
+import { settings } from '../../config.js';
+import { requestChatCompletion } from '../../chat/llmClient.js';
 
 export const configEndpointsRouter = new Hono();
 const store = new EndpointStore();
@@ -37,6 +42,36 @@ function readJsonValue<T>(key: string, fallback: T): T {
 
 function writeJsonValue(key: string, value: unknown): void {
   kvStore.setValue(key, JSON.stringify(value));
+}
+
+function readEnvFile(): Record<string, string> {
+  const path = resolve(settings.projectRoot, '.env');
+  if (!existsSync(path)) return {};
+  try {
+    return parseEnv(readFileSync(path, 'utf-8'));
+  } catch {
+    return {};
+  }
+}
+
+function resolveApiKeyValue(
+  apiKeyValue: string | undefined,
+  apiKeyEnv: string | undefined,
+  providerSlug?: string | null
+): string {
+  const explicit = apiKeyValue?.trim() ?? '';
+  if (explicit) return explicit;
+
+  const envKey = apiKeyEnv?.trim() ?? '';
+  if (envKey) {
+    const runtimeValue = process.env[envKey]?.trim();
+    if (runtimeValue) return runtimeValue;
+    const fileValue = readEnvFile()[envKey]?.trim();
+    if (fileValue) return fileValue;
+  }
+
+  if (providerSlug === 'ollama' || providerSlug === 'lmstudio') return 'local';
+  return '';
 }
 
 configEndpointsRouter.get('/api/config/endpoints', (c) => {
@@ -215,16 +250,17 @@ configEndpointsRouter.post('/api/config/list-models', async (c) => {
     base_url?: string;
     provider_slug?: string;
     api_key?: string;
+    api_key_env?: string;
   }>();
 
   const apiType = (body.api_type ?? '').trim().toLowerCase();
   const baseUrl = (body.base_url ?? '').trim();
-  let apiKey = (body.api_key ?? '').trim();
   const providerSlug = (body.provider_slug ?? '').trim() || undefined;
+  const apiKey = resolveApiKeyValue(body.api_key, body.api_key_env, providerSlug);
 
   if (!apiType) return c.json({ error: 'api_type 不能为空', models: [] });
   if (!baseUrl) return c.json({ error: 'base_url 不能为空', models: [] });
-  if (!apiKey) apiKey = 'local'; // 本地服务商不需要 API Key
+  if (!apiKey) return c.json({ error: '未找到可用 API Key，请输入 API Key 或检查环境变量配置', models: [] });
 
   try {
     let models: Record<string, unknown>[];
@@ -265,5 +301,93 @@ configEndpointsRouter.post('/api/config/list-models', async (c) => {
       friendly = friendly.slice(0, 150) + '…';
     }
     return c.json({ error: friendly, models: [] });
+  }
+});
+
+configEndpointsRouter.post('/api/config/test-endpoint', async (c) => {
+  const body = await c.req.json<{
+    api_type?: string;
+    base_url?: string;
+    provider_slug?: string;
+    api_key?: string;
+    api_key_env?: string;
+    model?: string;
+    timeout?: number;
+    max_tokens?: number;
+    endpoint_name?: string;
+  }>();
+
+  const apiType = (body.api_type ?? '').trim().toLowerCase();
+  const baseUrl = (body.base_url ?? '').trim();
+  const providerSlug = (body.provider_slug ?? '').trim() || undefined;
+  const model = (body.model ?? '').trim();
+  const endpointName = (body.endpoint_name ?? '').trim() || 'test-endpoint';
+
+  if (!apiType) return c.json({ error: 'api_type 不能为空' }, 400);
+  if (!baseUrl) return c.json({ error: 'base_url 不能为空' }, 400);
+  if (!model) return c.json({ error: 'model 不能为空' }, 400);
+
+  const apiKey = resolveApiKeyValue(body.api_key, body.api_key_env, providerSlug);
+  if (!apiKey) {
+    return c.json({ error: '未找到可用 API Key，请输入 API Key 或检查环境变量配置' }, 400);
+  }
+
+  const endpoint = {
+    name: endpointName,
+    model,
+    api_type: apiType,
+    base_url: baseUrl,
+    api_key_env: body.api_key_env ?? '',
+    timeout: Math.max(10, Number(body.timeout ?? 30)),
+    max_tokens: Math.max(1, Math.min(Number(body.max_tokens ?? 8), 16)),
+  };
+
+  const startedAt = performance.now();
+  try {
+    const result = await requestChatCompletion({
+      endpoint,
+      apiKey,
+      systemPrompt: 'Reply with exactly OK.',
+      messages: [{ role: 'user', content: 'ping' }],
+    });
+    return c.json({
+      ok: true,
+      latency_ms: Math.round(performance.now() - startedAt),
+      preview: result.content.slice(0, 120),
+    });
+  } catch (e) {
+    const raw = String(e).toLowerCase();
+    let friendly = String(e);
+    if (
+      raw.includes('connect') ||
+      raw.includes('connection refused') ||
+      raw.includes('no route') ||
+      raw.includes('unreachable')
+    ) {
+      friendly = '无法连接到服务商，请检查 API 地址和网络连接';
+    } else if (
+      raw.includes('401') ||
+      raw.includes('unauthorized') ||
+      raw.includes('invalid api key') ||
+      raw.includes('authentication')
+    ) {
+      friendly = 'API Key 无效或已过期，请检查后重试';
+    } else if (raw.includes('403') || raw.includes('forbidden') || raw.includes('permission')) {
+      friendly = 'API Key 权限不足，请确认已开通模型访问权限';
+    } else if (raw.includes('404') || raw.includes('not found')) {
+      friendly = 'API 地址或模型有误，服务商未返回有效响应';
+    } else if (raw.includes('timeout') || raw.includes('timed out') || raw.includes('abort')) {
+      friendly = '请求超时，请检查网络、代理或服务商响应速度';
+    } else if (friendly.length > 150) {
+      friendly = friendly.slice(0, 150) + '…';
+    }
+    return c.json(
+      {
+        ok: false,
+        latency_ms: Math.round(performance.now() - startedAt),
+        error: friendly,
+      },
+      200
+    );
   }
 });

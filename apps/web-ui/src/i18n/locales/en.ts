@@ -195,7 +195,7 @@ const en = {
     costPer1mHint: 'Optional; enables USD cost estimates on Token Stats',
     testConnection: 'Test Connection',
     testing: 'Testing…',
-    testSuccess: 'Connected · {{ms}}ms · Models: {{count}}',
+    testSuccess: 'Connected · {{ms}}ms',
     testFailed: 'Failed: {{error}} ({{ms}}ms)',
     fetchSuccess: 'Fetched {{count}} models',
     fetchFailed: 'Fetch failed: {{error}}',

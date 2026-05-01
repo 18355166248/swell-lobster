@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 const repoRoot = resolve(new URL('..', import.meta.url).pathname);
@@ -22,11 +22,14 @@ function requireFile(relativePath) {
 addCheck('required guides exist', () => {
   for (const path of [
     'AGENTS.md',
+    'apps/AGENTS.md',
     'apps/web-ui/AGENTS.md',
     'apps/desktop/AGENTS.md',
+    'src/AGENTS.md',
     'src/tide-lobster/AGENTS.md',
     'docs/AGENTS.md',
     'identity/AGENTS.md',
+    'scripts/AGENTS.md',
   ]) {
     requireFile(path);
   }
@@ -35,11 +38,14 @@ addCheck('required guides exist', () => {
 addCheck('root AGENTS links match real guides', () => {
   const rootAgents = read('AGENTS.md');
   for (const path of [
+    'apps/AGENTS.md',
     'apps/web-ui/AGENTS.md',
     'apps/desktop/AGENTS.md',
+    'src/AGENTS.md',
     'src/tide-lobster/AGENTS.md',
     'docs/AGENTS.md',
     'identity/AGENTS.md',
+    'scripts/AGENTS.md',
   ]) {
     if (!rootAgents.includes(path)) {
       throw new Error(`root AGENTS is missing sub-guide reference: ${path}`);
@@ -97,6 +103,34 @@ addCheck('root scripts expose repo entrypoints', () => {
   for (const script of ['typecheck', 'test', 'build', 'verify:docs', 'verify']) {
     if (!pkg.scripts[script]) {
       throw new Error(`missing root script: ${script}`);
+    }
+  }
+});
+
+addCheck('repo-owned top-level directories have a guide', () => {
+  const exemptDirs = new Set([
+    '.git',
+    '.github',
+    '.husky',
+    '.vscode',
+    '.cursor',
+    '.claude',
+    '.trae',
+    '.playwright-mcp',
+    'node_modules',
+    'data',
+  ]);
+
+  const entries = readdirSync(repoRoot, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => entry.name)
+    .filter((name) => !exemptDirs.has(name));
+
+  for (const dir of entries) {
+    const hasGuide = existsSync(resolve(repoRoot, dir, 'AGENTS.md'));
+    const hasReadme = existsSync(resolve(repoRoot, dir, 'README.md'));
+    if (!hasGuide && !hasReadme) {
+      throw new Error(`top-level directory ${dir} must contain AGENTS.md or README.md`);
     }
   }
 });

@@ -31,11 +31,14 @@ SwellLobster 是一个个人 AI 助手产品的 monorepo。
 
 ## 下一步阅读
 
+- [apps/AGENTS.md](apps/AGENTS.md)
 - [apps/web-ui/AGENTS.md](apps/web-ui/AGENTS.md)
 - [apps/desktop/AGENTS.md](apps/desktop/AGENTS.md)
+- [src/AGENTS.md](src/AGENTS.md)
 - [src/tide-lobster/AGENTS.md](src/tide-lobster/AGENTS.md)
 - [identity/AGENTS.md](identity/AGENTS.md)
 - [docs/AGENTS.md](docs/AGENTS.md)
+- [scripts/AGENTS.md](scripts/AGENTS.md)
 
 ## 常用命令
 

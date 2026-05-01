@@ -149,12 +149,31 @@ function buildDocChecks() {
         requireFile('docs/task-templates.md');
         requireFile('docs/tasks/README.md');
         requireFile('docs/tasks/TEMPLATE.md');
+        requireFile('docs/tasks/active/README.md');
+        requireFile('docs/tasks/archive/README.md');
 
         if (!docsAgents.includes('task-templates.md')) {
           throw new Error('docs/AGENTS.md must link to docs/task-templates.md');
         }
         if (!workflow.includes('docs/tasks/')) {
           throw new Error('docs/delivery-workflow.md must describe docs/tasks/ usage');
+        }
+      },
+    ],
+    [
+      'active-task-files-follow-naming-rule',
+      () => {
+        const taskFilePattern = /^\d{4}-\d{2}-\d{2}-.+\.md$/;
+        const entries = readdirSync(resolve(repoRoot, 'docs/tasks/active'), { withFileTypes: true });
+
+        for (const entry of entries) {
+          if (!entry.isFile()) continue;
+          if (entry.name === 'README.md') continue;
+          if (!taskFilePattern.test(entry.name)) {
+            throw new Error(
+              `docs/tasks/active/${entry.name} must match YYYY-MM-DD-任务名.md`
+            );
+          }
         }
       },
     ],

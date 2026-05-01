@@ -16,9 +16,11 @@
 
 大任务默认落到 `docs/tasks/`：
 
-- 新建一个任务实例文件，命名建议为 `YYYY-MM-DD-任务名.md`
+- 新建一个任务实例文件，放到 `docs/tasks/active/`
+- 命名使用 `YYYY-MM-DD-任务名.md`
 - 优先从 `docs/tasks/TEMPLATE.md` 复制
-- 任务完成后，这份文件可以保留为审计记录，也可以在结项后提炼到稳定文档
+- 任务完成后，移动到 `docs/tasks/archive/`
+- 结项后把长期有效的约束提炼到稳定文档
 
 ## 2. 实现阶段
 
@@ -59,4 +61,5 @@ npm run verify
 - `AGENTS.md` 负责说明“如何在这个目录里安全地工作”。
 - `CLAUDE.md` 仅保留兼容跳转，不再承载真实规则。
 - 根 `verify` 是默认质量门；CI 是最终合并门。
-- `docs/tasks/` 负责承接阶段性任务实例；`docs/` 根目录只保留长期有效文档。
+- `docs/tasks/active/` 负责承接当前任务实例，`docs/tasks/archive/` 保留历史审计记录。
+- `docs/` 根目录只保留长期有效文档。

@@ -19,6 +19,7 @@ Tauri 2、Rust、Node.js 辅助脚本，以及来自 `../web-ui` 的前端产物
 - `package.json` — desktop 相关脚本
 - `src-tauri/` — Rust 与 Tauri 配置
 - `scripts/prepare-binaries.mjs` — 打包辅助脚本
+- `scripts/check-sidecar-layout.mjs` — sidecar 布局与权限自检
 - `scripts/ensure-dev-sidecar-stubs.mjs` — 本地开发辅助脚本
 
 ## 硬规则
@@ -31,6 +32,7 @@ Tauri 2、Rust、Node.js 辅助脚本，以及来自 `../web-ui` 的前端产物
 
 ```bash
 cargo check --manifest-path apps/desktop/src-tauri/Cargo.toml
+npm run check:sidecar
 ```
 
 ## 下一步阅读

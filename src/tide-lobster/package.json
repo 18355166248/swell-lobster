@@ -12,6 +12,7 @@
     "build": "tsc",
     "build:sea": "node scripts/build-sea.mjs",
     "build:pkg": "node scripts/build-pkg.mjs",
+    "migrate:vector": "tsx src/memory/migrate-to-vector.ts",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },

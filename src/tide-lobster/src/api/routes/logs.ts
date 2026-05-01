@@ -6,6 +6,11 @@ export const logsRouter = new Hono();
 export type LogLevel = 'error' | 'warn' | 'info';
 export type LogSource = 'backend' | 'frontend';
 
+const VALID_LEVELS = new Set<LogLevel>(['error', 'warn', 'info']);
+const VALID_SOURCES = new Set<LogSource>(['backend', 'frontend']);
+const MAX_MESSAGE_LENGTH = 4000;
+const MAX_CONTEXT_LENGTH = 12000;
+
 interface AppLogRow {
   id: number;
   level: string;
@@ -28,6 +33,31 @@ function parseLog(row: AppLogRow) {
         })()
       : null,
   };
+}
+
+function normalizeLogLevel(level?: string): LogLevel {
+  return VALID_LEVELS.has(level as LogLevel) ? (level as LogLevel) : 'info';
+}
+
+function normalizeLogSource(source?: string): LogSource {
+  return VALID_SOURCES.has(source as LogSource) ? (source as LogSource) : 'frontend';
+}
+
+function normalizeLogMessage(message: unknown): string {
+  const normalized = String(message ?? '').trim();
+  return normalized.slice(0, MAX_MESSAGE_LENGTH);
+}
+
+function normalizeLogContext(context: unknown): string | null {
+  if (context === undefined) return null;
+  try {
+    const serialized = JSON.stringify(context);
+    return serialized.length > MAX_CONTEXT_LENGTH
+      ? serialized.slice(0, MAX_CONTEXT_LENGTH)
+      : serialized;
+  } catch {
+    return JSON.stringify({ non_serializable: true });
+  }
 }
 
 /**
@@ -102,16 +132,17 @@ logsRouter.post('/api/logs', async (c) => {
       context?: unknown;
     }>();
 
-    if (!body.message) return c.json({ detail: 'message is required' }, 400);
+    const message = normalizeLogMessage(body.message);
+    if (!message) return c.json({ detail: 'message is required' }, 400);
 
     const db = getDb();
     db.prepare(
       `INSERT INTO app_logs (level, source, message, context, created_at) VALUES (?, ?, ?, ?, ?)`
     ).run(
-      body.level ?? 'info',
-      body.source ?? 'frontend',
-      String(body.message),
-      body.context !== undefined ? JSON.stringify(body.context) : null,
+      normalizeLogLevel(body.level),
+      normalizeLogSource(body.source),
+      message,
+      normalizeLogContext(body.context),
       Date.now()
     );
 
@@ -134,10 +165,10 @@ export function writeAppLog(
       db.prepare(
         `INSERT INTO app_logs (level, source, message, context, created_at) VALUES (?, ?, ?, ?, ?)`
       ).run(
-        level,
-        source,
-        message,
-        context !== undefined ? JSON.stringify(context) : null,
+        normalizeLogLevel(level),
+        normalizeLogSource(source),
+        normalizeLogMessage(message),
+        normalizeLogContext(context),
         Date.now()
       );
     } catch {

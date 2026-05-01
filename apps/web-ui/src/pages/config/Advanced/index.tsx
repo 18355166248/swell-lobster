@@ -1,5 +1,17 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Button, Alert, Spin, Typography, Input, Form, Divider, Checkbox, message } from 'antd';
+import {
+  Button,
+  Alert,
+  Spin,
+  Typography,
+  Input,
+  Form,
+  Divider,
+  Checkbox,
+  InputNumber,
+  Select,
+  message,
+} from 'antd';
 import { useTranslation } from 'react-i18next';
 import { apiGet, apiPost } from '../../../api/base';
 import { ROUTES } from '../../../routes';
@@ -12,9 +24,11 @@ type EmbeddingConfig = {
   embeddingBaseUrl: string;
   embeddingModel: string;
   embeddingApiKeyEnv: string;
+  semanticMinScore: number;
 };
 
-type SearchKeys = {
+type SearchConfig = {
+  provider: 'auto' | 'brave' | 'tavily' | 'duckduckgo';
   braveApiKey: string;
   tavilyApiKey: string;
 };
@@ -42,8 +56,13 @@ export function ConfigAdvancedPage() {
     embeddingBaseUrl: '',
     embeddingModel: 'text-embedding-3-small',
     embeddingApiKeyEnv: 'OPENAI_API_KEY',
+    semanticMinScore: 0.75,
   });
-  const [searchKeys, setSearchKeys] = useState<SearchKeys>({ braveApiKey: '', tavilyApiKey: '' });
+  const [searchConfig, setSearchConfig] = useState<SearchConfig>({
+    provider: 'auto',
+    braveApiKey: '',
+    tavilyApiKey: '',
+  });
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -60,8 +79,15 @@ export function ConfigAdvancedPage() {
         embeddingBaseUrl: env.SWELL_EMBEDDING_BASE_URL ?? '',
         embeddingModel: env.SWELL_EMBEDDING_MODEL ?? 'text-embedding-3-small',
         embeddingApiKeyEnv: env.SWELL_EMBEDDING_API_KEY_ENV ?? 'OPENAI_API_KEY',
+        semanticMinScore: Number(env.SWELL_MEMORY_SEMANTIC_MIN_SCORE ?? 0.75),
       });
-      setSearchKeys({
+      setSearchConfig({
+        provider:
+          env.SWELL_SEARCH_PROVIDER === 'brave' ||
+          env.SWELL_SEARCH_PROVIDER === 'tavily' ||
+          env.SWELL_SEARCH_PROVIDER === 'duckduckgo'
+            ? env.SWELL_SEARCH_PROVIDER
+            : 'auto',
         braveApiKey: env.BRAVE_SEARCH_API_KEY ?? '',
         tavilyApiKey: env.TAVILY_API_KEY ?? '',
       });
@@ -87,13 +113,15 @@ export function ConfigAdvancedPage() {
         SWELL_EMBEDDING_BASE_URL: embeddingConfig.embeddingBaseUrl,
         SWELL_EMBEDDING_MODEL: embeddingConfig.embeddingModel,
         SWELL_EMBEDDING_API_KEY_ENV: embeddingConfig.embeddingApiKeyEnv,
+        SWELL_MEMORY_SEMANTIC_MIN_SCORE: String(embeddingConfig.semanticMinScore),
+        SWELL_SEARCH_PROVIDER: searchConfig.provider,
       };
       // 跳过脱敏占位值（含 *** 说明是后端返回的掩码，不回写）
-      if (searchKeys.braveApiKey && !searchKeys.braveApiKey.includes('***')) {
-        envEntries.BRAVE_SEARCH_API_KEY = searchKeys.braveApiKey;
+      if (searchConfig.braveApiKey && !searchConfig.braveApiKey.includes('***')) {
+        envEntries.BRAVE_SEARCH_API_KEY = searchConfig.braveApiKey;
       }
-      if (searchKeys.tavilyApiKey && !searchKeys.tavilyApiKey.includes('***')) {
-        envEntries.TAVILY_API_KEY = searchKeys.tavilyApiKey;
+      if (searchConfig.tavilyApiKey && !searchConfig.tavilyApiKey.includes('***')) {
+        envEntries.TAVILY_API_KEY = searchConfig.tavilyApiKey;
       }
 
       await apiPost('/api/config/env', { entries: envEntries });
@@ -194,6 +222,22 @@ export function ConfigAdvancedPage() {
               }
             />
           </Form.Item>
+          <Form.Item label={t('configAdvanced.semanticMinScore')}>
+            <InputNumber
+              min={0}
+              max={1}
+              step={0.05}
+              precision={2}
+              value={embeddingConfig.semanticMinScore}
+              className="w-full"
+              onChange={(value) =>
+                setEmbeddingConfig((prev) => ({
+                  ...prev,
+                  semanticMinScore: typeof value === 'number' ? value : prev.semanticMinScore,
+                }))
+              }
+            />
+          </Form.Item>
         </Form>
       </div>
 
@@ -206,26 +250,47 @@ export function ConfigAdvancedPage() {
           {t('configAdvanced.searchSubtitle')}
         </Text>
         <Form layout="vertical" size="small">
+          <Form.Item label={t('configAdvanced.searchProvider')}>
+            <Select
+              value={searchConfig.provider}
+              options={[
+                { value: 'auto', label: t('configAdvanced.searchProviderAuto') },
+                { value: 'brave', label: t('configAdvanced.searchProviderBrave') },
+                { value: 'tavily', label: t('configAdvanced.searchProviderTavily') },
+                { value: 'duckduckgo', label: t('configAdvanced.searchProviderDuckDuckGo') },
+              ]}
+              onChange={(value) =>
+                setSearchConfig((prev) => ({
+                  ...prev,
+                  provider: value as SearchConfig['provider'],
+                }))
+              }
+            />
+          </Form.Item>
           <Form.Item label={t('configAdvanced.braveApiKey')}>
             <Input.Password
-              value={searchKeys.braveApiKey}
+              value={searchConfig.braveApiKey}
               placeholder={
-                searchKeys.braveApiKey.includes('***')
+                searchConfig.braveApiKey.includes('***')
                   ? t('configAdvanced.searchKeyConfigured')
                   : t('configAdvanced.searchKeyPlaceholder')
               }
-              onChange={(e) => setSearchKeys((prev) => ({ ...prev, braveApiKey: e.target.value }))}
+              onChange={(e) =>
+                setSearchConfig((prev) => ({ ...prev, braveApiKey: e.target.value }))
+              }
             />
           </Form.Item>
           <Form.Item label={t('configAdvanced.tavilyApiKey')}>
             <Input.Password
-              value={searchKeys.tavilyApiKey}
+              value={searchConfig.tavilyApiKey}
               placeholder={
-                searchKeys.tavilyApiKey.includes('***')
+                searchConfig.tavilyApiKey.includes('***')
                   ? t('configAdvanced.searchKeyConfigured')
                   : t('configAdvanced.searchKeyPlaceholder')
               }
-              onChange={(e) => setSearchKeys((prev) => ({ ...prev, tavilyApiKey: e.target.value }))}
+              onChange={(e) =>
+                setSearchConfig((prev) => ({ ...prev, tavilyApiKey: e.target.value }))
+              }
             />
           </Form.Item>
         </Form>

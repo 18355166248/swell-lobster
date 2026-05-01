@@ -4,6 +4,11 @@ const mockEmbed = vi.fn();
 const mockSemanticSearch = vi.fn();
 const mockKeywordSearch = vi.fn();
 const mockGetEmbeddingService = vi.fn();
+const mockSettings = { memorySemanticMinScore: 0.75 };
+
+vi.mock('../../config.js', () => ({
+  settings: mockSettings,
+}));
 
 vi.mock('../../memory/embeddingService.js', () => ({
   getEmbeddingService: mockGetEmbeddingService,
@@ -39,9 +44,23 @@ describe('readMemoryTool', () => {
     const result = await readMemoryTool.execute({ query: '我的饮品偏好' });
 
     expect(mockEmbed).toHaveBeenCalledWith('我的饮品偏好');
-    expect(mockSemanticSearch).toHaveBeenCalledWith([0.1, 0.2, 0.3], 5);
+    expect(mockSemanticSearch).toHaveBeenCalledWith([0.1, 0.2, 0.3], 5, 0.75);
     expect(result).toContain('相似度: 0.910');
     expect(mockKeywordSearch).not.toHaveBeenCalled();
+  });
+
+  it('falls back to keyword search when semantic results miss the threshold', async () => {
+    mockGetEmbeddingService.mockReturnValue({ embed: mockEmbed });
+    mockEmbed.mockResolvedValue([0.5, 0.6, 0.7]);
+    mockSemanticSearch.mockReturnValue([]);
+    mockKeywordSearch.mockReturnValue([{ memory_type: 'fact', content: '喜欢乌龙茶' }]);
+
+    const { readMemoryTool } = await import('./read_memory.js');
+    const result = await readMemoryTool.execute({ query: '我的口味偏好' });
+
+    expect(mockSemanticSearch).toHaveBeenCalledWith([0.5, 0.6, 0.7], 5, 0.75);
+    expect(mockKeywordSearch).toHaveBeenCalledWith('我的口味偏好', 5);
+    expect(result).toContain('喜欢乌龙茶');
   });
 
   it('falls back to keyword search when embedding fails', async () => {

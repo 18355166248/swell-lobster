@@ -1,18 +1,38 @@
 import type { ChatSession } from '../chat/models.js';
 import { ChatStore } from '../chat/chatStore.js';
 
-const store = new ChatStore();
+function getStore(): ChatStore {
+  return new ChatStore();
+}
+
+function getSessionOrThrow(sessionId: string): ChatSession {
+  const session = getStore().getSession(sessionId);
+  if (!session) throw new Error(`会话不存在：${sessionId}`);
+  return session;
+}
+
+function sanitizeFilenamePart(value: string): string {
+  const normalized = value
+    .trim()
+    .replace(/[<>:"/\\|?*\u0000-\u001f]+/g, '-')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '');
+  return normalized.slice(0, 60) || 'session';
+}
 
 export function exportMarkdown(sessionId: string): string {
-  const session = store.getSession(sessionId);
-  if (!session) throw new Error(`会话不存在：${sessionId}`);
-  return sessionToMarkdown(session);
+  return sessionToMarkdown(getSessionOrThrow(sessionId));
 }
 
 export function exportJson(sessionId: string): string {
-  const session = store.getSession(sessionId);
-  if (!session) throw new Error(`会话不存在：${sessionId}`);
-  return JSON.stringify(session, null, 2);
+  return JSON.stringify(getSessionOrThrow(sessionId), null, 2);
+}
+
+export function getExportFilename(sessionId: string, format: 'md' | 'json'): string {
+  const session = getSessionOrThrow(sessionId);
+  const title = sanitizeFilenamePart(session.title || session.id);
+  return `${title}-${session.id}.${format}`;
 }
 
 function sessionToMarkdown(session: ChatSession): string {

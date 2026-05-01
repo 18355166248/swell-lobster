@@ -2,9 +2,18 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mockDispatcher = Symbol('dispatcher');
 const mockGetFetchDispatcherForUrl = vi.fn(() => mockDispatcher);
+const mockSettings = {
+  searchProvider: 'auto',
+  braveSearchApiKeyEnv: 'BRAVE_SEARCH_API_KEY',
+  tavilyApiKeyEnv: 'TAVILY_API_KEY',
+};
 
 vi.mock('../../net/fetchDispatcher.js', () => ({
   getFetchDispatcherForUrl: mockGetFetchDispatcherForUrl,
+}));
+
+vi.mock('../../config.js', () => ({
+  settings: mockSettings,
 }));
 
 describe('webSearchTool', () => {
@@ -12,6 +21,9 @@ describe('webSearchTool', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockSettings.searchProvider = 'auto';
+    mockSettings.braveSearchApiKeyEnv = 'BRAVE_SEARCH_API_KEY';
+    mockSettings.tavilyApiKeyEnv = 'TAVILY_API_KEY';
     delete process.env.BRAVE_SEARCH_API_KEY;
     delete process.env.TAVILY_API_KEY;
   });
@@ -89,5 +101,33 @@ describe('webSearchTool', () => {
 
     expect(result).toContain('[Tavily]');
     expect(result).toContain('Tavily result');
+  });
+
+  it('uses explicit duckduckgo provider without checking paid keys', async () => {
+    mockSettings.searchProvider = 'duckduckgo';
+    process.env.BRAVE_SEARCH_API_KEY = 'brave-key';
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      text: async () =>
+        '<a class="result__a" href="https://example.com/ddg">Duck only</a><a class="result__snippet">free search</a>',
+    }) as typeof fetch;
+
+    const { webSearchTool } = await import('./web_search.js');
+    const result = await webSearchTool.execute({ query: 'forced ddg', limit: 1 });
+
+    expect(global.fetch).toHaveBeenCalledOnce();
+    expect(result).toContain('[DuckDuckGo]');
+    expect(result).toContain('Duck only');
+  });
+
+  it('returns configuration error when explicit brave provider has no key', async () => {
+    mockSettings.searchProvider = 'brave';
+    global.fetch = vi.fn() as typeof fetch;
+
+    const { webSearchTool } = await import('./web_search.js');
+    const result = await webSearchTool.execute({ query: 'forced brave' });
+
+    expect(global.fetch).not.toHaveBeenCalled();
+    expect(result).toContain('未配置 BRAVE_SEARCH_API_KEY');
   });
 });

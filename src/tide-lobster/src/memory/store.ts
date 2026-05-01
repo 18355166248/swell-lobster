@@ -288,8 +288,8 @@ export class MemoryStore {
       .run(sourceType, sourceId);
   }
 
-  /** 向量语义检索：对所有有 embedding 的记忆计算余弦相似度，返回 top-k。 */
-  semanticSearch(queryVec: number[], limit = 5): Array<Memory & { score: number }> {
+  /** 向量语义检索：对所有有 embedding 的记忆计算余弦相似度，按阈值过滤后返回 top-k。 */
+  semanticSearch(queryVec: number[], limit = 5, minScore = 0): Array<Memory & { score: number }> {
     const rows = this.db
       .prepare(
         `
@@ -307,7 +307,7 @@ export class MemoryStore {
         if (!vec) return null;
         return { ...mapMemoryRow(row), score: cosineSimilarity(queryVec, vec) };
       })
-      .filter((x): x is Memory & { score: number } => x !== null)
+      .filter((x): x is Memory & { score: number } => x !== null && x.score >= minScore)
       .sort((a, b) => b.score - a.score)
       .slice(0, Math.max(1, limit));
 

@@ -1,3 +1,4 @@
+import { settings } from '../../config.js';
 import { getEmbeddingService } from '../../memory/embeddingService.js';
 import { memoryStore } from '../../memory/store.js';
 import type { ToolDef } from '../types.js';
@@ -27,7 +28,7 @@ export const readMemoryTool: ToolDef = {
     if (embSvc) {
       try {
         const vec = await embSvc.embed(keyword);
-        const results = memoryStore.semanticSearch(vec, k);
+        const results = memoryStore.semanticSearch(vec, k, settings.memorySemanticMinScore);
         if (results.length > 0) {
           return results
             .map((m) => `[${m.memory_type}] ${m.content} (相似度: ${m.score.toFixed(3)})`)
@@ -43,4 +44,3 @@ export const readMemoryTool: ToolDef = {
     return memories.map((m) => `[${m.memory_type}] ${m.content}`).join('\n');
   },
 };
-

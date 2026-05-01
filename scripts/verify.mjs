@@ -37,6 +37,12 @@ const tasks = [
     args: ['check', '--manifest-path', 'apps/desktop/src-tauri/Cargo.toml'],
     cwd: '.',
   },
+  {
+    label: 'desktop:sidecar',
+    command: 'npm',
+    args: ['run', 'check:sidecar'],
+    cwd: 'apps/desktop',
+  },
 ];
 
 function runTask(task) {

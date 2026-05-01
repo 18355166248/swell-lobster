@@ -17,24 +17,9 @@ import { themeModeAtom, resolveTheme } from './store/theme';
 import { localeAtom } from './store/locale';
 import { brandTheme, applyBrandToCss } from './theme';
 import { isTauri } from './utils/platform';
-import { reportFrontendLog } from './pages/Journal/api';
+import { installGlobalErrorHandlers } from './logging/frontend';
 
-// 全局前端错误收集 → 写入 app_logs
-window.addEventListener('error', (e) => {
-  reportFrontendLog({
-    level: 'error',
-    message: e.message || String(e.error),
-    context: { filename: e.filename, lineno: e.lineno, colno: e.colno, stack: e.error?.stack },
-  }).catch(() => {});
-});
-window.addEventListener('unhandledrejection', (e) => {
-  const reason = e.reason as Error | undefined;
-  reportFrontendLog({
-    level: 'error',
-    message: reason?.message ?? String(e.reason),
-    context: { stack: reason?.stack },
-  }).catch(() => {});
-});
+installGlobalErrorHandlers();
 
 // 桌面端：F12 / Ctrl+Shift+I / Cmd+Option+I 打开 DevTools
 if (isTauri()) {

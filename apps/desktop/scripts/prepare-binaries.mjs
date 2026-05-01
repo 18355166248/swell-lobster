@@ -15,10 +15,21 @@
  *   binaries/uv-aarch64-apple-darwin
  */
 
-import { createWriteStream, existsSync, mkdirSync, chmodSync } from 'node:fs';
+import {
+  createWriteStream,
+  existsSync,
+  mkdirSync,
+  chmodSync,
+  copyFileSync,
+  mkdtempSync,
+  rmSync,
+  readdirSync,
+} from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { pipeline } from 'node:stream/promises';
+import { tmpdir } from 'node:os';
+import { spawnSync } from 'node:child_process';
 import { ProxyAgent, fetch as undiciFetch } from 'undici';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -100,6 +111,55 @@ function download(url, destPath) {
   });
 }
 
+function findFileRecursive(dir, targetName) {
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const fullPath = join(dir, entry.name);
+    if (entry.isDirectory()) {
+      const nested = findFileRecursive(fullPath, targetName);
+      if (nested) return nested;
+      continue;
+    }
+    if (entry.isFile() && entry.name === targetName) return fullPath;
+  }
+  return null;
+}
+
+function extractUvBinary(archivePath, destPath) {
+  const tempDir = mkdtempSync(join(tmpdir(), 'swell-desktop-uv-'));
+  try {
+    if (archivePath.endsWith('.zip')) {
+      const ps = spawnSync(
+        'powershell',
+        [
+          '-NoProfile',
+          '-Command',
+          `Expand-Archive -LiteralPath '${archivePath.replace(/'/g, "''")}' -DestinationPath '${tempDir.replace(/'/g, "''")}' -Force`,
+        ],
+        { stdio: 'pipe' }
+      );
+      if (ps.status !== 0) {
+        throw new Error(ps.stderr.toString().trim() || 'failed to extract zip archive');
+      }
+    } else {
+      const tar = spawnSync('tar', ['-xzf', archivePath, '-C', tempDir], { stdio: 'pipe' });
+      if (tar.status !== 0) {
+        throw new Error(tar.stderr.toString().trim() || 'failed to extract tar archive');
+      }
+    }
+
+    const binaryName = `uv${exeSuffix}`;
+    const extracted = findFileRecursive(tempDir, binaryName);
+    if (!extracted) {
+      throw new Error(`cannot find ${binaryName} in extracted archive`);
+    }
+
+    copyFileSync(extracted, destPath);
+    if (!isWindows) chmodSync(destPath, 0o755);
+  } finally {
+    rmSync(tempDir, { recursive: true, force: true });
+  }
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // 主流程
 // ─────────────────────────────────────────────────────────────────────────────
@@ -108,15 +168,11 @@ async function main() {
   if (existsSync(uvDest)) {
     console.log(`[prepare-binaries] uv already exists: ${uvDest}`);
   } else {
-    // 下载压缩包到临时文件，解压后提取 uv 二进制
-    // 此处为简化示例，直接下载预编译 tarball 并使用 tar/unzip 解压
-    // 生产中可使用 node-tar 或 yauzl npm 包
     const tmpArchive = uvDest + (uvAsset.endsWith('.zip') ? '.zip' : '.tar.gz');
     await download(uvUrl, tmpArchive);
     console.log(`[prepare-binaries] uv archive downloaded: ${tmpArchive}`);
-    console.log(`[prepare-binaries] TODO: extract uv binary from ${tmpArchive} to ${uvDest}`);
-    // 解压逻辑留给 CI 或构建脚本补全
-    // 参考：tar -xzf uv-*.tar.gz --strip-components=1 uv/uv -C binaries/
+    extractUvBinary(tmpArchive, uvDest);
+    console.log(`[prepare-binaries] uv extracted: ${uvDest}`);
   }
 
   // 2. 检查 tide-lobster SEA 产物

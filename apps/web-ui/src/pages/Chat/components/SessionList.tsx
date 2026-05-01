@@ -18,6 +18,7 @@ import { searchSessions } from '../api';
 import type { SessionSearchResult, SessionSummary } from '../types';
 import { chatGeneratingAtom } from '../../../store/chatGenerating';
 import { getApiBase } from '../../../api/base';
+import { reportFrontendError } from '../../../logging/frontend';
 
 type SessionListProps = {
   sessions: SessionSummary[];
@@ -188,16 +189,27 @@ export function SessionList({
     try {
       const res = await fetch(url);
       if (!res.ok) throw new Error(`${res.status}`);
-      const text = await res.text();
-      const mimeType = format === 'json' ? 'application/json' : 'text/plain';
-      const dataUri = `data:${mimeType};charset=utf-8,${encodeURIComponent(text)}`;
+      const blob = await res.blob();
+      const objectUrl = URL.createObjectURL(blob);
       const a = document.createElement('a');
-      a.href = dataUri;
-      a.download = `session-${sessionId}.${format}`;
+      const contentDisposition = res.headers.get('Content-Disposition') ?? '';
+      const matched = /filename="([^"]+)"/.exec(contentDisposition);
+      a.href = objectUrl;
+      a.download = matched?.[1] ?? `session-${sessionId}.${format}`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
-    } catch {
+      URL.revokeObjectURL(objectUrl);
+    } catch (error) {
+      void reportFrontendError({
+        path: `/api/export/session/${sessionId}`,
+        message: 'chat session export failed',
+        context: {
+          sessionId,
+          format,
+          error: error instanceof Error ? error.message : String(error),
+        },
+      }).catch(() => {});
       void message.error(t('chat.exportFailed'));
     }
   };

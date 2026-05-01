@@ -4,6 +4,7 @@ import { FileTextOutlined } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
 import { invoke } from '@tauri-apps/api/core';
 import { apiGet } from '../../api/base';
+import { reportFrontendError } from '../../logging/frontend';
 import { isTauri } from '../../utils/platform';
 
 const { Title, Text } = Typography;
@@ -31,7 +32,11 @@ export function StatusPage() {
     setOpeningLog(true);
     try {
       await openLog();
-    } catch {
+    } catch (error) {
+      void reportFrontendError({
+        message: 'desktop log open failed',
+        context: { error: error instanceof Error ? error.message : String(error) },
+      }).catch(() => {});
       message.error(t('status.openLogFailed'));
     } finally {
       setOpeningLog(false);

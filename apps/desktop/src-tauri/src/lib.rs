@@ -91,6 +91,15 @@ fn resolve_log_path(app: &AppHandle) -> PathBuf {
         .join("tide-lobster.log")
 }
 
+fn append_diag_log(log_path: &PathBuf, line: &str) {
+    if let Some(parent) = log_path.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+    if let Ok(mut file) = std::fs::OpenOptions::new().create(true).append(true).open(log_path) {
+        let _ = writeln!(file, "{line}");
+    }
+}
+
 /// 启动 tide-lobster sidecar，将 stdout/stderr 写入日志文件。
 #[cfg_attr(debug_assertions, allow(dead_code))]
 fn start_tide_lobster(app: &AppHandle) -> Result<CommandChild, String> {
@@ -112,6 +121,34 @@ fn start_tide_lobster(app: &AppHandle) -> Result<CommandChild, String> {
     let binary_path = resource_dir.join(format!("tide-lobster{ext}"));
     let sqlite_binding = resource_dir.join("binaries").join("better_sqlite3.node");
     let uv_path = resource_dir.join("binaries").join(format!("uv{ext}"));
+
+    if !binary_path.exists() {
+        append_diag_log(
+            &log_path,
+            &format!("[diag] missing sidecar binary: {}", binary_path.display()),
+        );
+        return Err(format!(
+            "Failed to start tide-lobster: sidecar binary missing at {}",
+            binary_path.display()
+        ));
+    }
+
+    if !sqlite_binding.exists() {
+        append_diag_log(
+            &log_path,
+            &format!(
+                "[diag] missing better_sqlite3 binding: {}",
+                sqlite_binding.display()
+            ),
+        );
+    }
+
+    if !uv_path.exists() {
+        append_diag_log(
+            &log_path,
+            &format!("[diag] missing uv binary: {}", uv_path.display()),
+        );
+    }
 
     let data_dir = app
         .path()
@@ -155,9 +192,7 @@ fn start_tide_lobster(app: &AppHandle) -> Result<CommandChild, String> {
             .any(|v| std::env::var(v).is_ok());
         if !has_proxy {
             if let Some(proxy_url) = detect_windows_system_proxy() {
-                if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&log_path) {
-                    let _ = writeln!(f, "[diag] auto-detected windows proxy: {proxy_url}");
-                }
+                append_diag_log(&log_path, &format!("[diag] auto-detected windows proxy: {proxy_url}"));
                 cmd = cmd.env("HTTPS_PROXY", &proxy_url).env("HTTP_PROXY", &proxy_url);
             }
         }
@@ -166,13 +201,9 @@ fn start_tide_lobster(app: &AppHandle) -> Result<CommandChild, String> {
     let (mut rx, child) = cmd
         .spawn()
         .map_err(|e| {
-            if let Ok(mut f) = std::fs::OpenOptions::new()
-                .create(true).append(true).open(&log_path)
-            {
-                let _ = writeln!(f, "[diag] binary_path: {}", binary_path.display());
-                let _ = writeln!(f, "[diag] binary_exists: {}", binary_path.exists());
-                let _ = writeln!(f, "[diag] spawn error: {e}");
-            }
+            append_diag_log(&log_path, &format!("[diag] binary_path: {}", binary_path.display()));
+            append_diag_log(&log_path, &format!("[diag] binary_exists: {}", binary_path.exists()));
+            append_diag_log(&log_path, &format!("[diag] spawn error: {e}"));
             format!("Failed to start tide-lobster: {e}")
         })?;
 
@@ -260,6 +291,10 @@ pub fn run() {
                         let log_path = resolve_log_path(&app_handle);
                         tauri::async_runtime::spawn(async move {
                             if !wait_for_backend().await {
+                                append_diag_log(
+                                    &log_path,
+                                    "[desktop] tide-lobster failed health check within 10s",
+                                );
                                 eprintln!(
                                     "[desktop] tide-lobster failed to start within 10s. Log: {}",
                                     log_path.display()
@@ -269,11 +304,8 @@ pub fn run() {
                     }
                     Err(e) => {
                         eprintln!("[desktop] sidecar start error: {e}");
-                        // 写入错误到日志
                         let log_path = resolve_log_path(&app_handle);
-                        if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&log_path) {
-                            let _ = writeln!(f, "[SIDECAR START ERROR] {e}");
-                        }
+                        append_diag_log(&log_path, &format!("[SIDECAR START ERROR] {e}"));
                     }
                 }
             }

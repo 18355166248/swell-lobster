@@ -1,4 +1,5 @@
 import { trackGlobalLoading } from '../store/globalLoading';
+import { reportFrontendError } from '../logging/frontend';
 
 const API_BASE =
   (typeof import.meta !== 'undefined' &&
@@ -21,7 +22,13 @@ async function parseApiError(path: string, res: Response): Promise<never> {
   } catch {
     detail = '';
   }
-  throw new Error(detail ? `API ${path}: ${detail}` : `API ${path}: ${res.status}`);
+  const message = detail ? `API ${path}: ${detail}` : `API ${path}: ${res.status}`;
+  void reportFrontendError({
+    path,
+    message,
+    context: { status: res.status, statusText: res.statusText },
+  }).catch(() => {});
+  throw new Error(message);
 }
 
 export async function apiGet<T = unknown>(path: string, options?: RequestOptions): Promise<T> {
@@ -92,7 +99,18 @@ async function requestJson<T = unknown>(
   options?: RequestOptions
 ): Promise<T> {
   const runFetch = async () => {
-    const res = await fetch(`${getApiBase()}${path}`, init);
+    let res: Response;
+    try {
+      res = await fetch(`${getApiBase()}${path}`, init);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      void reportFrontendError({
+        path,
+        message: `API ${path}: network request failed`,
+        context: { error: message },
+      }).catch(() => {});
+      throw error;
+    }
     if (!res.ok) return parseApiError(path, res);
     return res.json() as Promise<T>;
   };

@@ -1,3 +1,4 @@
+import { settings, type SearchProvider } from '../../config.js';
 import { getFetchDispatcherForUrl } from '../../net/fetchDispatcher.js';
 import type { ToolDef } from '../types.js';
 
@@ -84,9 +85,22 @@ async function searchTavily(query: string, limit: number, apiKey: string): Promi
   }));
 }
 
+function getSearchConfig(): {
+  provider: SearchProvider;
+  braveKey: string;
+  tavilyKey: string;
+} {
+  return {
+    provider: settings.searchProvider,
+    braveKey: process.env[settings.braveSearchApiKeyEnv]?.trim() ?? '',
+    tavilyKey: process.env[settings.tavilyApiKeyEnv]?.trim() ?? '',
+  };
+}
+
 export const webSearchTool: ToolDef = {
   name: 'web_search',
-  description: '搜索互联网获取最新信息。优先使用 Brave Search 或 Tavily（需配置 API key），默认使用 DuckDuckGo（免费）。',
+  description:
+    '搜索互联网获取最新信息。支持 auto、Brave Search、Tavily、DuckDuckGo 四种模式；auto 会自动选择可用提供商并回退。',
   parameters: {
     query: {
       type: 'string',
@@ -104,29 +118,45 @@ export const webSearchTool: ToolDef = {
     if (!keyword) return '未提供搜索关键词';
 
     const maxResults = Math.min(Number(limit ?? 5), 10);
-    const braveKey = process.env.BRAVE_SEARCH_API_KEY?.trim();
-    const tavilyKey = process.env.TAVILY_API_KEY?.trim();
+    const { provider: configuredProvider, braveKey, tavilyKey } = getSearchConfig();
 
     let results: SearchResult[];
-    let provider: string;
+    let providerLabel = '';
 
     try {
-      if (braveKey) {
+      if (configuredProvider === 'brave') {
+        if (!braveKey) {
+          return `搜索失败：当前已强制使用 Brave Search，但未配置 ${settings.braveSearchApiKeyEnv}`;
+        }
+        providerLabel = 'Brave Search';
         results = await searchBrave(keyword, maxResults, braveKey);
-        provider = 'Brave Search';
-      } else if (tavilyKey) {
+      } else if (configuredProvider === 'tavily') {
+        if (!tavilyKey) {
+          return `搜索失败：当前已强制使用 Tavily，但未配置 ${settings.tavilyApiKeyEnv}`;
+        }
+        providerLabel = 'Tavily';
         results = await searchTavily(keyword, maxResults, tavilyKey);
-        provider = 'Tavily';
-      } else {
+      } else if (configuredProvider === 'duckduckgo') {
+        providerLabel = 'DuckDuckGo';
         results = await searchDuckDuckGo(keyword, maxResults);
-        provider = 'DuckDuckGo';
+      } else {
+        if (braveKey) {
+          providerLabel = 'Brave Search';
+          results = await searchBrave(keyword, maxResults, braveKey);
+        } else if (tavilyKey) {
+          providerLabel = 'Tavily';
+          results = await searchTavily(keyword, maxResults, tavilyKey);
+        } else {
+          providerLabel = 'DuckDuckGo';
+          results = await searchDuckDuckGo(keyword, maxResults);
+        }
       }
     } catch (err) {
-      // 主提供商失败时降级到 DuckDuckGo
-      if (provider! !== 'DuckDuckGo') {
+      // auto 模式下才执行回退，显式模式保持失败透明
+      if (configuredProvider === 'auto' && providerLabel !== 'DuckDuckGo') {
         try {
           results = await searchDuckDuckGo(keyword, maxResults);
-          provider = 'DuckDuckGo (fallback)';
+          providerLabel = 'DuckDuckGo (fallback)';
         } catch {
           return `搜索失败：${err instanceof Error ? err.message : String(err)}`;
         }
@@ -135,11 +165,11 @@ export const webSearchTool: ToolDef = {
       }
     }
 
-    if (results.length === 0) return `[${provider!}] 未找到相关结果`;
+    if (results.length === 0) return `[${providerLabel}] 未找到相关结果`;
 
     const lines = results.map(
       (r, i) => `${i + 1}. **${r.title}**\n   ${r.url}\n   ${r.snippet}`
     );
-    return `[${provider!}] 搜索"${keyword}"的结果：\n\n${lines.join('\n\n')}`;
+    return `[${providerLabel}] 搜索"${keyword}"的结果：\n\n${lines.join('\n\n')}`;
   },
 };

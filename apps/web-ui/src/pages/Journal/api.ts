@@ -1,4 +1,5 @@
 import { apiGet, apiPost, apiPut, apiDelete } from '../../api/base';
+export { reportFrontendLog } from '../../logging/frontend';
 import type {
   JournalEntry,
   JournalListResponse,
@@ -74,12 +75,4 @@ export function fetchLogs(params: {
   if (params.page) qs.set('page', String(params.page));
   if (params.limit) qs.set('limit', String(params.limit));
   return apiGet(`/api/logs?${qs.toString()}`);
-}
-
-export function reportFrontendLog(entry: {
-  level: string;
-  message: string;
-  context?: unknown;
-}): Promise<void> {
-  return apiPost('/api/logs', { ...entry, source: 'frontend' });
 }

@@ -68,6 +68,26 @@ function env(swellKey: string, fallback: string): string {
   return process.env[`SWELL_${swellKey}`] ?? process.env[swellKey] ?? fallback;
 }
 
+function envNumber(swellKey: string, fallback: number): number {
+  const raw = process.env[`SWELL_${swellKey}`] ?? process.env[swellKey];
+  if (!raw) return fallback;
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function envEnum<T extends readonly string[]>(
+  swellKey: string,
+  allowed: T,
+  fallback: T[number]
+): T[number] {
+  const raw = (process.env[`SWELL_${swellKey}`] ?? process.env[swellKey] ?? '').trim();
+  if (allowed.includes(raw)) return raw as T[number];
+  return fallback;
+}
+
+const SEARCH_PROVIDERS = ['auto', 'brave', 'tavily', 'duckduckgo'] as const;
+export type SearchProvider = typeof SEARCH_PROVIDERS[number];
+
 export const settings = {
   identityDir: env('IDENTITY_DIR', resolve(REPO_ROOT, 'identity')),
   projectRoot: env('PROJECT_ROOT', REPO_ROOT),
@@ -79,7 +99,9 @@ export const settings = {
   embeddingBaseUrl: process.env.SWELL_EMBEDDING_BASE_URL?.trim() ?? '',
   embeddingModel: process.env.SWELL_EMBEDDING_MODEL?.trim() ?? 'text-embedding-3-small',
   embeddingApiKeyEnv: process.env.SWELL_EMBEDDING_API_KEY_ENV?.trim() ?? '',
+  memorySemanticMinScore: envNumber('MEMORY_SEMANTIC_MIN_SCORE', 0.75),
   // 网络搜索配置（可选）
+  searchProvider: envEnum('SEARCH_PROVIDER', SEARCH_PROVIDERS, 'auto'),
   braveSearchApiKeyEnv: process.env.SWELL_BRAVE_SEARCH_API_KEY_ENV?.trim() ?? 'BRAVE_SEARCH_API_KEY',
   tavilyApiKeyEnv: process.env.SWELL_TAVILY_API_KEY_ENV?.trim() ?? 'TAVILY_API_KEY',
 } as const;

@@ -20,6 +20,7 @@ Node.js 20+、Hono 4、TypeScript 5.6、Vitest、better-sqlite3、undici、doten
 1. 在 `src/api/routes/<feature>.ts` 中导出 Hono app。
 2. 在 `src/api/server.ts` 中注册。
 3. 成功返回使用 `c.json(...)`，错误返回使用 `c.json({ detail: message }, status)`。
+4. 导出、日志、状态类路由优先做显式参数校验与错误归一化，不把原始异常直接透给前端。
 
 ## 配置与持久化
 
@@ -39,6 +40,9 @@ Node.js 20+、Hono 4、TypeScript 5.6、Vitest、better-sqlite3、undici、doten
 ## 测试
 
 测试文件尽量就近与源码共置，命名为 `*.test.ts`。
+
+- 改动桌面耦合链路或导出链路时，优先补 route / service 级回归测试。
+- 需要落库的前后端诊断日志统一走 `/api/logs`，不要在多个模块各自拼接日志格式。
 
 提交前执行：
 

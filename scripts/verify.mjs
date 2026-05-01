@@ -2,6 +2,12 @@ import { spawn } from 'node:child_process';
 
 const tasks = [
   {
+    label: 'repo:consistency',
+    command: 'node',
+    args: ['scripts/check-consistency.mjs'],
+    cwd: '.',
+  },
+  {
     label: 'backend:typecheck',
     command: 'npm',
     args: ['run', 'typecheck'],

@@ -1,128 +1,99 @@
 # SwellLobster
 
-**7x24 小时个人助理** — 参考 XimaLobster 思路，支持前端与 Node 技术栈的 AI 助手项目。
+SwellLobster 是一个个人 AI 助手产品的 monorepo，包含 Web、桌面端和 Node.js 后端。
 
----
+## 仓库结构
 
-## 项目简介
+```text
+swell-lobster/
+├── apps/
+│   ├── desktop/       # Tauri 桌面壳
+│   └── web-ui/        # React + Vite 客户端
+├── src/
+│   └── tide-lobster/  # Hono 后端
+├── identity/          # Persona 与助手身份资产
+├── data/              # 运行时数据、上传文件、JSON 资产、SQLite DB
+├── docs/              # 仓库内正式文档
+└── scripts/           # 根级校验与工作流脚本
+```
 
-SwellLobster 是一个面向个人助理场景的 AI 项目，集成了学习路线、身份与人格配置、以及可选的 Web 前端。项目**内部支持 Node 技术栈**：前端为 React + TypeScript + Vite，并配有「用 Node 从 0 到 1 自建多 Agent 后端」的独立文档，便于在现有基础上扩展 Node 端能力。
+## 架构概览
 
----
+| 层级        | 技术栈                                        | 说明                                           |
+| ----------- | --------------------------------------------- | ---------------------------------------------- |
+| Web UI      | React 19、TypeScript、Vite、Ant Design、Jotai | 浏览器端与桌面端 UI 复用同一套前端             |
+| Desktop     | Tauri 2                                       | 封装前端并拉起后端 sidecar                     |
+| Backend     | Hono、TypeScript、Node.js、Vitest             | API 服务、LLM 集成、Scheduler、MCP、IM         |
+| Persistence | SQLite + JSON files                           | `data/tide-lobster.db` 与 `data/` 下配置类文件 |
+| Identity    | Markdown / Prompt assets                      | 运行时从 `identity/` 加载                      |
 
-## 核心能力
+## 环境要求
 
-| 能力              | 说明                                                                                |
-| ----------------- | ----------------------------------------------------------------------------------- |
-| **Web 前端**      | `apps/web-ui`：React 19 + TypeScript + Vite 8，可独立运行与联调                     |
-| **身份与人格**    | `identity/`：SOUL、AGENT、personas 等配置，与主流程解耦                             |
-| **学习路线**      | `learning-docs/`：XimaLobster 项目学习路线、Node 后端可行性评估、从 0 到 1 自建指南 |
-| **Node 后端思路** | 文档化 Node 替代 Python 后端的可行性，以及分阶段自建多 Agent 后端的路线图           |
-
----
-
-## 技术栈
-
-| 层级              | 技术                                                                                      |
-| ----------------- | ----------------------------------------------------------------------------------------- |
-| **前端 (Web UI)** | Node 20+，React 19，TypeScript，Vite 8                                                    |
-| **身份与配置**    | Markdown / YAML（SOUL、AGENT、personas）                                                  |
-| **学习与自建**    | 文档内推荐：Node 18+，Fastify/Express，Vercel AI SDK / LangChain.js，SQLite / pgvector 等 |
-
-前端与学习文档中的自建后端均围绕 **Node**，方便在仓库内统一使用 Node 生态（脚本、工具、可选后端服务）。
-
----
+- Node.js `>=20.20.0`
+- npm workspaces
+- Rust 工具链（desktop 校验与打包需要）
 
 ## 快速开始
 
-### 环境要求
-
-- **Node.js**：>= 20.20.0（见 `apps/web-ui/.nvmrc`）
-- 包管理：npm / pnpm / yarn 均可
-
-### 运行 Web 前端
+先在根目录安装依赖：
 
 ```bash
-cd apps/web-ui
 npm install
-npm run dev
 ```
 
-浏览器访问 Vite 默认地址（如 `http://localhost:5173`）即可。
-
-### 其他脚本
+同时启动 Web + Backend：
 
 ```bash
-cd apps/web-ui
-npm run build   # 构建生产包
-npm run preview # 预览生产构建
-npm run lint    # ESLint 检查
-npm run format  # Prettier 格式化（仅 web-ui 内）
+npm run dev:web
 ```
 
-### 代码规范与 Git Hooks（根目录）
-
-在仓库根目录执行一次 `npm install` 后，会启用 **Husky** Git 钩子：
-
-- **pre-commit**：对暂存文件执行 **lint-staged**（Prettier 格式化 + ESLint --fix），仅处理本次提交涉及的文件。
-- **commit-msg**：由 **commitlint** 校验提交信息格式。
-
-提交信息须符合：`<type>: <中文描述>`，例如 `feat: 添加登录页`、`fix: 修复列表分页错误`。  
-常用 type：`feat` / `fix` / `docs` / `style` / `refactor` / `perf` / `test` / `chore`。
-
-根目录可用脚本：
+同时启动 Desktop + Backend：
 
 ```bash
-npm run format        # 全仓库 Prettier 格式化
-npm run format:check  # 仅检查格式，不写入
-npm run lint          # 执行 apps/web-ui 的 ESLint
-npm run lint:fix      # ESLint 并自动修复
+npm run dev:desktop
 ```
 
-根目录与 web-ui 均使用同一套 **Prettier** 配置（见根目录 `.prettierrc`），ESLint 已通过 `eslint-config-prettier` 与 Prettier 兼容。
+## 常用命令
 
----
-
-## 项目结构
-
-```
-swell-lobster/
-├── apps/
-│   └── web-ui/          # React + TypeScript + Vite 前端
-├── identity/            # 身份、人格、运行时说明（SOUL、AGENT、personas）
-├── docs/                # 提示词、结构说明等
-├── learning-docs/       # 学习路线与 Node 自建文档
-│   ├── LEARNING_ROADMAP.md
-│   ├── node_后端可行性与_0_到_1_自建指南.plan.md
-│   ├── BUILD_SIMILAR_AGENT_BACKEND.md
-│   └── ...
-└── README.md
+```bash
+npm run lint
+npm run typecheck
+npm run test
+npm run build
+npm run verify:docs
+npm run verify
 ```
 
----
+按 workspace 单独执行：
 
-## 文档索引
+```bash
+npm run dev -w tide-lobster
+npm run dev -w swell-lobster
+npm run build:desktop
+```
 
-| 文档                                                                                         | 内容                                                           |
-| -------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
-| [LEARNING_ROADMAP.md](learning-docs/LEARNING_ROADMAP.md)                                     | XimaLobster 项目学习路线、架构与请求主流程                     |
-| [Node 后端可行性与 0 到 1 自建指南](learning-docs/node_后端可行性与_0_到_1_自建指南.plan.md) | Node 替代 Python 后端的可行性结论与交付物说明                  |
-| [BUILD_SIMILAR_AGENT_BACKEND.md](learning-docs/BUILD_SIMILAR_AGENT_BACKEND.md)               | 从 0 到 1 自建多 Agent 助手后端（Node 版）— 技术选型与阶段划分 |
+## 质量门禁
 
----
+- `npm run verify:docs`：校验仓库级一致性与文档约束。
+- `npm run verify`：本地主质量门，覆盖 backend、frontend、desktop 与仓库一致性。
+- Husky 会对暂存文件执行 `lint-staged`，并用 `commitlint` 校验提交信息。
+- CI 会在 `push` / `pull_request` 上复用同一套校验流程。
 
-## 内部 Node 能力说明
+## 提交规范
 
-本项目在以下方面**内置 Node 支持**，便于在内部扩展 Node 相关功能：
+格式：`<type>: <中文描述>`
 
-1. **前端应用**：`apps/web-ui` 为完整 Node 项目，使用 React + TypeScript + Vite，可接 REST/SSE 等后端 API。
-2. **脚本与工具**：仓库内可增加 `scripts/` 或根目录 Node 脚本，统一使用 Node 运行（与前端共享 Node 版本约定）。
-3. **自建后端**：`learning-docs` 中的文档明确给出「用 Node 从 0 到 1 自建多 Agent 后端」的路线（Fastify/Express、LLM SDK、存储、ReAct、会话、记忆、多 Agent、多通道），可按需实现并与现有 Web UI 对接。
-4. **版本约定**：前端通过 `apps/web-ui/.nvmrc` 约定 Node 版本，团队可在此基础上统一开发与 CI 环境。
+允许的 `type`：`feat`、`fix`、`docs`、`style`、`refactor`、`perf`、`test`、`chore`、`revert`、`ci`、`build`
 
----
+示例：
 
-## 参考
+```text
+feat: 新增聊天会话管理功能
+```
 
-- 项目思路与能力参考自 [XimaLobster](https://github.com/openakita/openakita)（开源多 Agent AI 助手）。
-- 学习路线与架构描述见仓库内 `learning-docs/` 与 `docs/`。
+## 仓库指南
+
+- 根指南：[AGENTS.md](AGENTS.md)
+- 前端指南：[apps/web-ui/AGENTS.md](apps/web-ui/AGENTS.md)
+- 桌面端指南：[apps/desktop/AGENTS.md](apps/desktop/AGENTS.md)
+- 后端指南：[src/tide-lobster/AGENTS.md](src/tide-lobster/AGENTS.md)

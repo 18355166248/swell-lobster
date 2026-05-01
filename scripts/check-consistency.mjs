@@ -101,6 +101,24 @@ addCheck('root scripts expose repo entrypoints', () => {
   }
 });
 
+addCheck('CLAUDE compatibility files stay thin', () => {
+  for (const file of ['CLAUDE.md', 'apps/web-ui/CLAUDE.md', 'src/tide-lobster/CLAUDE.md']) {
+    const content = read(file);
+    if (!content.includes('兼容说明')) {
+      throw new Error(`${file} must remain a compatibility note`);
+    }
+    if (!content.includes('AGENTS.md')) {
+      throw new Error(`${file} must point readers to AGENTS.md`);
+    }
+    const extraSubHeading = content
+      .split('\n')
+      .filter((line) => line.startsWith('## ') || line.startsWith('### '));
+    if (extraSubHeading.length > 0) {
+      throw new Error(`${file} should not contain extra sections beyond the compatibility note`);
+    }
+  }
+});
+
 let failures = 0;
 
 for (const check of checks) {

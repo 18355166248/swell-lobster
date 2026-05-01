@@ -21,3 +21,4 @@
 - 根指南：[AGENTS.md](../AGENTS.md)
 - 交付流程：[delivery-workflow.md](delivery-workflow.md)
 - 任务模板：[task-templates.md](task-templates.md)
+- 任务实例目录：[tasks/README.md](tasks/README.md)

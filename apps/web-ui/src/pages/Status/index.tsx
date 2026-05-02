@@ -8,6 +8,9 @@ import { reportFrontendError } from '../../logging/frontend';
 import { isTauri } from '../../utils/platform';
 
 const { Title, Text } = Typography;
+const isDevBuild = Boolean(
+  typeof import.meta !== 'undefined' && (import.meta as { env?: Record<string, unknown> }).env?.DEV
+);
 
 async function openLog(): Promise<void> {
   const path = await invoke<string>('get_log_path');
@@ -21,6 +24,7 @@ export function StatusPage() {
     runtime_mode?: string;
     env_path?: string;
     project_root?: string;
+    data_dir?: string;
     pid?: number;
     exec_path?: string;
   } | null>(null);
@@ -37,6 +41,7 @@ export function StatusPage() {
       runtime_mode?: string;
       env_path?: string;
       project_root?: string;
+      data_dir?: string;
       pid?: number;
       exec_path?: string;
     }>('/api/health')
@@ -66,6 +71,10 @@ export function StatusPage() {
 
   const handleRestartBackend = async () => {
     if (!isTauri() || restarting) return;
+    if (isDevBuild) {
+      message.info(t('status.restartBackendDevHint'));
+      return;
+    }
     setRestarting(true);
     try {
       await invoke('restart_backend');
@@ -122,6 +131,11 @@ export function StatusPage() {
                 {health.project_root ?? '-'}
               </Text>
             </Descriptions.Item>
+            <Descriptions.Item label={t('status.dataDir')}>
+              <Text code copyable={Boolean(health.data_dir)}>
+                {health.data_dir ?? '-'}
+              </Text>
+            </Descriptions.Item>
             <Descriptions.Item label={t('status.processId')}>
               <Text code copyable={Boolean(health.pid)}>
                 {health.pid ?? '-'}
@@ -143,6 +157,7 @@ export function StatusPage() {
               icon={<ReloadOutlined spin={restarting} />}
               loading={restarting}
               onClick={handleRestartBackend}
+              disabled={isDevBuild}
             >
               {t('status.restartBackend')}
             </Button>

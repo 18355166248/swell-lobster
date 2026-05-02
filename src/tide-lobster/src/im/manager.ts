@@ -13,6 +13,7 @@ import type { IMChannelConfig, UnifiedMessage } from './types.js';
 import type { ChatService } from '../chat/service.js';
 import { IdentityService } from '../identity/identityService.js';
 import { getDb } from '../db/index.js';
+import { checkRateLimit } from './rateLimiter.js';
 
 /** 工厂：按 `channel_type` 实例化具体适配器，未知类型抛错 */
 function createAdapter(cfg: IMChannelConfig): ChannelAdapter {
@@ -86,8 +87,21 @@ export class IMManager {
     if (!this.chatService) return;
     const adapter = this.adapters.get(msg.channel_id);
     if (!adapter) return;
+    const channel = imStore.get(msg.channel_id);
+    if (!channel) return;
 
     try {
+      const rateLimit = checkRateLimit({
+        channelId: msg.channel_id,
+        channelType: msg.channel_type,
+        userId: msg.user_id,
+        config: channel.config,
+      });
+      if (!rateLimit.allowed) {
+        await adapter.sendMessage(msg.chat_id, rateLimit.message ?? '请求过于频繁，请稍后再试。');
+        return;
+      }
+
       const externalKey = `im_${msg.channel_type}_${msg.channel_id}_${msg.user_id}`;
       const session = await getOrCreateSession(externalKey, {
         title: `${msg.channel_type} - ${msg.user_id}`,

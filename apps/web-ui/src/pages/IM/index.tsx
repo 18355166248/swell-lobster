@@ -5,6 +5,7 @@ import {
   Button,
   Form,
   Input,
+  InputNumber,
   Modal,
   Popconfirm,
   Select,
@@ -101,6 +102,9 @@ function formValuesToConfig(
         .filter(Boolean)
         .map(Number)
         .filter((n) => !isNaN(n));
+    } else if (field.type === 'number') {
+      const num = typeof raw === 'number' ? raw : Number(raw);
+      if (Number.isFinite(num)) config[field.key] = num;
     } else {
       config[field.key] = raw;
     }
@@ -340,15 +344,31 @@ export function IMPage() {
   };
 
   /** 通用字段渲染（新增 & 编辑共用） */
-  const renderField = (field: ChannelFieldDef) =>
-    field.type === 'select' ? (
-      <Select
-        placeholder={field.hint}
-        options={field.options?.map((o) => ({ value: o.value, label: o.label }))}
-      />
-    ) : (
-      <Input placeholder={field.hint} />
-    );
+  const renderField = (field: ChannelFieldDef) => {
+    if (field.type === 'select') {
+      return (
+        <Select
+          placeholder={field.hint}
+          options={field.options?.map((o) => ({ value: o.value, label: o.label }))}
+        />
+      );
+    }
+    if (field.type === 'number') {
+      return <InputNumber className="w-full" placeholder={field.hint} />;
+    }
+    if (field.type === 'boolean') {
+      return (
+        <Select
+          placeholder={field.hint}
+          options={[
+            { value: true, label: 'true' },
+            { value: false, label: 'false' },
+          ]}
+        />
+      );
+    }
+    return <Input placeholder={field.hint} />;
+  };
 
   return (
     <div className="p-6">

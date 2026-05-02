@@ -49,6 +49,7 @@ export function createApp(): Hono {
       service: 'tide-lobster',
       pid: process.pid,
       project_root: settings.projectRoot,
+      data_dir: settings.dataDir,
       env_path: resolveAppEnvPath(),
       runtime_mode: process.env.SWELL_DESKTOP_RUNTIME?.trim() || 'server',
       exec_path: process.execPath,

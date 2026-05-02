@@ -439,6 +439,30 @@ const migrations: Array<{ version: number; up: (db: Database.Database) => void }
       execSafe(`ALTER TABLE chat_sessions ADD COLUMN template_id TEXT`);
     },
   },
+  {
+    version: 21,
+    up: (db) => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS im_rate_stats (
+          id TEXT PRIMARY KEY,
+          channel_id TEXT NOT NULL,
+          channel_type TEXT NOT NULL,
+          user_id TEXT NOT NULL,
+          day TEXT NOT NULL,
+          minute_bucket TEXT NOT NULL,
+          request_count INTEGER NOT NULL DEFAULT 0,
+          blocked_count INTEGER NOT NULL DEFAULT 0,
+          updated_at TEXT NOT NULL
+        );
+
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_im_rate_stats_bucket
+          ON im_rate_stats(channel_id, user_id, day, minute_bucket);
+
+        CREATE INDEX IF NOT EXISTS idx_im_rate_stats_channel_day
+          ON im_rate_stats(channel_id, day);
+      `);
+    },
+  },
 ];
 
 function runMigrations(db: Database.Database): void {

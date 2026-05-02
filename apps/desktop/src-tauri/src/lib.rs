@@ -108,6 +108,10 @@ fn desktop_runtime_mode() -> &'static str {
     }
 }
 
+fn uses_external_dev_backend() -> bool {
+    cfg!(debug_assertions)
+}
+
 fn append_diag_log(log_path: &PathBuf, line: &str) {
     if let Some(parent) = log_path.parent() {
         let _ = std::fs::create_dir_all(parent);
@@ -503,6 +507,25 @@ async fn launch_backend(app: &AppHandle) -> Result<(), String> {
     let log_path = resolve_log_path(&app);
     append_diag_log(&log_path, "[desktop] launch_backend requested");
 
+    if uses_external_dev_backend() {
+        append_diag_log(
+            &log_path,
+            "[desktop] debug mode detected, using external backend on 127.0.0.1:18900",
+        );
+        if wait_for_backend().await {
+            append_diag_log(&log_path, "[desktop] external dev backend is healthy");
+            return Ok(());
+        }
+        append_diag_log(
+            &log_path,
+            "[desktop] external dev backend did not respond within 10s",
+        );
+        return Err(
+            "Desktop dev mode expects an external tide-lobster on http://127.0.0.1:18900"
+                .to_string(),
+        );
+    }
+
     ensure_backend_port_available(&log_path).await;
 
     if let Some(child) = app.state::<SidecarState>().0.lock().unwrap().take() {
@@ -525,6 +548,16 @@ async fn launch_backend(app: &AppHandle) -> Result<(), String> {
 async fn restart_backend(app: AppHandle, _state: State<'_, SidecarState>) -> Result<(), String> {
     let log_path = resolve_log_path(&app);
     append_diag_log(&log_path, "[desktop] restart_backend requested");
+    if uses_external_dev_backend() {
+        append_diag_log(
+            &log_path,
+            "[desktop] restart_backend rejected in debug mode; external backend ownership remains outside Tauri",
+        );
+        return Err(
+            "Desktop dev mode uses an external backend. Restart it from the terminal instead."
+                .to_string(),
+        );
+    }
     launch_backend(&app).await
 }
 
@@ -554,6 +587,10 @@ pub fn run() {
                 let app = window.app_handle().clone();
                 let win = window.clone();
                 tauri::async_runtime::spawn(async move {
+                    if uses_external_dev_backend() {
+                        let _ = win.destroy();
+                        return;
+                    }
                     // 先尝试优雅关闭 sidecar（最多等 3 秒）
                     request_backend_shutdown().await;
                     // 无论结果如何，强制 kill 残留进程

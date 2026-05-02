@@ -52,6 +52,24 @@ const CHANNEL_TYPES = [
         type: 'string',
         hint: '配对码策略下白名单用户直接放行；白名单策略下为唯一准入来源。向 @userinfobot 发消息可获取 user_id',
       },
+      {
+        key: 'rpm_limit',
+        label: '每分钟请求数上限（RPM）',
+        type: 'number',
+        hint: '留空表示不限制；建议先设置为 10~30',
+      },
+      {
+        key: 'rpd_limit',
+        label: '每日请求数上限（RPD）',
+        type: 'number',
+        hint: '留空表示不限制；适合控制外部 IM 渠道总配额',
+      },
+      {
+        key: 'limit_message',
+        label: '限流提示文案',
+        type: 'string',
+        hint: '超过频率限制时返回给用户的消息',
+      },
     ],
   },
 ];

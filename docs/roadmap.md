@@ -60,33 +60,41 @@
 阶段7：Agent 模板系统 ✅      → 模板选会话、推荐 persona / tool preset
 阶段9：向量记忆 + 网络搜索 ✅ → 语义检索阈值、迁移脚本、provider 配置、回归测试已补齐
 阶段10：更多 IM + ACP ⬜     → 限流、钉钉/飞书、delegate_task
+阶段11：执行审批与安全 ⬜    → 工具风险分级、审批、路径/网络边界、审计
+阶段12：计划模式 + 多 Agent ⬜ → 结构化计划、步骤执行、子 Agent 委托、时间线 UI
+阶段13：统一扩展运行时 ⬜    → builtin / skill / mcp catalog、manifest、健康状态
+阶段14：观测性与稳定性 ⬜    → trace、指标、migration、备份恢复、发布基线
 ```
 
 ### 依赖关系图
 
 ```
-阶段1 ───────────────────────────────────────────────────────── 所有后续依赖
+阶段1 ─────────────────────────────────────────────────────────────────── 所有后续依赖
   │   阶段2 （可与阶段1并行启动）
-  └── 阶段3 ── 阶段4 ── 阶段5 ── 阶段6 ── 阶段7 ── 阶段9 ── 阶段10
+  └── 阶段3 ── 阶段4 ── 阶段5 ── 阶段6 ── 阶段7 ── 阶段9 ── 阶段10 ── 阶段11 ── 阶段12 ── 阶段13 ── 阶段14
 ```
 
 ---
 
 ## 详细文档索引
 
-| 文档                                                                             | 内容                        |
-| -------------------------------------------------------------------------------- | --------------------------- |
-| [phases/phase1-identity.md](./phases/phase1-identity.md)                         | 身份系统激活 + 聊天增强     |
-| [phases/phase2-token-search.md](./phases/phase2-token-search.md)                 | Token 统计 + 会话搜索       |
-| [phases/phase3-memory-tools.md](./phases/phase3-memory-tools.md)                 | 记忆系统 + Function Calling |
-| [phases/phase4-mcp-scheduler.md](./phases/phase4-mcp-scheduler.md)               | MCP 服务器 + 计划任务       |
-| [phases/phase5-im-skills.md](./phases/phase5-im-skills.md)                       | IM 通道 + 技能系统          |
-| [phases/phase6-multimodal-input.md](./phases/phase6-multimodal-input.md)         | 多模态输入 + 生产力工具     |
-| [phases/phase7-agent-templates.md](./phases/phase7-agent-templates.md)           | Agent 模板系统              |
-| [phases/phase9-vector-memory-search.md](./phases/phase9-vector-memory-search.md) | 向量记忆 + 网络搜索         |
-| [phases/phase10-im-ratelimit-acp.md](./phases/phase10-im-ratelimit-acp.md)       | 更多 IM + ACP               |
-| [architecture/database-schema.md](./architecture/database-schema.md)             | 完整 SQLite Schema          |
-| [architecture/api-reference.md](./architecture/api-reference.md)                 | 所有 API 端点汇总           |
+| 文档                                                                                                           | 内容                        |
+| -------------------------------------------------------------------------------------------------------------- | --------------------------- |
+| [phases/phase1-identity.md](./phases/phase1-identity.md)                                                       | 身份系统激活 + 聊天增强     |
+| [phases/phase2-token-search.md](./phases/phase2-token-search.md)                                               | Token 统计 + 会话搜索       |
+| [phases/phase3-memory-tools.md](./phases/phase3-memory-tools.md)                                               | 记忆系统 + Function Calling |
+| [phases/phase4-mcp-scheduler.md](./phases/phase4-mcp-scheduler.md)                                             | MCP 服务器 + 计划任务       |
+| [phases/phase5-im-skills.md](./phases/phase5-im-skills.md)                                                     | IM 通道 + 技能系统          |
+| [phases/phase6-multimodal-input.md](./phases/phase6-multimodal-input.md)                                       | 多模态输入 + 生产力工具     |
+| [phases/phase7-agent-templates.md](./phases/phase7-agent-templates.md)                                         | Agent 模板系统              |
+| [phases/phase9-vector-memory-search.md](./phases/phase9-vector-memory-search.md)                               | 向量记忆 + 网络搜索         |
+| [phases/phase10-im-ratelimit-acp.md](./phases/phase10-im-ratelimit-acp.md)                                     | 更多 IM + ACP               |
+| [phases/phase11-execution-approval.md](./phases/phase11-execution-approval.md)                                 | 工具执行审批 + 安全边界     |
+| [phases/phase12-plan-mode-multi-agent.md](./phases/phase12-plan-mode-multi-agent.md)                           | 计划模式 + 多 Agent 协作    |
+| [phases/phase13-extension-runtime-unification.md](./phases/phase13-extension-runtime-unification.md)           | 统一扩展运行时              |
+| [phases/phase14-observability-stability-governance.md](./phases/phase14-observability-stability-governance.md) | 观测性 + 稳定性 + 数据治理  |
+| [architecture/database-schema.md](./architecture/database-schema.md)                                           | 完整 SQLite Schema          |
+| [architecture/api-reference.md](./architecture/api-reference.md)                                               | 所有 API 端点汇总           |
 
 ---
 
@@ -123,4 +131,7 @@
 1. 部署与运行文档收尾：补开发启动、生产构建、环境变量、代理、日志与排障说明。
 2. 桌面实机验证：补一轮安装包、升级链路、sidecar、导出与日志的真实环境验证。
 3. 任务归档与状态同步：将已完成的阶段 9 / 主干稳定性任务移入 `docs/tasks/archive/`，保持任务目录与状态文档一致。
-4. 阶段 10 延后：等 Web/桌面主干稳定后再扩 IM 与子 Agent 协作。
+4. 阶段 10：完成 IM 抽象、钉钉/飞书接入、限流与 `delegate_task` MVP。
+5. 阶段 11：优先补齐工具审批、安全边界和审计，再继续放大工具能力。
+6. 阶段 12：在审批和审计链路稳定后，推进计划模式和多 Agent 协作 v1。
+7. 阶段 13-14：收敛扩展运行时，并补齐观测性、迁移、备份与发布基线。

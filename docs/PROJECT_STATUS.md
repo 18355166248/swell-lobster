@@ -181,13 +181,30 @@ swell-lobster/
   - 文件导出、本地打开、日志落盘与升级链路
 - 目标：补齐桌面交付前最后一轮真实环境验收
 
-### 优先级3：阶段10 IM 扩展 + Agent 协作
+### 优先级3：阶段10-14 后续开发主线
 
-- 当前建议延后，待主干与阶段9 收口后再启动
-- IM 抽象层收敛并补齐钉钉/飞书
-- 通道级 RPM / RPD 限流
-- `delegate_task` 打通模板化子 Agent 委托
-- 在此之后再考虑更复杂的工作流编排
+- **阶段10：IM 扩展 + Agent 委托 MVP**
+  - IM 抽象层收敛并补齐钉钉/飞书
+  - 通道级 RPM / RPD 限流
+  - `delegate_task` 打通模板化子 Agent 委托
+- **阶段11：工具执行审批 + 安全边界**
+  - 工具风险分级、审批状态机、审计落库
+  - 文件路径边界、脚本执行边界、网络访问边界
+- **阶段12：计划模式 + 多 Agent 协作 v1**
+  - 结构化 plan、步骤状态流转、子 Agent 结果汇总
+  - 聊天页计划时间线与失败步骤重试
+- **阶段13：统一扩展运行时**
+  - 收敛 builtin / skill / mcp 的 catalog、manifest、健康状态
+- **阶段14：观测性、稳定性与数据治理**
+  - trace / metrics、migration、备份恢复、发布基线
+
+对应阶段文档：
+
+- `docs/phases/phase10-im-ratelimit-acp.md`
+- `docs/phases/phase11-execution-approval.md`
+- `docs/phases/phase12-plan-mode-multi-agent.md`
+- `docs/phases/phase13-extension-runtime-unification.md`
+- `docs/phases/phase14-observability-stability-governance.md`
 
 ---
 

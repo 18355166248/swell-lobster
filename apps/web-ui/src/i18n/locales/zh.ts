@@ -36,9 +36,10 @@ const zh = {
     checking: '检查中',
     endpoints: '{{count}} 端点',
     default: 'default',
-    restart: '重启应用',
+    restart: '重启后端',
     reloadWindow: '刷新窗口',
     restartFailed: '重启失败',
+    restartSucceeded: '后端已重启',
   },
 
   // 侧边栏
@@ -270,6 +271,9 @@ const zh = {
     subtitle: '服务状态、端点健康、IM 在线状态',
     serviceStatus: '服务状态：',
     loadFailed: '加载失败',
+    restartBackend: '重启后端',
+    restartBackendFailed: '重启后端失败',
+    restartBackendSucceeded: '后端已重启',
     viewLog: '查看后端日志',
     openLogFailed: '打开日志失败',
   },

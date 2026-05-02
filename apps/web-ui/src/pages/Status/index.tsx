@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Badge, Alert, Spin, Typography, Button, message } from 'antd';
-import { FileTextOutlined } from '@ant-design/icons';
+import { Badge, Alert, Spin, Typography, Button, Space, message } from 'antd';
+import { FileTextOutlined, ReloadOutlined } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
 import { invoke } from '@tauri-apps/api/core';
 import { apiGet } from '../../api/base';
@@ -20,12 +20,19 @@ export function StatusPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [openingLog, setOpeningLog] = useState(false);
+  const [restarting, setRestarting] = useState(false);
 
-  useEffect(() => {
+  const loadHealth = () => {
+    setLoading(true);
+    setError(null);
     apiGet<{ status?: string }>('/api/health')
       .then(setHealth)
       .catch((e) => setError(e instanceof Error ? e.message : t('status.loadFailed')))
       .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    loadHealth();
   }, [t]);
 
   const handleViewLog = async () => {
@@ -40,6 +47,24 @@ export function StatusPage() {
       message.error(t('status.openLogFailed'));
     } finally {
       setOpeningLog(false);
+    }
+  };
+
+  const handleRestartBackend = async () => {
+    if (!isTauri() || restarting) return;
+    setRestarting(true);
+    try {
+      await invoke('restart_backend');
+      loadHealth();
+      message.success(t('status.restartBackendSucceeded'));
+    } catch (error) {
+      void reportFrontendError({
+        message: 'desktop backend restart failed',
+        context: { error: error instanceof Error ? error.message : String(error) },
+      }).catch(() => {});
+      message.error(error instanceof Error ? error.message : t('status.restartBackendFailed'));
+    } finally {
+      setRestarting(false);
     }
   };
 
@@ -72,9 +97,18 @@ export function StatusPage() {
 
       {isTauri() && (
         <div className="mt-6">
-          <Button icon={<FileTextOutlined />} loading={openingLog} onClick={handleViewLog}>
-            {t('status.viewLog')}
-          </Button>
+          <Space>
+            <Button
+              icon={<ReloadOutlined spin={restarting} />}
+              loading={restarting}
+              onClick={handleRestartBackend}
+            >
+              {t('status.restartBackend')}
+            </Button>
+            <Button icon={<FileTextOutlined />} loading={openingLog} onClick={handleViewLog}>
+              {t('status.viewLog')}
+            </Button>
+          </Space>
         </div>
       )}
     </div>

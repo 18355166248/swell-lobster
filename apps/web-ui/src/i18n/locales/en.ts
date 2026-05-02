@@ -35,9 +35,10 @@ const en = {
     checking: 'Checking',
     endpoints: '{{count}} endpoints',
     default: 'default',
-    restart: 'Restart app',
+    restart: 'Restart backend',
     reloadWindow: 'Reload window',
     restartFailed: 'Failed to restart',
+    restartSucceeded: 'Backend restarted',
   },
 
   sidebar: {
@@ -260,6 +261,9 @@ const en = {
     subtitle: 'Service status, endpoint health, IM online status',
     serviceStatus: 'Service status: ',
     loadFailed: 'Load failed',
+    restartBackend: 'Restart backend',
+    restartBackendFailed: 'Failed to restart backend',
+    restartBackendSucceeded: 'Backend restarted',
     viewLog: 'View Backend Log',
     openLogFailed: 'Failed to open log',
   },

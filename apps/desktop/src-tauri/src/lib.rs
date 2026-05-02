@@ -1,7 +1,7 @@
 use std::io::Write;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Mutex;
-use tauri::{AppHandle, Manager};
+use tauri::{AppHandle, Manager, State};
 use tauri_plugin_shell::{process::CommandChild, process::CommandEvent, ShellExt};
 
 /// 全局持有 tide-lobster sidecar 进程句柄，用于应用退出时清理。
@@ -91,6 +91,13 @@ fn resolve_log_path(app: &AppHandle) -> PathBuf {
         .join("tide-lobster.log")
 }
 
+fn resolve_global_env_dir(app: &AppHandle) -> PathBuf {
+    app.path()
+        .home_dir()
+        .unwrap_or_else(|_| PathBuf::from("."))
+        .join(".swell-lobster")
+}
+
 fn append_diag_log(log_path: &PathBuf, line: &str) {
     if let Some(parent) = log_path.parent() {
         let _ = std::fs::create_dir_all(parent);
@@ -98,6 +105,90 @@ fn append_diag_log(log_path: &PathBuf, line: &str) {
     if let Ok(mut file) = std::fs::OpenOptions::new().create(true).append(true).open(log_path) {
         let _ = writeln!(file, "{line}");
     }
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+fn current_target_triple() -> &'static str {
+    "aarch64-apple-darwin"
+}
+
+#[cfg(all(target_os = "macos", target_arch = "x86_64"))]
+fn current_target_triple() -> &'static str {
+    "x86_64-apple-darwin"
+}
+
+#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+fn current_target_triple() -> &'static str {
+    "x86_64-unknown-linux-gnu"
+}
+
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+fn current_target_triple() -> &'static str {
+    "aarch64-unknown-linux-gnu"
+}
+
+#[cfg(all(target_os = "windows", target_arch = "x86_64"))]
+fn current_target_triple() -> &'static str {
+    "x86_64-pc-windows-msvc"
+}
+
+#[cfg(not(any(
+    all(target_os = "macos", target_arch = "aarch64"),
+    all(target_os = "macos", target_arch = "x86_64"),
+    all(target_os = "linux", target_arch = "x86_64"),
+    all(target_os = "linux", target_arch = "aarch64"),
+    all(target_os = "windows", target_arch = "x86_64")
+)))]
+fn current_target_triple() -> &'static str {
+    "unknown"
+}
+
+fn find_existing_path(candidates: &[PathBuf]) -> Option<PathBuf> {
+    candidates.iter().find(|path| path.exists()).cloned()
+}
+
+fn executable_dir() -> Option<PathBuf> {
+    std::env::current_exe()
+        .ok()
+        .and_then(|path| path.parent().map(Path::to_path_buf))
+}
+
+fn resolve_packaged_binary(app: &AppHandle, name: &str) -> Result<PathBuf, String> {
+    let ext = if cfg!(windows) { ".exe" } else { "" };
+    let triple = current_target_triple();
+    let resource_dir = app
+        .path()
+        .resource_dir()
+        .map_err(|e| format!("Cannot resolve resource_dir: {e}"))?;
+
+    let mut candidates = vec![
+        resource_dir.join(format!("{name}{ext}")),
+        resource_dir.join("binaries").join(format!("{name}-{triple}{ext}")),
+    ];
+
+    if let Some(exe_dir) = executable_dir() {
+        candidates.push(exe_dir.join(format!("{name}{ext}")));
+    }
+
+    find_existing_path(&candidates).ok_or_else(|| {
+        format!(
+            "Cannot resolve packaged binary `{name}`. Tried: {}",
+            candidates
+                .iter()
+                .map(|p| p.display().to_string())
+                .collect::<Vec<_>>()
+                .join(", ")
+        )
+    })
+}
+
+async fn request_backend_shutdown() {
+    let client = reqwest::Client::new();
+    let _ = tokio::time::timeout(
+        std::time::Duration::from_secs(3),
+        client.post("http://127.0.0.1:18900/api/shutdown").send(),
+    )
+    .await;
 }
 
 /// 启动 tide-lobster sidecar，将 stdout/stderr 写入日志文件。
@@ -111,27 +202,30 @@ fn start_tide_lobster(app: &AppHandle) -> Result<CommandChild, String> {
         std::fs::create_dir_all(parent).ok();
     }
 
+    let global_env_dir = resolve_global_env_dir(app);
+    std::fs::create_dir_all(&global_env_dir).ok();
+    append_diag_log(
+        &log_path,
+        &format!("[config] global env dir = {}", global_env_dir.display()),
+    );
+    append_diag_log(
+        &log_path,
+        &format!(
+            "[config] global env file = {}",
+            global_env_dir.join(".env").display()
+        ),
+    );
+
     // Tauri NSIS 安装后 externalBin 产物位于 resource_dir 根目录，且不含 target triple 后缀
     // （sidecar("binaries/tide-lobster") 会拼接 triple 导致 os error 2，故手动 resolve）
-    let ext = if cfg!(windows) { ".exe" } else { "" };
     let resource_dir = app
         .path()
         .resource_dir()
         .map_err(|e| format!("Cannot resolve resource_dir: {e}"))?;
-    let binary_path = resource_dir.join(format!("tide-lobster{ext}"));
+    let binary_path = resolve_packaged_binary(app, "tide-lobster")?;
     let sqlite_binding = resource_dir.join("binaries").join("better_sqlite3.node");
-    let uv_path = resource_dir.join("binaries").join(format!("uv{ext}"));
-
-    if !binary_path.exists() {
-        append_diag_log(
-            &log_path,
-            &format!("[diag] missing sidecar binary: {}", binary_path.display()),
-        );
-        return Err(format!(
-            "Failed to start tide-lobster: sidecar binary missing at {}",
-            binary_path.display()
-        ));
-    }
+    let uv_path = resolve_packaged_binary(app, "uv")
+        .unwrap_or_else(|_| resource_dir.join("binaries").join("uv"));
 
     if !sqlite_binding.exists() {
         append_diag_log(
@@ -172,6 +266,7 @@ fn start_tide_lobster(app: &AppHandle) -> Result<CommandChild, String> {
         .env("SWELL_PROJECT_ROOT", resource_dir.to_string_lossy().as_ref())
         .env("SWELL_DATA_DIR", data_dir.to_string_lossy().as_ref())
         .env("SWELL_LOCAL_DATA_DIR", local_data_dir.as_ref().map(|p| p.to_string_lossy().into_owned()).unwrap_or_default())
+        .env("SWELL_GLOBAL_ENV_DIR", global_env_dir.to_string_lossy().as_ref())
         .env("SWELL_OUTPUT_DIR", output_dir.to_string_lossy().as_ref())
         .env("API_HOST", "127.0.0.1")
         .env("API_PORT", "18900")
@@ -272,6 +367,29 @@ async fn wait_for_backend() -> bool {
     false
 }
 
+#[tauri::command]
+async fn restart_backend(app: AppHandle, state: State<'_, SidecarState>) -> Result<(), String> {
+    let log_path = resolve_log_path(&app);
+    append_diag_log(&log_path, "[desktop] restart_backend requested");
+
+    request_backend_shutdown().await;
+
+    if let Some(child) = state.0.lock().unwrap().take() {
+        let _ = child.kill();
+    }
+
+    let child = start_tide_lobster(&app)?;
+    *state.0.lock().unwrap() = Some(child);
+
+    if wait_for_backend().await {
+        append_diag_log(&log_path, "[desktop] restart_backend succeeded");
+        Ok(())
+    } else {
+        append_diag_log(&log_path, "[desktop] restart_backend failed health check within 10s");
+        Err("Backend restarted but health check did not recover within 10s".to_string())
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -322,12 +440,7 @@ pub fn run() {
                 let win = window.clone();
                 tauri::async_runtime::spawn(async move {
                     // 先尝试优雅关闭 sidecar（最多等 3 秒）
-                    let client = reqwest::Client::new();
-                    let _ = tokio::time::timeout(
-                        std::time::Duration::from_secs(3),
-                        client.post("http://127.0.0.1:18900/api/shutdown").send(),
-                    )
-                    .await;
+                    request_backend_shutdown().await;
                     // 无论结果如何，强制 kill 残留进程
                     let state = app.state::<SidecarState>();
                     if let Some(child) = state.0.lock().unwrap().take() {
@@ -337,7 +450,13 @@ pub fn run() {
                 });
             }
         })
-        .invoke_handler(tauri::generate_handler![open_file, get_output_dir, get_log_path, open_devtools])
+        .invoke_handler(tauri::generate_handler![
+            open_file,
+            get_output_dir,
+            get_log_path,
+            open_devtools,
+            restart_backend
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

@@ -3,7 +3,7 @@ import { App as AntApp, Badge, Button, Space, Select, Tooltip } from 'antd';
 import { ReloadOutlined } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
 import { useAtomValue, useSetAtom } from 'jotai';
-import { relaunch } from '@tauri-apps/plugin-process';
+import { invoke } from '@tauri-apps/api/core';
 import { apiGet } from '../api/base';
 import { ThemeToggle } from './ThemeToggle';
 import { WindowControls } from './WindowControls';
@@ -71,7 +71,10 @@ export function Topbar() {
         window.location.reload();
         return;
       }
-      await relaunch();
+      await invoke('restart_backend');
+      await loadSummary();
+      void message.success(t('topbar.restartSucceeded'));
+      setRestarting(false);
     } catch (error) {
       setRestarting(false);
       void message.error(error instanceof Error ? error.message : t('topbar.restartFailed'));

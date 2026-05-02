@@ -86,6 +86,13 @@ Tauri Desktop
 - 默认：`~/Documents/SwellLobster/outputs`
 - 可通过 `SWELL_OUTPUT_DIR` 覆盖
 
+### 桌面全局配置
+
+- macOS：`~/.swell-lobster/.env`
+- Windows：`%USERPROFILE%\\.swell-lobster\\.env`
+
+打包桌面版会优先从该全局文件读取 API Key、代理和其它环境变量，不再依赖安装目录。
+
 ### 桌面日志
 
 - macOS：`~/Library/Logs/ai.swell.lobster/tide-lobster.log`
@@ -104,7 +111,7 @@ Tauri Desktop
 - `SWELL_OUTPUT_DIR`
 - `SWELL_PYTHON_BIN`
 
-推荐优先使用数据目录下的 `.env` 文件配置，完整说明见 [desktop-env-config.md](desktop-env-config.md)。
+推荐优先使用用户主目录下的全局 `.env` 文件配置，完整说明见 [desktop-env-config.md](desktop-env-config.md)。
 
 ## 常见问题
 

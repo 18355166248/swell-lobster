@@ -6,8 +6,9 @@
  * 加载顺序：process.env > .env 文件 > 计算默认值
  */
 
-import { resolve, dirname } from 'node:path';
+import { resolve, dirname, join } from 'node:path';
 import { existsSync } from 'node:fs';
+import { homedir } from 'node:os';
 import { config as loadDotenv } from 'dotenv';
 
 function findRepoRoot(): string {
@@ -38,30 +39,29 @@ console.log('[config] REPO_ROOT =', REPO_ROOT);
 console.log('[config] identityDir candidate =', resolve(REPO_ROOT, 'identity'));
 console.log('[config] identity exists =', existsSync(resolve(REPO_ROOT, 'identity')));
 
-// 先加载仓库根 .env（与 Python 的 env_file=".env" 一致）
-loadDotenv({ path: resolve(REPO_ROOT, '.env') });
+function globalEnvPath(): string | null {
+  const explicitDir = process.env.SWELL_GLOBAL_ENV_DIR?.trim();
+  if (explicitDir) return resolve(explicitDir, '.env');
 
-// 桌面打包版：追加加载用户数据目录的 .env（Local 优先，回退到 Roaming）
-// Windows: AppData\Local\ai.swell.lobster 或 AppData\Roaming\ai.swell.lobster
-// macOS:   ~/Library/Application Support/ai.swell.lobster
-const localDataDir = process.env.SWELL_LOCAL_DATA_DIR;
-const roamingDataDir = process.env.SWELL_DATA_DIR;
-const dataEnvPath = (() => {
-  if (localDataDir) {
-    const p = resolve(localDataDir, '.env');
-    if (existsSync(p)) return p;
-  }
-  if (roamingDataDir) {
-    const p = resolve(roamingDataDir, '.env');
-    if (existsSync(p)) return p;
-  }
-  return null;
-})();
-console.log('[config] SWELL_LOCAL_DATA_DIR =', localDataDir ?? '(not set)');
-console.log('[config] SWELL_DATA_DIR =', roamingDataDir ?? '(not set)');
-console.log('[config] data .env =', dataEnvPath ?? 'NOT FOUND (tried both Local and Roaming)');
-if (dataEnvPath) {
-  loadDotenv({ path: dataEnvPath, override: true });
+  const home = homedir().trim();
+  if (!home) return null;
+  return join(home, '.swell-lobster', '.env');
+}
+
+const repoEnvPath = resolve(REPO_ROOT, '.env');
+const packagedDesktop = Boolean(process.env.SWELL_GLOBAL_ENV_DIR?.trim());
+const globalDesktopEnvPath = globalEnvPath();
+
+if (!packagedDesktop && existsSync(repoEnvPath)) {
+  loadDotenv({ path: repoEnvPath });
+}
+
+console.log('[config] SWELL_GLOBAL_ENV_DIR =', process.env.SWELL_GLOBAL_ENV_DIR ?? '(not set)');
+console.log('[config] global .env =', globalDesktopEnvPath ?? 'NOT AVAILABLE');
+if (globalDesktopEnvPath && existsSync(globalDesktopEnvPath)) {
+  loadDotenv({ path: globalDesktopEnvPath, override: false });
+} else if (packagedDesktop) {
+  console.log('[config] global .env status = NOT FOUND');
 }
 
 function env(swellKey: string, fallback: string): string {

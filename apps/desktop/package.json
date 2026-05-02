@@ -8,6 +8,7 @@
     "build": "npx tauri build",
     "dev:frontend": "npm run dev --prefix ../web-ui",
     "build:frontend": "npm run build --prefix ../web-ui",
+    "sync:icons": "npx tauri icon ../../assets/logo/icon.png --output src-tauri/icons",
     "prepare:binaries": "node scripts/prepare-binaries.mjs",
     "check:sidecar": "node scripts/check-sidecar-layout.mjs"
   },

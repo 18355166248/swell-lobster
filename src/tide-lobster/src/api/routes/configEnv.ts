@@ -11,6 +11,7 @@
 import { Hono } from 'hono';
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
+import { homedir } from 'node:os';
 import { settings } from '../../config.js';
 import { parseEnv, updateEnvContent } from '../../utils/envUtils.js';
 
@@ -22,6 +23,12 @@ const SENSITIVE = /(TOKEN|SECRET|PASSWORD|KEY|APIKEY)/i;
 const KEY_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
 function envPath(): string {
+  const globalEnvDir = process.env.SWELL_GLOBAL_ENV_DIR?.trim();
+  if (globalEnvDir) return resolve(globalEnvDir, '.env');
+
+  const home = homedir().trim();
+  if (home) return resolve(home, '.swell-lobster', '.env');
+
   return resolve(settings.projectRoot, '.env');
 }
 

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
-import { Alert, Avatar, Button, Select, Skeleton } from 'antd';
+import { Alert, Avatar, Button, Select, Skeleton, message } from 'antd';
 import { FileTextOutlined, PlusOutlined, RobotOutlined, UserOutlined } from '@ant-design/icons';
 import { useAtom, useAtomValue } from 'jotai';
 import { atomWithStorage } from 'jotai/utils';
@@ -438,6 +438,28 @@ export function ChatPage() {
 
   const selectedEndpointName =
     activeSession?.endpoint_name || enabledEndpoints[0]?.name || undefined;
+
+  const selectedEndpoint = useMemo(
+    () => endpoints.find((e) => e.name === selectedEndpointName),
+    [endpoints, selectedEndpointName]
+  );
+
+  const supportsVision = useMemo(
+    () => Boolean(selectedEndpoint?.capabilities?.includes('vision')),
+    [selectedEndpoint]
+  );
+
+  // 切换到不支持 vision 的端点时，清掉已选图片附件并提示用户。文件类附件保持不动。
+  useEffect(() => {
+    if (supportsVision) return;
+    setPendingAttachments((prev) => {
+      const next = prev.filter((a) => a.kind !== 'image');
+      if (next.length !== prev.length) {
+        void message.warning(t('chat.imageNotSupportedHint'));
+      }
+      return next;
+    });
+  }, [supportsVision, t]);
 
   const loadSession = async (sessionId: string) => {
     const detail = await fetchSessionDetail(sessionId);
@@ -1130,6 +1152,7 @@ export function ChatPage() {
               onRemoveAttachment={(idx) =>
                 setPendingAttachments((prev) => prev.filter((_, i) => i !== idx))
               }
+              supportsVision={supportsVision}
             />
           </div>
         </div>

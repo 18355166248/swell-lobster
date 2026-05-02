@@ -15,6 +15,8 @@ type ChatComposerProps = {
   attachments: UploadedAttachment[];
   onAddAttachment: (image: UploadedAttachment) => void;
   onRemoveAttachment: (index: number) => void;
+  /** 当前所选端点是否具备视觉能力（vision），决定是否展示图片上传按钮 */
+  supportsVision: boolean;
 };
 
 export function ChatComposer({
@@ -28,6 +30,7 @@ export function ChatComposer({
   attachments,
   onAddAttachment,
   onRemoveAttachment,
+  supportsVision,
 }: ChatComposerProps) {
   const { t } = useTranslation();
   const inputRef = useRef<TextAreaRef>(null);
@@ -50,6 +53,7 @@ export function ChatComposer({
         attachments={attachments}
         onAddAttachment={onAddAttachment}
         onRemoveAttachment={onRemoveAttachment}
+        supportsVision={supportsVision}
       />
     </div>
   );

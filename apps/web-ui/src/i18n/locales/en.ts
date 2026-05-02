@@ -113,6 +113,8 @@ const en = {
     uploadImage: 'Upload image',
     uploadFailed: 'Upload failed',
     imageTooLarge: 'Image exceeds 10MB limit',
+    imageNotSupportedHint:
+      'Current model does not support images; selected images have been removed',
     removeImage: 'Remove image',
     voiceInput: 'Voice input',
     voiceListening: 'Listening...',

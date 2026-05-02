@@ -118,6 +118,7 @@ const zh = {
     uploadFailed: '上传失败',
     imageTooLarge: '图片超过 10MB 限制',
     fileTooLarge: '文件超过 10MB 限制',
+    imageNotSupportedHint: '当前模型不支持图片，已移除已选图片',
     removeImage: '移除图片',
     removeFile: '移除文件',
     voiceInput: '语音输入',

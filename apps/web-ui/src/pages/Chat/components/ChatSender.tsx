@@ -17,6 +17,8 @@ type ChatSenderProps = {
   attachments: UploadedAttachment[];
   onAddAttachment: (attachment: UploadedAttachment) => void;
   onRemoveAttachment: (index: number) => void;
+  /** 当前所选端点是否具备视觉能力（vision），决定是否展示图片上传按钮 */
+  supportsVision: boolean;
 };
 
 export const ChatSender = React.forwardRef<TextAreaRef, ChatSenderProps>(
@@ -31,6 +33,7 @@ export const ChatSender = React.forwardRef<TextAreaRef, ChatSenderProps>(
       attachments,
       onAddAttachment,
       onRemoveAttachment,
+      supportsVision,
     }: ChatSenderProps,
     ref: Ref<TextAreaRef>
   ) => {
@@ -88,7 +91,7 @@ export const ChatSender = React.forwardRef<TextAreaRef, ChatSenderProps>(
         <div className="flex justify-between items-center">
           {/* 左侧工具栏 */}
           <Space size={0}>
-            <ImageUploadButton onUpload={onAddAttachment} disabled={loading} />
+            {supportsVision && <ImageUploadButton onUpload={onAddAttachment} disabled={loading} />}
             <FileUploadButton onUpload={onAddAttachment} disabled={loading} />
             <VoiceInputButton
               onResult={(text) => onChange(value ? `${value} ${text}` : text)}

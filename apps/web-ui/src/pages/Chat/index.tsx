@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { Alert, Avatar, Button, Select, Skeleton } from 'antd';
 import { FileTextOutlined, PlusOutlined, RobotOutlined, UserOutlined } from '@ant-design/icons';
-import { useAtom } from 'jotai';
+import { useAtom, useAtomValue } from 'jotai';
 import { atomWithStorage } from 'jotai/utils';
 import { chatGeneratingAtom } from '../../store/chatGenerating';
+import { endpointsAtom } from '../../store/endpoints';
 
 import MarkdownContent from '../../components/MarkdownContent';
 import { useTranslation } from 'react-i18next';
@@ -21,7 +22,6 @@ import type {
   ChatMessage,
   ChatStreamEvent,
   ChatSession,
-  EndpointItem,
   MessageBlock,
   SessionSearchResult,
   SessionSummary,
@@ -301,7 +301,7 @@ ChatMarkdown.displayName = 'ChatMarkdown';
 export function ChatPage() {
   const { t } = useTranslation();
   const [sessions, setSessions] = useState<SessionSummary[]>([]);
-  const [endpoints, setEndpoints] = useState<EndpointItem[]>([]);
+  const endpoints = useAtomValue(endpointsAtom);
   const [activeSessionId, setActiveSessionId] = useState<string>('');
   const [activePersonaPath, setActivePersonaPath] = useState<string | null>(null);
   // 每个会话独立缓存消息，切换会话时不丢失正在生成的内容
@@ -458,8 +458,9 @@ export function ChatPage() {
       setError(null);
       try {
         const data = await fetchChatBootstrap();
-        const epList = Array.isArray(data.endpoints) ? data.endpoints : [];
-        setEndpoints(epList);
+        // 端点列表的真相来源是全局 atom；这里仅在没有任何会话时把响应里的端点
+        // 用作创建首个会话的默认值，避免与 RootLayout 的 atom 刷新产生竞态。
+        const bootstrapEndpoints = Array.isArray(data.endpoints) ? data.endpoints : [];
 
         // 加载模板列表（用于头部显示当前模板名称）
         apiGet<{ templates: import('./types').AgentTemplate[] }>('/api/agent-templates')
@@ -468,7 +469,7 @@ export function ChatPage() {
 
         let sessionList = Array.isArray(data.sessions) ? data.sessions : [];
         if (sessionList.length === 0) {
-          const created = await createSession(epList[0]?.name, lastPersona);
+          const created = await createSession(bootstrapEndpoints[0]?.name, lastPersona);
           sessionList = [
             {
               id: created.id,

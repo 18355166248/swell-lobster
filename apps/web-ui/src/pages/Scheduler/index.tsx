@@ -20,15 +20,13 @@ import type { ColumnsType } from 'antd/es/table';
 import { DeleteOutlined, EditOutlined, PlayCircleOutlined } from '@ant-design/icons';
 import { TableActions } from '../../components/TableActions';
 import { useTranslation } from 'react-i18next';
+import { useAtomValue } from 'jotai';
 import { apiDelete, apiGet, apiPatch, apiPost } from '../../api/base';
+import { endpointsAtom } from '../../store/endpoints';
 
 const { Title, Text } = Typography;
 
 type FrequencyType = 'daily' | 'weekly' | 'monthly' | 'custom';
-
-type EndpointItem = {
-  name?: string;
-};
 
 type ScheduledTask = {
   id: string;
@@ -143,7 +141,7 @@ function TimeOfDayFields() {
 export function SchedulerPage() {
   const { t } = useTranslation();
   const [tasks, setTasks] = useState<ScheduledTask[]>([]);
-  const [endpoints, setEndpoints] = useState<EndpointItem[]>([]);
+  const endpoints = useAtomValue(endpointsAtom);
   const [runsByTask, setRunsByTask] = useState<Record<string, TaskRun[]>>({});
   const [loadingRuns, setLoadingRuns] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
@@ -191,12 +189,8 @@ export function SchedulerPage() {
     setLoading(true);
     setError(null);
     try {
-      const [taskData, endpointData] = await Promise.all([
-        apiGet<{ tasks: ScheduledTask[] }>('/api/scheduler/tasks'),
-        apiGet<{ endpoints: EndpointItem[] }>('/api/config/endpoints'),
-      ]);
+      const taskData = await apiGet<{ tasks: ScheduledTask[] }>('/api/scheduler/tasks');
       setTasks(taskData.tasks ?? []);
-      setEndpoints(endpointData.endpoints ?? []);
     } catch (e) {
       setError(e instanceof Error ? e.message : t('scheduler.loadFailed'));
     } finally {

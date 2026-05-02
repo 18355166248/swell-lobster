@@ -2,32 +2,34 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Button, Table, Alert, Space, Badge, Typography, Select, message } from 'antd';
 import { DeleteOutlined, EditOutlined } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
+import { useAtomValue, useSetAtom } from 'jotai';
 import { TableActions } from '../../../components/TableActions';
-import { apiDelete, apiGet, apiPatch, apiPost } from '../../../api/base';
+import { apiDelete, apiPatch, apiPost } from '../../../api/base';
+import {
+  compilerEndpointIdAtom,
+  endpointsAtom,
+  endpointsLoadedAtom,
+  refreshEndpointsAtom,
+  sttEndpointsAtom,
+} from '../../../store/endpoints';
 import { AddEndpointDialog } from './AddEndpointDialog';
 import type { EndpointFormData, EndpointItem } from './types';
 
 const { Title, Text } = Typography;
 
-type EndpointsResponse = {
-  endpoints: EndpointItem[];
-};
-
-type CompilerEndpointResponse = {
-  endpoint_id?: string | null;
-};
-
-type SttEndpointsResponse = {
-  endpoints: EndpointItem[];
-};
-
 export function ConfigLLMPage() {
   const { t } = useTranslation();
   const [messageApi, contextHolder] = message.useMessage();
-  const [endpoints, setEndpoints] = useState<EndpointItem[]>([]);
-  const [compilerEndpointId, setCompilerEndpointId] = useState<string | null>(null);
-  const [sttEndpoints, setSttEndpoints] = useState<EndpointItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const endpoints = useAtomValue(endpointsAtom);
+  const sttEndpoints = useAtomValue(sttEndpointsAtom);
+  const storedCompilerEndpointId = useAtomValue(compilerEndpointIdAtom);
+  const endpointsLoaded = useAtomValue(endpointsLoadedAtom);
+  const refreshEndpoints = useSetAtom(refreshEndpointsAtom);
+  // 编译器端点选择是 "草稿"：用户改完之后再点保存，因此保留本地 state，仅在远端值变化时同步
+  const [compilerEndpointId, setCompilerEndpointId] = useState<string | null>(
+    storedCompilerEndpointId
+  );
+  const [loading, setLoading] = useState(!endpointsLoaded);
   const [error, setError] = useState<string | null>(null);
   const [savingId, setSavingId] = useState<string | null>(null);
   const [compilerSaving, setCompilerSaving] = useState(false);
@@ -39,31 +41,29 @@ export function ConfigLLMPage() {
   const [editSttEndpointOpen, setEditSttEndpointOpen] = useState(false);
   const [editingSttTarget, setEditingSttTarget] = useState<EndpointItem | null>(null);
 
+  useEffect(() => {
+    setCompilerEndpointId(storedCompilerEndpointId);
+  }, [storedCompilerEndpointId]);
+
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const [endpointData, compilerData, sttData] = await Promise.all([
-        apiGet<EndpointsResponse>('/api/config/endpoints'),
-        apiGet<CompilerEndpointResponse>('/api/config/compiler-endpoint'),
-        apiGet<SttEndpointsResponse>('/api/config/stt-endpoints'),
-      ]);
-      setEndpoints(endpointData.endpoints ?? []);
-      setCompilerEndpointId(compilerData.endpoint_id ?? null);
-      setSttEndpoints(sttData.endpoints ?? []);
+      await refreshEndpoints();
     } catch (e) {
       setError(e instanceof Error ? e.message : t('llm.loadFailed'));
-      setEndpoints([]);
-      setCompilerEndpointId(null);
-      setSttEndpoints([]);
     } finally {
       setLoading(false);
     }
-  }, [t]);
+  }, [refreshEndpoints, t]);
 
   useEffect(() => {
+    if (endpointsLoaded) {
+      setLoading(false);
+      return;
+    }
     void load();
-  }, [load]);
+  }, [endpointsLoaded, load]);
 
   const handleApplyRestart = async () => {
     setReloading(true);

@@ -150,7 +150,8 @@
       "Skill(claude-hud:setup)",
       "Skill(update-config)",
       "Skill(claude-hud:setup)",
-      "Skill(update-config)"
+      "Skill(update-config)",
+      "Bash(npm test *)"
     ]
   }
 }

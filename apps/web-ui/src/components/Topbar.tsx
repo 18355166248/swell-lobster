@@ -8,6 +8,7 @@ import { apiGet } from '../api/base';
 import { ThemeToggle } from './ThemeToggle';
 import { WindowControls } from './WindowControls';
 import { localeAtom, applyLocale, type Locale } from '../store/locale';
+import { endpointsAtom, endpointsLoadedAtom, refreshEndpointsAtom } from '../store/endpoints';
 import { isTauri } from '../utils/platform';
 
 type HealthStatus = 'unknown' | 'healthy' | 'error';
@@ -26,29 +27,27 @@ export function Topbar() {
   const { t } = useTranslation();
   const { message } = AntApp.useApp();
   const [status, setStatus] = useState<HealthStatus>('unknown');
-  const [endpointCount, setEndpointCount] = useState<number | null>(null);
+  const endpoints = useAtomValue(endpointsAtom);
+  const endpointsLoaded = useAtomValue(endpointsLoadedAtom);
+  const refreshEndpoints = useSetAtom(refreshEndpointsAtom);
   const [restarting, setRestarting] = useState(false);
   const locale = useAtomValue(localeAtom);
   const setLocale = useSetAtom(localeAtom);
 
-  const loadSummary = async () => {
+  const endpointCount = endpoints.length;
+
+  const loadHealth = async () => {
     try {
       const health = await apiGet<{ status?: string }>('/api/health');
       setStatus(health.status === 'healthy' ? 'healthy' : 'unknown');
     } catch {
       setStatus('error');
     }
-    try {
-      const data = await apiGet<{ endpoints?: unknown[] }>('/api/config/endpoints');
-      setEndpointCount(Array.isArray(data.endpoints) ? data.endpoints.length : 0);
-    } catch {
-      setEndpointCount(null);
-    }
   };
 
   useEffect(() => {
     queueMicrotask(() => {
-      void loadSummary();
+      void loadHealth();
     });
   }, []);
 
@@ -72,7 +71,7 @@ export function Topbar() {
         return;
       }
       await invoke('restart_backend');
-      await loadSummary();
+      await Promise.all([loadHealth(), refreshEndpoints().catch(() => {})]);
       void message.success(t('topbar.restartSucceeded'));
       setRestarting(false);
     } catch (error) {
@@ -89,7 +88,7 @@ export function Topbar() {
       <Space size={8}>
         <span className="text-sm text-muted-foreground">{t('topbar.default')}</span>
         <Badge status={statusBadgeMap[status]} text={statusLabel} />
-        {endpointCount !== null && (
+        {endpointsLoaded && (
           <span className="text-xs text-muted-foreground/70">
             {t('topbar.endpoints', { count: endpointCount })}
           </span>

@@ -16,6 +16,7 @@ import { imManager } from './im/manager.js';
 import { chatService } from './chat/index.js';
 import { startSkillFileWatcher } from './skills/loader.js';
 import { writeAppLog } from './api/routes/logs.js';
+import { ensurePortAvailable } from './utils/portUtils.js';
 import { existsSync, readdirSync, copyFileSync } from 'node:fs';
 import { join, basename } from 'node:path';
 
@@ -64,6 +65,8 @@ installLogInterceptors();
 
 async function main() {
   initIdentityFiles();
+  // 启动前确保端口空闲：dev 重启 / sidecar 残留时优雅释放占用进程，避免 EADDRINUSE 直接崩
+  await ensurePortAvailable(settings.host, settings.port);
   const app = createApp();
   initializeBuiltinTools();
   startSkillFileWatcher(() => {

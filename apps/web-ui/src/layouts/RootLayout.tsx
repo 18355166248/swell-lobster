@@ -1,10 +1,12 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
 import { Outlet, useLocation } from 'react-router';
+import { useSetAtom } from 'jotai';
 import { Sidebar } from '../components/Sidebar';
 import { GlobalLoading } from '../components/GlobalLoading';
 import { PageLoading } from '../components/PageLoading';
 import { Topbar } from '../components/Topbar';
 import { ROUTES } from '../routes';
+import { refreshEndpointsAtom } from '../store/endpoints';
 
 const ChatPage = lazy(async () => {
   const module = await import('../pages/Chat');
@@ -15,6 +17,13 @@ export function RootLayout() {
   const { pathname } = useLocation();
   const isChatRoute = pathname === ROUTES.CHAT;
   const [hasVisitedChat, setHasVisitedChat] = useState(isChatRoute);
+  const refreshEndpoints = useSetAtom(refreshEndpointsAtom);
+
+  useEffect(() => {
+    void refreshEndpoints().catch(() => {
+      // 首次拉取失败时静默：消费方自行处理空列表展示
+    });
+  }, [refreshEndpoints]);
 
   useEffect(() => {
     if (!isChatRoute || hasVisitedChat) return;

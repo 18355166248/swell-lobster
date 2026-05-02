@@ -23,6 +23,8 @@ installGlobalErrorHandlers();
 
 // 桌面端：F12 / Ctrl+Shift+I / Cmd+Option+I 打开 DevTools
 if (isTauri()) {
+  document.documentElement.classList.add('tauri-shell');
+  document.body.classList.add('tauri-shell');
   window.addEventListener('keydown', (e) => {
     const isDevToolsKey =
       e.key === 'F12' ||

@@ -112,6 +112,22 @@
   box-sizing: border-box;
 }
 
+.tauri-shell body {
+  background: transparent;
+}
+
+html.tauri-shell,
+html.tauri-shell body,
+html.tauri-shell #root {
+  background: transparent !important;
+}
+
+.tauri-shell #root {
+  min-height: 100vh;
+  border-radius: 18px;
+  overflow: hidden;
+}
+
 body {
   margin: 0;
 }

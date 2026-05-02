@@ -24,6 +24,7 @@
     "fs:write-all",
     "dialog:allow-open",
     "dialog:allow-save",
-    "process:allow-exit"
+    "process:allow-exit",
+    "process:allow-restart"
   ]
 }

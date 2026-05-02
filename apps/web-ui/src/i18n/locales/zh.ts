@@ -23,6 +23,7 @@ const zh = {
     status: '状态',
     time: '时间',
     api: 'API',
+    restart: '重启',
     light: '浅色',
     dark: '深色',
     system: '跟随系统',
@@ -35,6 +36,9 @@ const zh = {
     checking: '检查中',
     endpoints: '{{count}} 端点',
     default: 'default',
+    restart: '重启应用',
+    reloadWindow: '刷新窗口',
+    restartFailed: '重启失败',
   },
 
   // 侧边栏

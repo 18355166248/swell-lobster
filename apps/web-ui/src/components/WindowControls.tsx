@@ -30,6 +30,7 @@ export function WindowControls() {
 
   return (
     <div
+      data-tauri-drag-region="false"
       className={`flex h-8 items-center gap-0.5 transition-opacity ${focused ? 'opacity-100' : 'opacity-60'}`}
     >
       <button

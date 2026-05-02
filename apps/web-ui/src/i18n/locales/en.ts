@@ -23,6 +23,7 @@ const en = {
     status: 'Status',
     time: 'Time',
     api: 'API',
+    restart: 'Restart',
     light: 'Light',
     dark: 'Dark',
     system: 'System',
@@ -34,6 +35,9 @@ const en = {
     checking: 'Checking',
     endpoints: '{{count}} endpoints',
     default: 'default',
+    restart: 'Restart app',
+    reloadWindow: 'Reload window',
+    restartFailed: 'Failed to restart',
   },
 
   sidebar: {

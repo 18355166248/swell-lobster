@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
-import { Badge, Button, Space, Select, Tooltip } from 'antd';
-import { ReloadOutlined, LinkOutlined } from '@ant-design/icons';
+import { App as AntApp, Badge, Button, Space, Select, Tooltip } from 'antd';
+import { ReloadOutlined } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
 import { useAtomValue, useSetAtom } from 'jotai';
-import { getApiBase, apiGet } from '../api/base';
+import { relaunch } from '@tauri-apps/plugin-process';
+import { apiGet } from '../api/base';
 import { ThemeToggle } from './ThemeToggle';
 import { WindowControls } from './WindowControls';
 import { localeAtom, applyLocale, type Locale } from '../store/locale';
@@ -17,16 +18,20 @@ const statusBadgeMap: Record<HealthStatus, 'processing' | 'success' | 'error'> =
   unknown: 'processing',
 };
 
+const isDevBuild = Boolean(
+  typeof import.meta !== 'undefined' && (import.meta as { env?: Record<string, unknown> }).env?.DEV
+);
+
 export function Topbar() {
   const { t } = useTranslation();
+  const { message } = AntApp.useApp();
   const [status, setStatus] = useState<HealthStatus>('unknown');
   const [endpointCount, setEndpointCount] = useState<number | null>(null);
-  const [refreshing, setRefreshing] = useState(false);
+  const [restarting, setRestarting] = useState(false);
   const locale = useAtomValue(localeAtom);
   const setLocale = useSetAtom(localeAtom);
 
-  const refresh = async () => {
-    setRefreshing(true);
+  const loadSummary = async () => {
     try {
       const health = await apiGet<{ status?: string }>('/api/health');
       setStatus(health.status === 'healthy' ? 'healthy' : 'unknown');
@@ -39,12 +44,11 @@ export function Topbar() {
     } catch {
       setEndpointCount(null);
     }
-    setRefreshing(false);
   };
 
   useEffect(() => {
     queueMicrotask(() => {
-      void refresh();
+      void loadSummary();
     });
   }, []);
 
@@ -57,6 +61,21 @@ export function Topbar() {
   const handleLocaleChange = (val: Locale) => {
     setLocale(val);
     applyLocale(val);
+  };
+
+  const handleRestart = async () => {
+    if (!isTauri() || restarting) return;
+    setRestarting(true);
+    try {
+      if (isDevBuild) {
+        window.location.reload();
+        return;
+      }
+      await relaunch();
+    } catch (error) {
+      setRestarting(false);
+      void message.error(error instanceof Error ? error.message : t('topbar.restartFailed'));
+    }
   };
 
   return (
@@ -75,38 +94,32 @@ export function Topbar() {
       </Space>
 
       <Space size={6}>
-        <ThemeToggle />
-        <Select
-          size="small"
-          value={locale}
-          onChange={handleLocaleChange}
-          style={{ width: 88 }}
-          options={[
-            { value: 'zh', label: '中文' },
-            { value: 'en', label: 'English' },
-          ]}
-        />
-        <Tooltip title={t('common.refresh')}>
-          <Button
-            type="text"
+        <div className="flex items-center gap-1" data-tauri-drag-region="false">
+          <ThemeToggle />
+          <Select
             size="small"
-            icon={<ReloadOutlined spin={refreshing} />}
-            onClick={refresh}
-            disabled={refreshing}
+            value={locale}
+            onChange={handleLocaleChange}
+            style={{ width: 88 }}
+            options={[
+              { value: 'zh', label: '中文' },
+              { value: 'en', label: 'English' },
+            ]}
           />
-        </Tooltip>
-        <Tooltip title={getApiBase()}>
-          <Button
-            type="text"
-            size="small"
-            icon={<LinkOutlined />}
-            href={getApiBase()}
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            {t('common.api')}
-          </Button>
-        </Tooltip>
+          {isTauri() && (
+            <Tooltip title={t(isDevBuild ? 'topbar.reloadWindow' : 'topbar.restart')}>
+              <Button
+                type="text"
+                size="small"
+                icon={<ReloadOutlined spin={restarting} />}
+                onClick={() => void handleRestart()}
+                disabled={restarting}
+              >
+                {t('common.restart')}
+              </Button>
+            </Tooltip>
+          )}
+        </div>
       </Space>
 
       <WindowControls />

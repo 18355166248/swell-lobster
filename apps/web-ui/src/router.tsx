@@ -1,4 +1,4 @@
-import { createBrowserRouter } from 'react-router';
+import { createBrowserRouter, Navigate } from 'react-router';
 import { RootLayout } from './layouts/RootLayout';
 import { ROUTES } from './routes';
 
@@ -9,7 +9,7 @@ export const router = createBrowserRouter([
     children: [
       {
         index: true,
-        lazy: async () => ({ Component: (await import('./pages/Home')).HomePage }),
+        element: <Navigate to={ROUTES.CHAT} replace />,
       },
       { path: 'chat' },
       {

@@ -41,17 +41,53 @@ swell-lobster/
 npm install
 ```
 
-同时启动 Web + Backend：
+启动 Web 开发联调：
 
 ```bash
 npm run dev:web
 ```
 
-同时启动 Desktop + Backend：
+启动桌面开发联调：
 
 ```bash
 npm run dev:desktop
 ```
+
+构建桌面安装产物：
+
+```bash
+npm run build:desktop
+```
+
+## 运行模式
+
+| 命令                    | 会启动什么                                       | 适用场景              |
+| ----------------------- | ------------------------------------------------ | --------------------- |
+| `npm run dev:web`       | `tide-lobster` + Vite Web UI                     | 浏览器联调            |
+| `npm run dev:desktop`   | `tide-lobster` + Tauri Desktop                   | 桌面联调              |
+| `npm run build`         | backend + web 构建                               | 仓库基础构建校验      |
+| `npm run build:desktop` | `tide-lobster` 打包 + sidecar 准备 + Tauri build | 桌面安装包/发布前构建 |
+
+说明：
+
+- `dev:web` 与 `dev:desktop` 都由根脚本同时拉起后端。
+- 开发态桌面窗口加载的是 `http://localhost:5173`，不是打包后的静态资源。
+- 打包后的桌面应用会自行拉起内置 `tide-lobster` sidecar，不依赖你手动先跑后端。
+
+## 桌面运行关系
+
+桌面端不是独立业务层，而是下面这条链路的宿主：
+
+```text
+Tauri Desktop
+  -> Web UI（复用 apps/web-ui）
+  -> tide-lobster API / MCP / IM / Scheduler
+  -> SQLite + JSON + identity 资产
+```
+
+- 浏览器模式下，Web UI 直接访问本地 `http://127.0.0.1:18900`。
+- 桌面打包版下，Tauri 会启动内置后端 sidecar，并把日志、输出目录和代理环境透传给它。
+- 默认输出目录为 `~/Documents/SwellLobster/outputs`，可用 `SWELL_OUTPUT_DIR` 覆盖。
 
 ## 常用命令
 
@@ -97,3 +133,11 @@ feat: 新增聊天会话管理功能
 - 前端指南：[apps/web-ui/AGENTS.md](apps/web-ui/AGENTS.md)
 - 桌面端指南：[apps/desktop/AGENTS.md](apps/desktop/AGENTS.md)
 - 后端指南：[src/tide-lobster/AGENTS.md](src/tide-lobster/AGENTS.md)
+
+## 相关文档
+
+- 运行与排障指南：[docs/runtime-guide.md](docs/runtime-guide.md)
+- 桌面发布前验收清单：[docs/desktop-validation-checklist.md](docs/desktop-validation-checklist.md)
+- 桌面环境变量与代理：[docs/desktop-env-config.md](docs/desktop-env-config.md)
+- 当前项目状态：[docs/PROJECT_STATUS.md](docs/PROJECT_STATUS.md)
+- 路线图：[docs/roadmap.md](docs/roadmap.md)

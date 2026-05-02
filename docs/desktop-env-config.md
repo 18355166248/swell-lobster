@@ -1,5 +1,10 @@
 # 桌面端环境变量配置
 
+配套阅读：
+
+- [运行与排障指南](runtime-guide.md)
+- [项目当前状态](PROJECT_STATUS.md)
+
 桌面应用（SwellLobster Desktop）内置了 `tide-lobster` 后端进程，所有对外 API 请求（LLM 接口、模型列表拉取等）均由该进程发出。本文介绍如何为桌面端配置环境变量，包括代理设置。
 
 ---
@@ -134,6 +139,8 @@ export NO_PROXY=localhost,127.0.0.1
 | ------- | -------------------------------------------------------------------------- |
 | Windows | `C:\Users\{用户名}\AppData\Roaming\ai.swell.lobster\logs\tide-lobster.log` |
 | macOS   | `~/Library/Logs/ai.swell.lobster/tide-lobster.log`                         |
+
+如果问题不是代理，而是白屏、端口冲突、sidecar 缺失或导出路径异常，转到 [运行与排障指南](runtime-guide.md)。
 
 ---
 

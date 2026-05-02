@@ -46,6 +46,7 @@ chatRouter.post('/api/chat', async (c) => {
         filename?: string;
         base64?: string;
       }[];
+      disabled_tool_names?: string[];
     }>();
 
     const result = await service.chat({
@@ -53,6 +54,7 @@ chatRouter.post('/api/chat', async (c) => {
       message: body.message ?? '',
       endpoint_name: body.endpoint_name,
       attachments: body.attachments,
+      disabled_tool_names: body.disabled_tool_names,
     });
 
     return c.json({
@@ -77,13 +79,14 @@ chatRouter.post('/api/chat/stream', async (c) => {
     conversation_id?: string;
     message?: string;
     endpoint_name?: string;
-    attachments?: {
-      kind: 'image' | 'file';
-      mimeType: string;
-      filename?: string;
-      base64?: string;
-    }[];
-  }>();
+      attachments?: {
+        kind: 'image' | 'file';
+        mimeType: string;
+        filename?: string;
+        base64?: string;
+      }[];
+      disabled_tool_names?: string[];
+    }>();
 
   return streamSSE(c, async (stream) => {
     const signal = c.req.raw.signal;
@@ -95,6 +98,7 @@ chatRouter.post('/api/chat/stream', async (c) => {
           message: body.message ?? '',
           endpoint_name: body.endpoint_name,
           attachments: body.attachments,
+          disabled_tool_names: body.disabled_tool_names,
         },
         async (event) => {
           await stream.writeSSE({ data: JSON.stringify(event) });

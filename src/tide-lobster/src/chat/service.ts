@@ -177,6 +177,7 @@ export class ChatService {
     message: string;
     endpoint_name?: string | null;
     attachments?: ChatInputAttachment[];
+    disabled_tool_names?: string[];
   }): Promise<{ session: ChatSession; message: string }> {
     const userMessage = (args.message ?? '').trim();
     const attachments = await this.prepareAttachments(args.attachments ?? []);
@@ -222,6 +223,7 @@ export class ChatService {
       sessionId: session.id,
       messages: trimMessages(toLLMMessages(this.projectRoot, sessionAfterUser.messages)),
       systemPrompt,
+      disabledToolNames: args.disabled_tool_names ?? [],
     });
 
     const appended = this.store.appendAssistantMessageWithMeta({
@@ -261,6 +263,7 @@ export class ChatService {
       message: string;
       endpoint_name?: string | null;
       attachments?: ChatInputAttachment[];
+      disabled_tool_names?: string[];
     },
     onEvent: (event: ChatStreamEvent) => void | Promise<void>,
     signal?: AbortSignal
@@ -326,6 +329,7 @@ export class ChatService {
         signal,
         toolInvocationsRef: trackedToolInvocations,
         blocksRef: trackedBlocks,
+        disabledToolNames: args.disabled_tool_names ?? [],
       });
 
       // 将拼接后的完整助手回复写入会话
@@ -469,6 +473,8 @@ export class ChatService {
     signal?: AbortSignal;
     toolInvocationsRef?: ToolExecutionTrace[];
     blocksRef?: MessageBlock[];
+    // 给子会话按需裁剪工具能力，例如禁用 delegate_task 防递归委托。
+    disabledToolNames?: string[];
   }): Promise<{
     content: string;
     usage?: LLMUsage;
@@ -478,6 +484,7 @@ export class ChatService {
     let currentMessages = [...args.messages];
     const toolInvocations = args.toolInvocationsRef ?? [];
     const blocks: MessageBlock[] = args.blocksRef ?? [];
+    const disabledToolNames = new Set(args.disabledToolNames ?? []);
     let lastContent = '';
 
     /** 追加或合并文本块：若末尾已是文本块则直接拼接，否则新建。 */
@@ -499,10 +506,11 @@ export class ChatService {
         apiKey: args.apiKey,
         messages: currentMessages,
         systemPrompt: args.systemPrompt,
+        // 工具 schema 按请求过滤，复用同一套补全链路但允许子会话缩小工具集。
         tools:
           args.endpoint.api_type === 'anthropic'
-            ? globalToolRegistry.toAnthropicFormat()
-            : globalToolRegistry.toOpenAIFormat(),
+            ? globalToolRegistry.toAnthropicFormat([...disabledToolNames])
+            : globalToolRegistry.toOpenAIFormat([...disabledToolNames]),
         resolveFallback: (endpointId) => this.getEndpointConfigById(endpointId),
         resolveApiKey: (endpoint) => {
           const apiKey = this.getApiKeyValue(endpoint.api_key_env);
@@ -554,7 +562,8 @@ export class ChatService {
           toolCall,
           toolInvocations,
           args.onEvent,
-          args.sessionId
+          args.sessionId,
+          disabledToolNames
         );
         // 工具执行完成后，以最终状态写入 blocks
         blocks.push({ type: 'tool_invocation', invocation: trace });
@@ -583,7 +592,8 @@ export class ChatService {
     toolCall: ToolCall,
     toolInvocations: ToolExecutionTrace[],
     onEvent?: (event: ChatStreamEvent) => void | Promise<void>,
-    sessionId?: string // 会话 ID，用于记录技能调用日志
+    sessionId?: string, // 会话 ID，用于记录技能调用日志
+    disabledToolNames: Set<string> = new Set()
   ): Promise<ToolExecutionTrace> {
     const trace: ToolExecutionTrace = {
       id: toolCall.id,
@@ -598,6 +608,19 @@ export class ChatService {
       status: 'running',
       arguments: toolCall.arguments,
     });
+
+    if (disabledToolNames.has(toolCall.name)) {
+      trace.status = 'failed';
+      // 返回普通 tool_result 而不是抛异常，让模型有机会解释为什么该工具不可用。
+      trace.result = `工具 ${toolCall.name} 在当前子会话中已禁用`;
+      await onEvent?.({
+        type: 'tool_result',
+        name: toolCall.name,
+        status: 'failed',
+        content: trace.result,
+      });
+      return trace;
+    }
 
     const tool = globalToolRegistry.get(toolCall.name);
     if (!tool) {

@@ -508,6 +508,7 @@ async fn launch_backend(app: &AppHandle) -> Result<(), String> {
     append_diag_log(&log_path, "[desktop] launch_backend requested");
 
     if uses_external_dev_backend() {
+        // tauri dev 明确不接管后端，避免误杀外部 `tsx watch` 实例并切换到另一份数据目录。
         append_diag_log(
             &log_path,
             "[desktop] debug mode detected, using external backend on 127.0.0.1:18900",
@@ -549,6 +550,7 @@ async fn restart_backend(app: AppHandle, _state: State<'_, SidecarState>) -> Res
     let log_path = resolve_log_path(&app);
     append_diag_log(&log_path, "[desktop] restart_backend requested");
     if uses_external_dev_backend() {
+        // 开发态只允许终端手动重启外部后端，避免桌面壳重新夺回进程所有权。
         append_diag_log(
             &log_path,
             "[desktop] restart_backend rejected in debug mode; external backend ownership remains outside Tauri",

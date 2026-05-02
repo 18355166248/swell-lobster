@@ -5,6 +5,7 @@ import { runScriptTool } from './builtins/run_script.js';
 import { writeMemoryTool } from './builtins/write_memory.js';
 import { readFileTool } from './builtins/read_file.js';
 import { webSearchTool } from './builtins/web_search.js';
+import { delegateTaskTool } from './builtins/delegate_task.js';
 import { globalToolRegistry } from './registry.js';
 
 let initialized = false;
@@ -20,4 +21,5 @@ export function initializeBuiltinTools(): void {
   globalToolRegistry.register(runScriptTool);
   globalToolRegistry.register(readFileTool);
   globalToolRegistry.register(webSearchTool);
+  globalToolRegistry.register(delegateTaskTool);
 }

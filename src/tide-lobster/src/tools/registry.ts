@@ -44,12 +44,13 @@ export class ToolRegistry {
     return this.tools.get(name);
   }
 
-  listAll(): ToolDef[] {
-    return [...this.tools.values()];
+  listAll(excludeNames?: string[]): ToolDef[] {
+    const excludes = new Set(excludeNames ?? []);
+    return [...this.tools.values()].filter((tool) => !excludes.has(tool.name));
   }
 
-  toOpenAIFormat(): OpenAITool[] {
-    return this.listAll().map((tool) => ({
+  toOpenAIFormat(excludeNames?: string[]): OpenAITool[] {
+    return this.listAll(excludeNames).map((tool) => ({
       type: 'function',
       function: {
         name: tool.name,
@@ -59,8 +60,8 @@ export class ToolRegistry {
     }));
   }
 
-  toAnthropicFormat(): AnthropicTool[] {
-    return this.listAll().map((tool) => ({
+  toAnthropicFormat(excludeNames?: string[]): AnthropicTool[] {
+    return this.listAll(excludeNames).map((tool) => ({
       name: tool.name,
       description: tool.description,
       input_schema: toJsonSchema(tool),

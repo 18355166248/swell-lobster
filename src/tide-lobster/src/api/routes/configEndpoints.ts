@@ -11,16 +11,13 @@
  */
 
 import { Hono } from 'hono';
-import { existsSync, readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
 import { EndpointStore } from '../../store/endpointStore.js';
 import { getDb } from '../../db/index.js';
 import { KeyValueStore } from '../../store/keyValueStore.js';
 import { listProviders, providerInfoToDict } from '../../llm/registries/index.js';
 import { listModelsAnthropic, listModelsOpenAI } from '../../llm/bridge.js';
 import { randomUUID } from 'node:crypto';
-import { parseEnv } from '../../utils/envUtils.js';
-import { settings } from '../../config.js';
+import { readAppEnvFile } from '../../config.js';
 import { requestChatCompletion } from '../../chat/llmClient.js';
 
 export const configEndpointsRouter = new Hono();
@@ -45,13 +42,7 @@ function writeJsonValue(key: string, value: unknown): void {
 }
 
 function readEnvFile(): Record<string, string> {
-  const path = resolve(settings.projectRoot, '.env');
-  if (!existsSync(path)) return {};
-  try {
-    return parseEnv(readFileSync(path, 'utf-8'));
-  } catch {
-    return {};
-  }
+  return readAppEnvFile();
 }
 
 function resolveApiKeyValue(

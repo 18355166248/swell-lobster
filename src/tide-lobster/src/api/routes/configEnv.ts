@@ -10,9 +10,8 @@
 
 import { Hono } from 'hono';
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
-import { resolve, dirname } from 'node:path';
-import { homedir } from 'node:os';
-import { settings } from '../../config.js';
+import { dirname } from 'node:path';
+import { resolveAppEnvPath } from '../../config.js';
 import { parseEnv, updateEnvContent } from '../../utils/envUtils.js';
 
 export const configEnvRouter = new Hono();
@@ -23,13 +22,7 @@ const SENSITIVE = /(TOKEN|SECRET|PASSWORD|KEY|APIKEY)/i;
 const KEY_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
 function envPath(): string {
-  const globalEnvDir = process.env.SWELL_GLOBAL_ENV_DIR?.trim();
-  if (globalEnvDir) return resolve(globalEnvDir, '.env');
-
-  const home = homedir().trim();
-  if (home) return resolve(home, '.swell-lobster', '.env');
-
-  return resolve(settings.projectRoot, '.env');
+  return resolveAppEnvPath();
 }
 
 function maskValue(key: string, value: string): string {
@@ -43,12 +36,12 @@ function maskValue(key: string, value: string): string {
 
 configEnvRouter.get('/api/config/env', (c) => {
   const path = envPath();
-  if (!existsSync(path)) return c.json({ env: {}, raw: '' });
+  if (!existsSync(path)) return c.json({ env: {}, raw: '', path });
 
   const content = readFileSync(path, 'utf-8');
   const env = parseEnv(content);
   const masked = Object.fromEntries(Object.entries(env).map(([k, v]) => [k, maskValue(k, v)]));
-  return c.json({ env: masked, masked, raw: '' });
+  return c.json({ env: masked, masked, raw: '', path });
 });
 
 // ── POST /api/config/env ───────────────────────────────────────────────────────
@@ -70,5 +63,5 @@ configEnvRouter.post('/api/config/env', async (c) => {
   mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, newContent, 'utf-8');
 
-  return c.json({ status: 'ok', updated_keys: Object.keys(entries) });
+  return c.json({ status: 'ok', updated_keys: Object.keys(entries), path });
 });

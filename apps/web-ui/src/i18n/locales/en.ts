@@ -260,6 +260,11 @@ const en = {
     title: 'Status',
     subtitle: 'Service status, endpoint health, IM online status',
     serviceStatus: 'Service status: ',
+    runtimeMode: 'Runtime Mode',
+    envPath: 'Environment File',
+    projectRoot: 'Project Root',
+    processId: 'Process PID',
+    execPath: 'Executable Path',
     loadFailed: 'Load failed',
     restartBackend: 'Restart backend',
     restartBackendFailed: 'Failed to restart backend',
@@ -548,8 +553,9 @@ const en = {
 
   configAdvanced: {
     title: 'Advanced Config',
-    subtitle: 'Basic settings, hidden modules, vector search, web search',
+    subtitle: 'Basic settings, hidden modules, vector search, API keys, web search',
     loadFailed: 'Load failed',
+    envPathLabel: 'Current environment file',
     agentName: 'Agent Name',
     agentNamePlaceholder: 'Swell-Lobster',
     agentNameHint: 'Name used for identity (SWELL_AGENT_NAME)',
@@ -565,6 +571,13 @@ const en = {
     embeddingApiKeyEnv: 'API Key Env Var Name',
     embeddingApiKeyEnvPlaceholder: 'OPENAI_API_KEY',
     semanticMinScore: 'Minimum Semantic Match Score',
+    llmKeysTitle: 'LLM API Keys',
+    llmKeysSubtitle:
+      'Configure common API keys for shared model endpoints used by web and desktop.',
+    llmOpenAIKey: 'LLM_API_KEY_OPENAI',
+    openAIKey: 'OPENAI_API_KEY',
+    apiKeyPlaceholder: 'Enter API Key',
+    apiKeyConfigured: 'Configured (re-enter to change)',
     searchTitle: 'Web Search',
     searchSubtitle:
       'Configure search mode and API keys. Auto mode selects the best available provider and falls back to DuckDuckGo on failure.',

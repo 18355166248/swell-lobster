@@ -3,13 +3,15 @@
  *
  * 配置与 SWELL_* 环境变量约定（原 Python/Pydantic 参考已移除）。
  *
- * 加载顺序：process.env > .env 文件 > 计算默认值
+ * 加载顺序：process.env > 用户全局 .env > 仓库根 .env > 计算默认值
  */
 
 import { resolve, dirname, join } from 'node:path';
 import { existsSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { config as loadDotenv } from 'dotenv';
+import { readFileSync } from 'node:fs';
+import { parseEnv } from './utils/envUtils.js';
 
 function findRepoRoot(): string {
   const envRoot = process.env.SWELL_PROJECT_ROOT ?? process.env.PROJECT_ROOT;
@@ -39,7 +41,7 @@ console.log('[config] REPO_ROOT =', REPO_ROOT);
 console.log('[config] identityDir candidate =', resolve(REPO_ROOT, 'identity'));
 console.log('[config] identity exists =', existsSync(resolve(REPO_ROOT, 'identity')));
 
-function globalEnvPath(): string | null {
+export function globalEnvPath(): string | null {
   const explicitDir = process.env.SWELL_GLOBAL_ENV_DIR?.trim();
   if (explicitDir) return resolve(explicitDir, '.env');
 
@@ -59,9 +61,24 @@ if (!packagedDesktop && existsSync(repoEnvPath)) {
 console.log('[config] SWELL_GLOBAL_ENV_DIR =', process.env.SWELL_GLOBAL_ENV_DIR ?? '(not set)');
 console.log('[config] global .env =', globalDesktopEnvPath ?? 'NOT AVAILABLE');
 if (globalDesktopEnvPath && existsSync(globalDesktopEnvPath)) {
-  loadDotenv({ path: globalDesktopEnvPath, override: false });
+  // 设备级配置优先于仓库根 .env；shell 显式传入的 process.env 仍然最高优先级。
+  loadDotenv({ path: globalDesktopEnvPath, override: true });
 } else if (packagedDesktop) {
   console.log('[config] global .env status = NOT FOUND');
+}
+
+export function resolveAppEnvPath(): string {
+  return globalEnvPath() ?? repoEnvPath;
+}
+
+export function readAppEnvFile(): Record<string, string> {
+  const path = resolveAppEnvPath();
+  if (!existsSync(path)) return {};
+  try {
+    return parseEnv(readFileSync(path, 'utf-8'));
+  } catch {
+    return {};
+  }
 }
 
 function env(swellKey: string, fallback: string): string {

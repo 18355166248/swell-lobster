@@ -1,13 +1,10 @@
 /**
  * 助手技能执行：选默认 LLM 端点、解析 API Key、调用 `requestChatCompletion`。
  */
-import { existsSync, readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
 import { getSkill } from './loader.js';
 import { requestChatCompletion } from '../chat/llmClient.js';
 import { EndpointStore } from '../store/endpointStore.js';
-import { settings } from '../config.js';
-import { parseEnv } from '../utils/envUtils.js';
+import { readAppEnvFile } from '../config.js';
 import { logSkillInvocation } from './logger.js';
 
 const endpointStore = new EndpointStore();
@@ -25,15 +22,7 @@ function renderPromptTemplate(template: string, payload: Record<string, unknown>
 export function getApiKey(envName: string): string {
   if (!envName) return '';
   if (process.env[envName]) return String(process.env[envName]);
-  const envPath = resolve(settings.projectRoot, '.env');
-  if (!existsSync(envPath)) return '';
-  try {
-    const content = readFileSync(envPath, 'utf-8');
-    const parsed = parseEnv(content);
-    return parsed[envName] ?? '';
-  } catch {
-    return '';
-  }
+  return readAppEnvFile()[envName] ?? '';
 }
 
 export async function executeSkill(

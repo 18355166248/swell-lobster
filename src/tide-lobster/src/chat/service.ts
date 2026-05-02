@@ -3,11 +3,9 @@
  * 调用 LLM（含多轮工具循环）、流式增量推送、用量落库与记忆抽取触发。
  * 持久化会话走 ChatStore；token 统计走 SQLite（getDb）。
  */
-import { existsSync, readFileSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
-import { resolve } from 'node:path';
 
-import { parseEnv } from '../utils/envUtils.js';
+import { readAppEnvFile } from '../config.js';
 import type {
   ChatAttachment,
   ChatSession,
@@ -693,20 +691,11 @@ export class ChatService {
     });
   }
 
-  /** 先读 process.env，再读项目根 .env（与端点配置里的 api_key_env 名称对应）。 */
+  /** 先读 process.env，再读当前生效的 .env（桌面打包版优先用户主目录全局文件）。 */
   getApiKeyValue(envName: string): string {
     if (!envName) return '';
     if (process.env[envName]) return String(process.env[envName]);
-
-    const envPath = resolve(this.projectRoot, '.env');
-    if (!existsSync(envPath)) return '';
-
-    try {
-      const parsed = parseEnv(readFileSync(envPath, 'utf-8'));
-      return parsed[envName] ?? '';
-    } catch {
-      return '';
-    }
+    return readAppEnvFile()[envName] ?? '';
   }
 
   private async prepareAttachments(attachments: ChatInputAttachment[]): Promise<ChatAttachment[]> {

@@ -16,9 +16,9 @@ import { useTranslation } from 'react-i18next';
 import { apiGet, apiPost } from '../../../api/base';
 import { ROUTES } from '../../../routes';
 
-const { Title, Text } = Typography;
+const { Title, Text, Paragraph } = Typography;
 
-type EnvData = { env: Record<string, string> };
+type EnvData = { env: Record<string, string>; path?: string };
 
 type EmbeddingConfig = {
   embeddingBaseUrl: string;
@@ -31,6 +31,11 @@ type SearchConfig = {
   provider: 'auto' | 'brave' | 'tavily' | 'duckduckgo';
   braveApiKey: string;
   tavilyApiKey: string;
+};
+
+type LLMKeyConfig = {
+  llmOpenAIKey: string;
+  openAIKey: string;
 };
 
 const HIDEABLE_VIEWS = [
@@ -49,6 +54,7 @@ export function ConfigAdvancedPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [envPath, setEnvPath] = useState('');
 
   const [agentName, setAgentName] = useState('');
   const [disabledViews, setDisabledViews] = useState<string[]>([]);
@@ -63,6 +69,10 @@ export function ConfigAdvancedPage() {
     braveApiKey: '',
     tavilyApiKey: '',
   });
+  const [llmKeys, setLlmKeys] = useState<LLMKeyConfig>({
+    llmOpenAIKey: '',
+    openAIKey: '',
+  });
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -74,6 +84,7 @@ export function ConfigAdvancedPage() {
       ]);
       setDisabledViews(viewsData.disabled ?? []);
       const env = envData.env ?? {};
+      setEnvPath(envData.path ?? '');
       setAgentName(env.SWELL_AGENT_NAME ?? '');
       setEmbeddingConfig({
         embeddingBaseUrl: env.SWELL_EMBEDDING_BASE_URL ?? '',
@@ -90,6 +101,10 @@ export function ConfigAdvancedPage() {
             : 'auto',
         braveApiKey: env.BRAVE_SEARCH_API_KEY ?? '',
         tavilyApiKey: env.TAVILY_API_KEY ?? '',
+      });
+      setLlmKeys({
+        llmOpenAIKey: env.LLM_API_KEY_OPENAI ?? '',
+        openAIKey: env.OPENAI_API_KEY ?? '',
       });
     } catch (e) {
       setError(e instanceof Error ? e.message : t('configAdvanced.loadFailed'));
@@ -123,6 +138,12 @@ export function ConfigAdvancedPage() {
       if (searchConfig.tavilyApiKey && !searchConfig.tavilyApiKey.includes('***')) {
         envEntries.TAVILY_API_KEY = searchConfig.tavilyApiKey;
       }
+      if (llmKeys.llmOpenAIKey && !llmKeys.llmOpenAIKey.includes('***')) {
+        envEntries.LLM_API_KEY_OPENAI = llmKeys.llmOpenAIKey;
+      }
+      if (llmKeys.openAIKey && !llmKeys.openAIKey.includes('***')) {
+        envEntries.OPENAI_API_KEY = llmKeys.openAIKey;
+      }
 
       await apiPost('/api/config/env', { entries: envEntries });
       void message.success(t('configAdvanced.saveSuccess'));
@@ -151,6 +172,19 @@ export function ConfigAdvancedPage() {
       <Text type="secondary">{t('configAdvanced.subtitle')}</Text>
 
       {error && <Alert type="error" message={error} className="mt-3" showIcon />}
+      {envPath && (
+        <Alert
+          type="info"
+          showIcon
+          className="mt-3"
+          message={t('configAdvanced.envPathLabel')}
+          description={
+            <Paragraph copyable={{ text: envPath }} style={{ marginBottom: 0 }}>
+              <code>{envPath}</code>
+            </Paragraph>
+          }
+        />
+      )}
 
       {/* 基本设置 */}
       <div className="mt-6">
@@ -236,6 +270,39 @@ export function ConfigAdvancedPage() {
                   semanticMinScore: typeof value === 'number' ? value : prev.semanticMinScore,
                 }))
               }
+            />
+          </Form.Item>
+        </Form>
+      </div>
+
+      <Divider />
+
+      <div>
+        <Title level={5}>{t('configAdvanced.llmKeysTitle')}</Title>
+        <Text type="secondary" className="block mb-4">
+          {t('configAdvanced.llmKeysSubtitle')}
+        </Text>
+        <Form layout="vertical" size="small">
+          <Form.Item label={t('configAdvanced.llmOpenAIKey')}>
+            <Input.Password
+              value={llmKeys.llmOpenAIKey}
+              placeholder={
+                llmKeys.llmOpenAIKey.includes('***')
+                  ? t('configAdvanced.apiKeyConfigured')
+                  : t('configAdvanced.apiKeyPlaceholder')
+              }
+              onChange={(e) => setLlmKeys((prev) => ({ ...prev, llmOpenAIKey: e.target.value }))}
+            />
+          </Form.Item>
+          <Form.Item label={t('configAdvanced.openAIKey')}>
+            <Input.Password
+              value={llmKeys.openAIKey}
+              placeholder={
+                llmKeys.openAIKey.includes('***')
+                  ? t('configAdvanced.apiKeyConfigured')
+                  : t('configAdvanced.apiKeyPlaceholder')
+              }
+              onChange={(e) => setLlmKeys((prev) => ({ ...prev, openAIKey: e.target.value }))}
             />
           </Form.Item>
         </Form>

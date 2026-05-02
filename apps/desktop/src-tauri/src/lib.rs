@@ -1,6 +1,8 @@
 use std::io::Write;
+use std::net::{SocketAddr, TcpStream};
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
+use std::time::Duration;
 use tauri::{AppHandle, Manager, State};
 use tauri_plugin_shell::{process::CommandChild, process::CommandEvent, ShellExt};
 
@@ -98,6 +100,14 @@ fn resolve_global_env_dir(app: &AppHandle) -> PathBuf {
         .join(".swell-lobster")
 }
 
+fn desktop_runtime_mode() -> &'static str {
+    if cfg!(debug_assertions) {
+        "desktop-dev"
+    } else {
+        "desktop-packaged"
+    }
+}
+
 fn append_diag_log(log_path: &PathBuf, line: &str) {
     if let Some(parent) = log_path.parent() {
         let _ = std::fs::create_dir_all(parent);
@@ -188,7 +198,128 @@ async fn request_backend_shutdown() {
         std::time::Duration::from_secs(3),
         client.post("http://127.0.0.1:18900/api/shutdown").send(),
     )
-    .await;
+        .await;
+}
+
+fn backend_port_addr() -> SocketAddr {
+    "127.0.0.1:18900".parse().expect("valid backend socket addr")
+}
+
+fn is_backend_port_in_use() -> bool {
+    TcpStream::connect_timeout(&backend_port_addr(), Duration::from_millis(200)).is_ok()
+}
+
+async fn wait_for_port_release() -> bool {
+    for _ in 0..20 {
+        if !is_backend_port_in_use() {
+            return true;
+        }
+        tokio::time::sleep(Duration::from_millis(250)).await;
+    }
+    false
+}
+
+#[cfg(windows)]
+fn pids_listening_on_backend_port() -> Vec<u32> {
+    std::process::Command::new("netstat")
+        .args(["-ano", "-p", "tcp"])
+        .output()
+        .ok()
+        .and_then(|o| String::from_utf8(o.stdout).ok())
+        .map(|stdout| {
+            stdout
+                .lines()
+                .filter(|line| {
+                    line.contains("127.0.0.1:18900")
+                        && line.contains("LISTENING")
+                })
+                .filter_map(|line| line.split_whitespace().last())
+                .filter_map(|pid| pid.parse::<u32>().ok())
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+#[cfg(not(windows))]
+fn pids_listening_on_backend_port() -> Vec<u32> {
+    std::process::Command::new("lsof")
+        .args(["-nP", "-t", "-iTCP:18900", "-sTCP:LISTEN"])
+        .output()
+        .ok()
+        .and_then(|o| String::from_utf8(o.stdout).ok())
+        .map(|stdout| {
+            stdout
+                .lines()
+                .filter_map(|line| line.trim().parse::<u32>().ok())
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+#[cfg(windows)]
+fn kill_pid(pid: u32, force: bool) {
+    let mut args = vec!["/PID".to_string(), pid.to_string(), "/T".to_string()];
+    if force {
+        args.push("/F".to_string());
+    }
+    let _ = std::process::Command::new("taskkill").args(args).output();
+}
+
+#[cfg(not(windows))]
+fn kill_pid(pid: u32, force: bool) {
+    let signal = if force { "-KILL" } else { "-TERM" };
+    let _ = std::process::Command::new("kill")
+        .args([signal, &pid.to_string()])
+        .output();
+}
+
+async fn ensure_backend_port_available(log_path: &PathBuf) {
+    if !is_backend_port_in_use() {
+        return;
+    }
+
+    append_diag_log(
+        log_path,
+        "[desktop] backend port 18900 already in use, requesting graceful shutdown",
+    );
+    request_backend_shutdown().await;
+    if wait_for_port_release().await {
+        append_diag_log(log_path, "[desktop] backend port released after graceful shutdown");
+        return;
+    }
+
+    let pids = pids_listening_on_backend_port();
+    if pids.is_empty() {
+        append_diag_log(
+            log_path,
+            "[desktop] backend port still in use but no listening PID could be resolved",
+        );
+        return;
+    }
+
+    append_diag_log(
+        log_path,
+        &format!("[desktop] force stopping backend port listeners: {:?}", pids),
+    );
+    for pid in &pids {
+        kill_pid(*pid, false);
+    }
+    if wait_for_port_release().await {
+        append_diag_log(log_path, "[desktop] backend port released after SIGTERM/taskkill");
+        return;
+    }
+
+    for pid in &pids {
+        kill_pid(*pid, true);
+    }
+    if wait_for_port_release().await {
+        append_diag_log(log_path, "[desktop] backend port released after force kill");
+    } else {
+        append_diag_log(
+            log_path,
+            "[desktop] backend port 18900 still occupied after force kill attempts",
+        );
+    }
 }
 
 /// 启动 tide-lobster sidecar，将 stdout/stderr 写入日志文件。
@@ -267,6 +398,7 @@ fn start_tide_lobster(app: &AppHandle) -> Result<CommandChild, String> {
         .env("SWELL_DATA_DIR", data_dir.to_string_lossy().as_ref())
         .env("SWELL_LOCAL_DATA_DIR", local_data_dir.as_ref().map(|p| p.to_string_lossy().into_owned()).unwrap_or_default())
         .env("SWELL_GLOBAL_ENV_DIR", global_env_dir.to_string_lossy().as_ref())
+        .env("SWELL_DESKTOP_RUNTIME", desktop_runtime_mode())
         .env("SWELL_OUTPUT_DIR", output_dir.to_string_lossy().as_ref())
         .env("API_HOST", "127.0.0.1")
         .env("API_PORT", "18900")
@@ -367,27 +499,33 @@ async fn wait_for_backend() -> bool {
     false
 }
 
-#[tauri::command]
-async fn restart_backend(app: AppHandle, state: State<'_, SidecarState>) -> Result<(), String> {
+async fn launch_backend(app: &AppHandle) -> Result<(), String> {
     let log_path = resolve_log_path(&app);
-    append_diag_log(&log_path, "[desktop] restart_backend requested");
+    append_diag_log(&log_path, "[desktop] launch_backend requested");
 
-    request_backend_shutdown().await;
+    ensure_backend_port_available(&log_path).await;
 
-    if let Some(child) = state.0.lock().unwrap().take() {
+    if let Some(child) = app.state::<SidecarState>().0.lock().unwrap().take() {
         let _ = child.kill();
     }
 
-    let child = start_tide_lobster(&app)?;
-    *state.0.lock().unwrap() = Some(child);
+    let child = start_tide_lobster(app)?;
+    *app.state::<SidecarState>().0.lock().unwrap() = Some(child);
 
     if wait_for_backend().await {
-        append_diag_log(&log_path, "[desktop] restart_backend succeeded");
+        append_diag_log(&log_path, "[desktop] launch_backend succeeded");
         Ok(())
     } else {
-        append_diag_log(&log_path, "[desktop] restart_backend failed health check within 10s");
-        Err("Backend restarted but health check did not recover within 10s".to_string())
+        append_diag_log(&log_path, "[desktop] launch_backend failed health check within 10s");
+        Err("Backend started but health check did not recover within 10s".to_string())
     }
+}
+
+#[tauri::command]
+async fn restart_backend(app: AppHandle, _state: State<'_, SidecarState>) -> Result<(), String> {
+    let log_path = resolve_log_path(&app);
+    append_diag_log(&log_path, "[desktop] restart_backend requested");
+    launch_backend(&app).await
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -400,36 +538,13 @@ pub fn run() {
         .manage(SidecarState(Mutex::new(None)))
         .setup(|app| {
             let app_handle = app.handle().clone();
-
-            #[cfg(not(debug_assertions))]
-            {
-                match start_tide_lobster(&app_handle) {
-                    Ok(child) => {
-                        *app_handle.state::<SidecarState>().0.lock().unwrap() = Some(child);
-                        let log_path = resolve_log_path(&app_handle);
-                        tauri::async_runtime::spawn(async move {
-                            if !wait_for_backend().await {
-                                append_diag_log(
-                                    &log_path,
-                                    "[desktop] tide-lobster failed health check within 10s",
-                                );
-                                eprintln!(
-                                    "[desktop] tide-lobster failed to start within 10s. Log: {}",
-                                    log_path.display()
-                                );
-                            }
-                        });
-                    }
-                    Err(e) => {
-                        eprintln!("[desktop] sidecar start error: {e}");
-                        let log_path = resolve_log_path(&app_handle);
-                        append_diag_log(&log_path, &format!("[SIDECAR START ERROR] {e}"));
-                    }
+            tauri::async_runtime::spawn(async move {
+                if let Err(e) = launch_backend(&app_handle).await {
+                    eprintln!("[desktop] sidecar start error: {e}");
+                    let log_path = resolve_log_path(&app_handle);
+                    append_diag_log(&log_path, &format!("[SIDECAR START ERROR] {e}"));
                 }
-            }
-
-            #[cfg(debug_assertions)]
-            let _ = app_handle;
+            });
 
             Ok(())
         })

@@ -27,6 +27,7 @@ import { logsRouter } from './routes/logs.js';
 import { uploadRouter } from './routes/upload.js';
 import { exportRouter } from './routes/export.js';
 import { agentTemplatesRouter } from './routes/agentTemplates.js';
+import { resolveAppEnvPath, settings } from '../config.js';
 
 export function createApp(): Hono {
   const app = new Hono();
@@ -42,7 +43,17 @@ export function createApp(): Hono {
   );
 
   // 健康检查
-  app.get('/api/health', (c) => c.json({ status: 'healthy', service: 'tide-lobster' }));
+  app.get('/api/health', (c) =>
+    c.json({
+      status: 'healthy',
+      service: 'tide-lobster',
+      pid: process.pid,
+      project_root: settings.projectRoot,
+      env_path: resolveAppEnvPath(),
+      runtime_mode: process.env.SWELL_DESKTOP_RUNTIME?.trim() || 'server',
+      exec_path: process.execPath,
+    })
+  );
 
   // 优雅关闭（由桌面端在退出前调用）
   app.post('/api/shutdown', (c) => {

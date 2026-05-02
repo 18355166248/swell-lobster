@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Badge, Alert, Spin, Typography, Button, Space, message } from 'antd';
+import { Badge, Alert, Spin, Typography, Button, Space, message, Descriptions } from 'antd';
 import { FileTextOutlined, ReloadOutlined } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
 import { invoke } from '@tauri-apps/api/core';
@@ -16,7 +16,14 @@ async function openLog(): Promise<void> {
 
 export function StatusPage() {
   const { t } = useTranslation();
-  const [health, setHealth] = useState<{ status?: string } | null>(null);
+  const [health, setHealth] = useState<{
+    status?: string;
+    runtime_mode?: string;
+    env_path?: string;
+    project_root?: string;
+    pid?: number;
+    exec_path?: string;
+  } | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [openingLog, setOpeningLog] = useState(false);
@@ -25,7 +32,14 @@ export function StatusPage() {
   const loadHealth = () => {
     setLoading(true);
     setError(null);
-    apiGet<{ status?: string }>('/api/health')
+    apiGet<{
+      status?: string;
+      runtime_mode?: string;
+      env_path?: string;
+      project_root?: string;
+      pid?: number;
+      exec_path?: string;
+    }>('/api/health')
       .then(setHealth)
       .catch((e) => setError(e instanceof Error ? e.message : t('status.loadFailed')))
       .finally(() => setLoading(false));
@@ -92,6 +106,33 @@ export function StatusPage() {
             status={health.status === 'healthy' ? 'success' : 'default'}
             text={`${t('status.serviceStatus')}${health.status ?? 'unknown'}`}
           />
+          <Descriptions column={1} size="small" className="mt-4">
+            <Descriptions.Item label={t('status.runtimeMode')}>
+              <Text code copyable={Boolean(health.runtime_mode)}>
+                {health.runtime_mode ?? '-'}
+              </Text>
+            </Descriptions.Item>
+            <Descriptions.Item label={t('status.envPath')}>
+              <Text code copyable={Boolean(health.env_path)}>
+                {health.env_path ?? '-'}
+              </Text>
+            </Descriptions.Item>
+            <Descriptions.Item label={t('status.projectRoot')}>
+              <Text code copyable={Boolean(health.project_root)}>
+                {health.project_root ?? '-'}
+              </Text>
+            </Descriptions.Item>
+            <Descriptions.Item label={t('status.processId')}>
+              <Text code copyable={Boolean(health.pid)}>
+                {health.pid ?? '-'}
+              </Text>
+            </Descriptions.Item>
+            <Descriptions.Item label={t('status.execPath')}>
+              <Text code copyable={Boolean(health.exec_path)}>
+                {health.exec_path ?? '-'}
+              </Text>
+            </Descriptions.Item>
+          </Descriptions>
         </div>
       )}
 

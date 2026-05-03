@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
-import { Alert, Avatar, Button, Select, Skeleton, message } from 'antd';
+import { Alert, App, Avatar, Button, Select, Skeleton, message } from 'antd';
 import { FileTextOutlined, PlusOutlined, RobotOutlined, UserOutlined } from '@ant-design/icons';
 import { useAtom, useAtomValue } from 'jotai';
 import { atomWithStorage } from 'jotai/utils';
@@ -9,8 +9,10 @@ import { endpointsAtom } from '../../store/endpoints';
 import MarkdownContent from '../../components/MarkdownContent';
 import { useTranslation } from 'react-i18next';
 import {
+  approveToolApproval,
   createSession,
   deleteSession,
+  denyToolApproval,
   fetchChatBootstrap,
   fetchSessionDetail,
   sendMessageStream,
@@ -123,6 +125,97 @@ function applyStreamEvent(messages: ChatMessage[], event: ChatStreamEvent): Chat
         tool_invocations: [...(message.tool_invocations ?? []), newInvocation],
         blocks: [...(message.blocks ?? []), { type: 'tool_invocation', invocation: newInvocation }],
       };
+    });
+  }
+
+  if (event.type === 'tool_approval_required') {
+    return updateLastAssistantMessage(messages, (message) => {
+      const toolInvocations = [...(message.tool_invocations ?? [])];
+      const lastRunningIndex = [...toolInvocations]
+        .reverse()
+        .findIndex(
+          (item) =>
+            item.name === event.toolName && item.status === 'running' && !item.approval_request_id
+        );
+      const targetIndex =
+        lastRunningIndex === -1 ? -1 : toolInvocations.length - 1 - lastRunningIndex;
+
+      const updatedInvocation =
+        targetIndex === -1
+          ? {
+              id: `${event.toolName}_${Date.now()}_${toolInvocations.length}`,
+              name: event.toolName,
+              arguments: event.arguments,
+              status: 'running' as const,
+              approval_request_id: event.requestId,
+              approval_status: 'pending' as const,
+              approval_summary: event.summary,
+              risk_level: event.riskLevel,
+              path_scopes: event.pathScopes,
+              network_scopes: event.networkScopes,
+            }
+          : {
+              ...toolInvocations[targetIndex],
+              approval_request_id: event.requestId,
+              approval_status: 'pending' as const,
+              approval_summary: event.summary,
+              risk_level: event.riskLevel,
+              path_scopes: event.pathScopes,
+              network_scopes: event.networkScopes,
+            };
+
+      if (targetIndex === -1) {
+        toolInvocations.push(updatedInvocation);
+      } else {
+        toolInvocations[targetIndex] = updatedInvocation;
+      }
+
+      const blocks =
+        targetIndex === -1
+          ? [
+              ...(message.blocks ?? []),
+              { type: 'tool_invocation' as const, invocation: updatedInvocation },
+            ]
+          : (message.blocks ?? []).map((block) => {
+              if (
+                block.type === 'tool_invocation' &&
+                block.invocation.name === event.toolName &&
+                !block.invocation.approval_request_id
+              ) {
+                return { ...block, invocation: updatedInvocation };
+              }
+              return block;
+            });
+
+      return { ...message, tool_invocations: toolInvocations, blocks };
+    });
+  }
+
+  if (event.type === 'tool_approval_resolved') {
+    return updateLastAssistantMessage(messages, (message) => {
+      const toolInvocations = [...(message.tool_invocations ?? [])];
+      const targetIndex = toolInvocations.findIndex(
+        (item) => item.approval_request_id === event.requestId
+      );
+      if (targetIndex === -1) return message;
+
+      const updatedInvocation = {
+        ...toolInvocations[targetIndex],
+        approval_status: event.decision,
+      };
+      toolInvocations[targetIndex] = updatedInvocation;
+
+      const blocks = (message.blocks ?? []).map((block) => {
+        if (
+          block.type === 'tool_invocation' &&
+          block.invocation.approval_request_id === event.requestId
+        ) {
+          return { ...block, invocation: updatedInvocation };
+        }
+        return block;
+      });
+
+      return { ...message, tool_invocations: toolInvocations, blocks };
     });
   }
 
@@ -257,6 +350,32 @@ function ToolCard({
         </div>
       </summary>
       <div className="mt-2 max-h-64 overflow-y-auto space-y-2">
+        {item.approval_summary ? (
+          <div className="rounded-lg border border-border bg-background px-2 py-2 text-xs text-foreground">
+            <div className="font-medium">{t('chat.toolApprovalTitle')}</div>
+            <div className="mt-1 text-muted-foreground">{item.approval_summary}</div>
+            {item.risk_level ? (
+              <div className="mt-2 text-muted-foreground">
+                {t('chat.toolApprovalRisk', { level: item.risk_level })}
+              </div>
+            ) : null}
+            {item.path_scopes?.length ? (
+              <div className="mt-1 text-muted-foreground">
+                {t('chat.toolApprovalPaths', { scopes: item.path_scopes.join(', ') })}
+              </div>
+            ) : null}
+            {item.network_scopes?.length ? (
+              <div className="mt-1 text-muted-foreground">
+                {t('chat.toolApprovalNetworks', { scopes: item.network_scopes.join(', ') })}
+              </div>
+            ) : null}
+            {item.approval_status ? (
+              <div className="mt-2 text-muted-foreground">
+                {t(`chat.toolApprovalStatus.${item.approval_status}`)}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
         <pre className="overflow-x-auto rounded-lg bg-background px-2 py-1.5 text-xs">
           {JSON.stringify(item.arguments, null, 2)}
         </pre>
@@ -300,6 +419,7 @@ ChatMarkdown.displayName = 'ChatMarkdown';
 
 export function ChatPage() {
   const { t } = useTranslation();
+  const { modal } = App.useApp();
   const [sessions, setSessions] = useState<SessionSummary[]>([]);
   const endpoints = useAtomValue(endpointsAtom);
   const [activeSessionId, setActiveSessionId] = useState<string>('');
@@ -347,6 +467,8 @@ export function ChatPage() {
   const messageRefs = useRef(new Map<string, HTMLDivElement | null>());
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
   const [showScrollBtn, setShowScrollBtn] = useState(false);
+  const [, setApprovalSubmittingId] = useState<string | null>(null);
+  const approvalModalShownRef = useRef<Set<string>>(new Set());
 
   const SCROLL_THRESHOLD = 150;
   const handleScroll = useCallback(() => {
@@ -641,6 +763,78 @@ export function ChatPage() {
     abortRef.current?.abort();
   }, []);
 
+  const handleApprovalAction = useCallback(
+    async (requestId: string, decision: 'approve' | 'deny') => {
+      setApprovalSubmittingId(requestId);
+      try {
+        if (decision === 'approve') {
+          await approveToolApproval(requestId, { resolved_by: 'web-ui' });
+          void message.success(t('chat.toolApprovalApprovedToast'));
+        } else {
+          await denyToolApproval(requestId, { resolved_by: 'web-ui' });
+          void message.success(t('chat.toolApprovalDeniedToast'));
+        }
+      } catch (error) {
+        setError(error instanceof Error ? error.message : t('chat.toolApprovalActionFailed'));
+      } finally {
+        setApprovalSubmittingId((current) => (current === requestId ? null : current));
+      }
+    },
+    [t]
+  );
+
+  const openApprovalModal = useCallback(
+    (event: Extract<ChatStreamEvent, { type: 'tool_approval_required' }>) => {
+      if (!event.requestId || approvalModalShownRef.current.has(event.requestId)) return;
+      approvalModalShownRef.current.add(event.requestId);
+      modal.confirm({
+        title: t('chat.toolApprovalModalTitle', { tool: event.toolName }),
+        content: (
+          <div className="space-y-2 text-sm">
+            <div>{event.summary}</div>
+            <div className="text-muted-foreground">
+              {t('chat.toolApprovalRisk', { level: event.riskLevel })}
+            </div>
+            {event.pathScopes?.length ? (
+              <div className="text-muted-foreground">
+                {t('chat.toolApprovalPaths', { scopes: event.pathScopes.join(', ') })}
+              </div>
+            ) : null}
+            {event.networkScopes?.length ? (
+              <div className="text-muted-foreground">
+                {t('chat.toolApprovalNetworks', { scopes: event.networkScopes.join(', ') })}
+              </div>
+            ) : null}
+          </div>
+        ),
+        okText: t('chat.toolApprovalApprove'),
+        cancelText: t('chat.toolApprovalDeny'),
+        maskClosable: false,
+        closable: false,
+        onOk: async () => {
+          await handleApprovalAction(event.requestId, 'approve');
+        },
+        onCancel: async () => {
+          await handleApprovalAction(event.requestId, 'deny');
+        },
+      });
+    },
+    [handleApprovalAction, modal, t]
+  );
+
+  const handleStreamEvent = useCallback(
+    (sessionId: string, event: ChatStreamEvent) => {
+      updateSessionMessages(sessionId, (prev) => applyStreamEvent(prev, event));
+      if (event.type === 'tool_approval_required') {
+        openApprovalModal(event);
+      }
+      if (event.type === 'tool_approval_resolved') {
+        approvalModalShownRef.current.delete(event.requestId);
+      }
+    },
+    [openApprovalModal, updateSessionMessages]
+  );
+
   const handleRetry = useCallback(
     async (msgIndex: number) => {
       if (chatGeneratingSessions.has(activeSessionId)) return;
@@ -687,9 +881,7 @@ export function ChatPage() {
                   }))
                 : undefined,
           },
-          (event) => {
-            updateSessionMessages(genSessionId, (prev) => applyStreamEvent(prev, event));
-          },
+          (event) => handleStreamEvent(genSessionId, event),
           controller.signal
         );
         const serverMsgs = (res.session.messages || []).map((msg) => ({
@@ -786,9 +978,7 @@ export function ChatPage() {
           endpoint_name: selectedEndpointName,
           attachments: attachmentsToSend.length > 0 ? attachmentsToSend : undefined,
         },
-        (event) => {
-          updateSessionMessages(genSessionId, (prev) => applyStreamEvent(prev, event));
-        },
+        (event) => handleStreamEvent(genSessionId, event),
         controller.signal
       );
       // 新会话：session ID 在完成后才拿到

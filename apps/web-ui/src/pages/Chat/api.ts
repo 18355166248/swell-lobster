@@ -169,6 +169,41 @@ export async function sendMessageStream(
               typeof chunk.original_length === 'number' ? chunk.original_length : undefined,
           });
         }
+        if (chunk.type === 'tool_approval_required' && typeof chunk.toolName === 'string') {
+          onEvent({
+            type: 'tool_approval_required',
+            requestId: String(chunk.requestId ?? ''),
+            toolName: chunk.toolName,
+            riskLevel:
+              chunk.riskLevel === 'write' ||
+              chunk.riskLevel === 'execute' ||
+              chunk.riskLevel === 'network'
+                ? chunk.riskLevel
+                : 'readonly',
+            summary: String(chunk.summary ?? ''),
+            arguments:
+              chunk.arguments && typeof chunk.arguments === 'object'
+                ? (chunk.arguments as Record<string, unknown>)
+                : {},
+            pathScopes: Array.isArray(chunk.pathScopes)
+              ? chunk.pathScopes.filter((item): item is string => typeof item === 'string')
+              : undefined,
+            networkScopes: Array.isArray(chunk.networkScopes)
+              ? chunk.networkScopes.filter((item): item is string => typeof item === 'string')
+              : undefined,
+          });
+        }
+        if (chunk.type === 'tool_approval_resolved' && typeof chunk.toolName === 'string') {
+          onEvent({
+            type: 'tool_approval_resolved',
+            requestId: String(chunk.requestId ?? ''),
+            toolName: chunk.toolName,
+            decision:
+              chunk.decision === 'approved' || chunk.decision === 'denied'
+                ? chunk.decision
+                : 'expired',
+          });
+        }
         if (chunk.done) {
           return {
             conversation_id: chunk.conversation_id as string,
@@ -183,4 +218,18 @@ export async function sendMessageStream(
   }
 
   throw new Error('Stream ended without done event');
+}
+
+export async function approveToolApproval(
+  requestId: string,
+  payload?: { resolved_by?: string; resolution_note?: string }
+): Promise<void> {
+  await apiPost(`/api/approvals/${requestId}/approve`, payload ?? {});
+}
+
+export async function denyToolApproval(
+  requestId: string,
+  payload?: { resolved_by?: string; resolution_note?: string }
+): Promise<void> {
+  await apiPost(`/api/approvals/${requestId}/deny`, payload ?? {});
 }

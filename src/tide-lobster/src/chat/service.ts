@@ -120,6 +120,17 @@ function buildSkillFallbackResult(skillName: string, skillPath: string, skillCon
   ].join('\n');
 }
 
+class ToolApprovalInterruptedError extends Error {
+  constructor(
+    message: string,
+    readonly finalMessage: string,
+    readonly trace: ToolExecutionTrace
+  ) {
+    super(message);
+    this.name = 'ToolApprovalInterruptedError';
+  }
+}
+
 /**
  * 对外暴露：非流式 chat、流式 chatStream，以及会话/端点查询。
  * 核心路径：落盘用户消息 → buildSystemPrompt → runCompletion（可能多轮工具）→ 落盘助手消息 → 用量与记忆。
@@ -591,14 +602,35 @@ export class ChatService {
       lastContent = result.content || lastContent;
 
       for (const toolCall of result.tool_calls) {
-        const trace = await this.executeTool(
-          toolCall,
-          toolInvocations,
-          args.onEvent,
-          args.sessionId,
-          disabledToolNames,
-          args.signal
-        );
+        let trace: ToolExecutionTrace;
+        try {
+          trace = await this.executeTool(
+            toolCall,
+            toolInvocations,
+            args.onEvent,
+            args.sessionId,
+            disabledToolNames,
+            args.signal
+          );
+        } catch (error) {
+          if (error instanceof ToolApprovalInterruptedError) {
+            blocks.push({ type: 'tool_invocation', invocation: error.trace });
+            pushText(error.finalMessage);
+            if (args.onEvent) {
+              await emitTextAsChunks(error.finalMessage, async (delta) => {
+                await args.onEvent?.({ type: 'delta', delta });
+              });
+            }
+            lastContent = error.finalMessage;
+            return {
+              content: error.finalMessage,
+              usage: result.usage,
+              toolInvocations,
+              blocks,
+            };
+          }
+          throw error;
+        }
         // 工具执行完成后，以最终状态写入 blocks
         blocks.push({ type: 'tool_invocation', invocation: trace });
         currentMessages = [
@@ -743,7 +775,13 @@ export class ChatService {
           status: 'failed',
           content: trace.result,
         });
-        return trace;
+        throw new ToolApprovalInterruptedError(
+          trace.result,
+          resolved.status === 'denied'
+            ? `已拒绝工具 ${toolCall.name}，本轮工具执行已停止。`
+            : `工具 ${toolCall.name} 审批超时，本轮工具执行已停止。`,
+          trace
+        );
       }
     }
 

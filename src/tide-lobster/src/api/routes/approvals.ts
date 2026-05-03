@@ -1,11 +1,12 @@
 import { Hono } from 'hono';
-import { approvalStore } from '../../store/approvalStore.js';
+import { approvalStore, type ApprovalGrantScope } from '../../store/approvalStore.js';
 
 export const approvalsRouter = new Hono();
 
 type ApprovalResolutionBody = {
   resolved_by?: string;
   resolution_note?: string;
+  grant_scope?: ApprovalGrantScope;
 };
 
 approvalsRouter.get('/api/approvals', (c) => {
@@ -35,7 +36,11 @@ approvalsRouter.post('/api/approvals/:id/approve', async (c) => {
     body.resolution_note
   );
   if (!request) return c.json({ detail: 'approval request not found' }, 404);
-  return c.json({ request });
+  const grant =
+    body.grant_scope === 'session'
+      ? approvalStore.grantSessionApproval(request.session_id, request.tool_name, body.resolved_by)
+      : undefined;
+  return c.json({ request, grant });
 });
 
 approvalsRouter.post('/api/approvals/:id/deny', async (c) => {

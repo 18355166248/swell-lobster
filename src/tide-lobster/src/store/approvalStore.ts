@@ -3,6 +3,7 @@ import { getDb } from '../db/index.js';
 import type { ToolRiskLevel } from '../tools/types.js';
 
 export type ApprovalStatus = 'pending' | 'approved' | 'denied' | 'expired';
+export type ApprovalGrantScope = 'once' | 'session';
 
 export interface ToolApprovalRequest {
   id: string;
@@ -16,6 +17,14 @@ export interface ToolApprovalRequest {
   resolved_at?: string | null;
   resolved_by?: string | null;
   resolution_note?: string | null;
+}
+
+export interface ToolApprovalSessionGrant {
+  id: string;
+  session_id: string;
+  tool_name: string;
+  created_at: string;
+  created_by?: string | null;
 }
 
 type ApprovalDecision = Extract<ApprovalStatus, 'approved' | 'denied' | 'expired'>;
@@ -38,6 +47,16 @@ function normalizeRow(row: Record<string, unknown>): ToolApprovalRequest {
     resolved_at: row.resolved_at ? String(row.resolved_at) : null,
     resolved_by: row.resolved_by ? String(row.resolved_by) : null,
     resolution_note: row.resolution_note ? String(row.resolution_note) : null,
+  };
+}
+
+function normalizeGrantRow(row: Record<string, unknown>): ToolApprovalSessionGrant {
+  return {
+    id: String(row.id ?? ''),
+    session_id: String(row.session_id ?? ''),
+    tool_name: String(row.tool_name ?? ''),
+    created_at: String(row.created_at ?? ''),
+    created_by: row.created_by ? String(row.created_by) : null,
   };
 }
 
@@ -129,6 +148,40 @@ export class ApprovalStore {
 
   expire(id: string, resolutionNote?: string): ToolApprovalRequest | undefined {
     return this.resolveRequest(id, 'expired', undefined, resolutionNote);
+  }
+
+  grantSessionApproval(
+    sessionId: string,
+    toolName: string,
+    createdBy?: string
+  ): ToolApprovalSessionGrant {
+    const existing = this.getSessionGrant(sessionId, toolName);
+    if (existing) return existing;
+
+    const id = randomUUID();
+    const createdAt = new Date().toISOString();
+    this.db
+      .prepare(
+        `INSERT INTO tool_approval_session_grants (
+          id, session_id, tool_name, created_at, created_by
+        ) VALUES (?, ?, ?, ?, ?)`
+      )
+      .run(id, sessionId, toolName, createdAt, createdBy ?? null);
+    return this.getSessionGrant(sessionId, toolName)!;
+  }
+
+  getSessionGrant(sessionId: string, toolName: string): ToolApprovalSessionGrant | undefined {
+    const row = this.db
+      .prepare(
+        `SELECT * FROM tool_approval_session_grants
+         WHERE session_id = ? AND tool_name = ?`
+      )
+      .get(sessionId, toolName) as Record<string, unknown> | undefined;
+    return row ? normalizeGrantRow(row) : undefined;
+  }
+
+  hasSessionGrant(sessionId: string, toolName: string): boolean {
+    return Boolean(this.getSessionGrant(sessionId, toolName));
   }
 
   async waitForDecision(

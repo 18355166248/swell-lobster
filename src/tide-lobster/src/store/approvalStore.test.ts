@@ -12,6 +12,9 @@ function cleanup(): void {
 
 afterEach(() => {
   cleanup();
+  getDb().prepare(`DELETE FROM tool_approval_session_grants WHERE session_id LIKE ?`).run(
+    `${SESSION_PREFIX}%`
+  );
 });
 
 describe('ApprovalStore', () => {
@@ -47,5 +50,20 @@ describe('ApprovalStore', () => {
     const resolved = await store.waitForDecision(request.id, { timeoutMs: 20 });
     expect(resolved.status).toBe('expired');
     expect(resolved.resolution_note).toBe('approval timed out');
+  });
+
+  it('stores and reuses session approval grants', async () => {
+    const store = new ApprovalStore();
+    const grant = store.grantSessionApproval(
+      `${SESSION_PREFIX}grant`,
+      'web_search',
+      'tester'
+    );
+
+    expect(grant.tool_name).toBe('web_search');
+    expect(store.hasSessionGrant(`${SESSION_PREFIX}grant`, 'web_search')).toBe(true);
+    expect(store.getSessionGrant(`${SESSION_PREFIX}grant`, 'web_search')?.created_by).toBe(
+      'tester'
+    );
   });
 });

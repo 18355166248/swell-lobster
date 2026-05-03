@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
-import { Alert, App, Avatar, Button, Select, Skeleton, message } from 'antd';
+import { Alert, App, Avatar, Button, Select, Skeleton, Space, message } from 'antd';
 import { FileTextOutlined, PlusOutlined, RobotOutlined, UserOutlined } from '@ant-design/icons';
 import { useAtom, useAtomValue } from 'jotai';
 import { atomWithStorage } from 'jotai/utils';
@@ -469,6 +469,7 @@ export function ChatPage() {
   const [showScrollBtn, setShowScrollBtn] = useState(false);
   const [, setApprovalSubmittingId] = useState<string | null>(null);
   const approvalModalShownRef = useRef<Set<string>>(new Set());
+  const approvalModalRefMap = useRef(new Map<string, { destroy: () => void }>());
 
   const SCROLL_THRESHOLD = 150;
   const handleScroll = useCallback(() => {
@@ -764,16 +765,29 @@ export function ChatPage() {
   }, []);
 
   const handleApprovalAction = useCallback(
-    async (requestId: string, decision: 'approve' | 'deny') => {
+    async (
+      requestId: string,
+      decision: 'approve' | 'deny',
+      grantScope: 'once' | 'session' = 'once'
+    ) => {
       setApprovalSubmittingId(requestId);
       try {
         if (decision === 'approve') {
-          await approveToolApproval(requestId, { resolved_by: 'web-ui' });
-          void message.success(t('chat.toolApprovalApprovedToast'));
+          await approveToolApproval(requestId, {
+            resolved_by: 'web-ui',
+            grant_scope: grantScope,
+          });
+          void message.success(
+            grantScope === 'session'
+              ? t('chat.toolApprovalApprovedForSessionToast')
+              : t('chat.toolApprovalApprovedToast')
+          );
         } else {
           await denyToolApproval(requestId, { resolved_by: 'web-ui' });
           void message.success(t('chat.toolApprovalDeniedToast'));
         }
+        approvalModalRefMap.current.get(requestId)?.destroy();
+        approvalModalRefMap.current.delete(requestId);
       } catch (error) {
         setError(error instanceof Error ? error.message : t('chat.toolApprovalActionFailed'));
       } finally {
@@ -787,7 +801,7 @@ export function ChatPage() {
     (event: Extract<ChatStreamEvent, { type: 'tool_approval_required' }>) => {
       if (!event.requestId || approvalModalShownRef.current.has(event.requestId)) return;
       approvalModalShownRef.current.add(event.requestId);
-      modal.confirm({
+      const modalRef = modal.confirm({
         title: t('chat.toolApprovalModalTitle', { tool: event.toolName }),
         content: (
           <div className="space-y-2 text-sm">
@@ -807,17 +821,28 @@ export function ChatPage() {
             ) : null}
           </div>
         ),
-        okText: t('chat.toolApprovalApprove'),
-        cancelText: t('chat.toolApprovalDeny'),
+        footer: () => (
+          <Space>
+            <Button danger onClick={() => void handleApprovalAction(event.requestId, 'deny')}>
+              {t('chat.toolApprovalDeny')}
+            </Button>
+            <Button
+              onClick={() => void handleApprovalAction(event.requestId, 'approve', 'session')}
+            >
+              {t('chat.toolApprovalApproveForSession')}
+            </Button>
+            <Button
+              type="primary"
+              onClick={() => void handleApprovalAction(event.requestId, 'approve')}
+            >
+              {t('chat.toolApprovalApprove')}
+            </Button>
+          </Space>
+        ),
         maskClosable: false,
         closable: false,
-        onOk: async () => {
-          await handleApprovalAction(event.requestId, 'approve');
-        },
-        onCancel: async () => {
-          await handleApprovalAction(event.requestId, 'deny');
-        },
       });
+      approvalModalRefMap.current.set(event.requestId, modalRef);
     },
     [handleApprovalAction, modal, t]
   );
@@ -829,6 +854,8 @@ export function ChatPage() {
         openApprovalModal(event);
       }
       if (event.type === 'tool_approval_resolved') {
+        approvalModalRefMap.current.get(event.requestId)?.destroy();
+        approvalModalRefMap.current.delete(event.requestId);
         approvalModalShownRef.current.delete(event.requestId);
       }
     },

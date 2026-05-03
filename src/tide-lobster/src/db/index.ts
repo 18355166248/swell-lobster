@@ -489,6 +489,26 @@ const migrations: Array<{ version: number; up: (db: Database.Database) => void }
       `);
     },
   },
+  {
+    version: 23,
+    up: (db) => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS tool_approval_session_grants (
+          id TEXT PRIMARY KEY,
+          session_id TEXT NOT NULL,
+          tool_name TEXT NOT NULL,
+          created_at TEXT NOT NULL,
+          created_by TEXT
+        );
+
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_tool_approval_session_grants_unique
+          ON tool_approval_session_grants(session_id, tool_name);
+
+        CREATE INDEX IF NOT EXISTS idx_tool_approval_session_grants_session
+          ON tool_approval_session_grants(session_id, created_at DESC);
+      `);
+    },
+  },
 ];
 
 function runMigrations(db: Database.Database): void {

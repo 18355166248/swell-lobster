@@ -244,5 +244,88 @@ describe('ChatService', () => {
         globalToolRegistry.unregister('should_not_run');
       }
     });
+
+    it('skips repeated approval after session-level grant is stored', async () => {
+      vi.doMock('./llmClient.js', async () => {
+        const actual = await vi.importActual<typeof import('./llmClient.js')>('./llmClient.js');
+        const requestWithFallback = vi
+          .fn()
+          .mockResolvedValueOnce({
+            content: '',
+            tool_calls: [
+              { id: 'tc-search', name: 'session_granted_tool', arguments: { query: 'ai' } },
+            ],
+            usage: {
+              prompt_tokens: 10,
+              completion_tokens: 5,
+              total_tokens: 15,
+            },
+          })
+          .mockResolvedValueOnce({
+            content: 'ok',
+            tool_calls: [],
+            usage: {
+              prompt_tokens: 8,
+              completion_tokens: 4,
+              total_tokens: 12,
+            },
+          });
+        return {
+          ...actual,
+          requestWithFallback,
+        };
+      });
+
+      const { ChatService } = await import('./service.js');
+      const { globalToolRegistry } = await import('../tools/registry.js');
+      const { approvalStore } = await import('../store/approvalStore.js');
+      const { EndpointStore } = await import('../store/endpointStore.js');
+      const { ToolRiskLevel } = await import('../tools/types.js');
+
+      let executeCount = 0;
+      globalToolRegistry.register({
+        name: 'session_granted_tool',
+        description: 'approval required tool',
+        permission: {
+          riskLevel: ToolRiskLevel.network,
+          requiresApproval: true,
+          sideEffectSummary: 'session grant summary',
+        },
+        parameters: {},
+        async execute() {
+          executeCount += 1;
+          return 'ok';
+        },
+      });
+
+      try {
+        new EndpointStore().createEndpoint({
+          name: 'test-endpoint-grant',
+          model: 'test-model',
+          api_type: 'openai',
+          base_url: 'http://127.0.0.1:9999/v1',
+          api_key_env: '',
+          enabled: true,
+          priority: 1,
+        });
+
+        const svc = new ChatService(repoRoot);
+        const session = svc.createSession('test-endpoint-grant');
+        approvalStore.grantSessionApproval(session.id, 'session_granted_tool', 'tester');
+
+        const waitSpy = vi.spyOn(approvalStore, 'waitForDecision');
+        const result = await svc.chat({
+          conversation_id: session.id,
+          message: '再次执行同一个工具',
+        });
+
+        expect(result.message).toBe('ok');
+        expect(executeCount).toBe(1);
+        expect(waitSpy).not.toHaveBeenCalled();
+        waitSpy.mockRestore();
+      } finally {
+        globalToolRegistry.unregister('session_granted_tool');
+      }
+    });
   });
 });

@@ -222,7 +222,7 @@ export async function sendMessageStream(
 
 export async function approveToolApproval(
   requestId: string,
-  payload?: { resolved_by?: string; resolution_note?: string }
+  payload?: { resolved_by?: string; resolution_note?: string; grant_scope?: 'once' | 'session' }
 ): Promise<void> {
   await apiPost(`/api/approvals/${requestId}/approve`, payload ?? {});
 }

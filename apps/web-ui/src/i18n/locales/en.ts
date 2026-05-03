@@ -97,8 +97,10 @@ const en = {
     toolApprovalPaths: 'Path scopes: {{scopes}}',
     toolApprovalNetworks: 'Network scopes: {{scopes}}',
     toolApprovalApprove: 'Approve once',
+    toolApprovalApproveForSession: 'Approve for session',
     toolApprovalDeny: 'Deny',
     toolApprovalApprovedToast: 'Tool execution approved',
+    toolApprovalApprovedForSessionToast: 'Tool approved for this session',
     toolApprovalDeniedToast: 'Tool execution denied',
     toolApprovalActionFailed: 'Approval action failed',
     toolApprovalStatus: {

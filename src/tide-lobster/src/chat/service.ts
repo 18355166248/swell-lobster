@@ -727,6 +727,7 @@ export class ChatService {
     }
 
     if (tool.permission.requiresApproval) {
+      if (!(sessionId && approvalStore.hasSessionGrant(sessionId, toolCall.name))) {
       const approval = approvalStore.createRequest({
         sessionId: sessionId ?? 'unknown',
         toolName: toolCall.name,
@@ -782,6 +783,7 @@ export class ChatService {
             : `工具 ${toolCall.name} 审批超时，本轮工具执行已停止。`,
           trace
         );
+      }
       }
     }
 

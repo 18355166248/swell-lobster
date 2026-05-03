@@ -100,8 +100,10 @@ const zh = {
     toolApprovalPaths: '路径范围：{{scopes}}',
     toolApprovalNetworks: '网络范围：{{scopes}}',
     toolApprovalApprove: '批准一次',
+    toolApprovalApproveForSession: '本会话内批准',
     toolApprovalDeny: '拒绝',
     toolApprovalApprovedToast: '已批准工具执行',
+    toolApprovalApprovedForSessionToast: '已在本会话内批准该工具',
     toolApprovalDeniedToast: '已拒绝工具执行',
     toolApprovalActionFailed: '审批操作失败',
     toolApprovalStatus: {

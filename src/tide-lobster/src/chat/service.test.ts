@@ -153,4 +153,96 @@ describe('ChatService', () => {
       expect(trace.result).toContain('Use this skill when the user wants to create a skill.');
     });
   });
+
+  describe('tool approvals', () => {
+    it('stops the current tool round when approval is denied', async () => {
+      vi.doMock('./llmClient.js', async () => {
+        const actual = await vi.importActual<typeof import('./llmClient.js')>('./llmClient.js');
+        return {
+          ...actual,
+          requestWithFallback: vi.fn().mockResolvedValue({
+            content: '我先检查一下。',
+            tool_calls: [
+              { id: 'tc-denied', name: 'deny_tool', arguments: { query: 'latest ai news' } },
+              { id: 'tc-never-run', name: 'should_not_run', arguments: { value: 'x' } },
+            ],
+            usage: {
+              prompt_tokens: 10,
+              completion_tokens: 5,
+              total_tokens: 15,
+            },
+          }),
+        };
+      });
+
+      const { ChatService } = await import('./service.js');
+      const { globalToolRegistry } = await import('../tools/registry.js');
+      const { approvalStore } = await import('../store/approvalStore.js');
+      const { ToolRiskLevel } = await import('../tools/types.js');
+
+      let secondToolExecuted = false;
+      globalToolRegistry.register({
+        name: 'deny_tool',
+        description: 'approval required tool',
+        permission: {
+          riskLevel: ToolRiskLevel.network,
+          requiresApproval: true,
+          sideEffectSummary: 'deny tool summary',
+        },
+        parameters: {},
+        async execute() {
+          return 'should not execute';
+        },
+      });
+      globalToolRegistry.register({
+        name: 'should_not_run',
+        description: 'must not run after denial',
+        permission: {
+          riskLevel: ToolRiskLevel.readonly,
+          requiresApproval: false,
+          sideEffectSummary: 'noop',
+        },
+        parameters: {},
+        async execute() {
+          secondToolExecuted = true;
+          return 'unexpected';
+        },
+      });
+
+      const waitSpy = vi
+        .spyOn(approvalStore, 'waitForDecision')
+        .mockImplementation(async (id: string) => {
+          approvalStore.deny(id, 'tester', 'no');
+          return approvalStore.getById(id)!;
+        });
+
+      try {
+        const { EndpointStore } = await import('../store/endpointStore.js');
+        new EndpointStore().createEndpoint({
+          name: 'test-endpoint',
+          model: 'test-model',
+          api_type: 'openai',
+          base_url: 'http://127.0.0.1:9999/v1',
+          api_key_env: '',
+          enabled: true,
+          priority: 1,
+        });
+
+        const svc = new ChatService(repoRoot);
+        const session = svc.createSession('test-endpoint');
+        const result = await svc.chat({
+          conversation_id: session.id,
+          message: '请帮我查一下今天的 AI 新闻',
+        });
+
+        expect(result.message).toContain('已拒绝工具 deny_tool');
+        expect(secondToolExecuted).toBe(false);
+        expect(waitSpy).toHaveBeenCalledOnce();
+      } finally {
+        waitSpy.mockRestore();
+        globalToolRegistry.unregister('deny_tool');
+        globalToolRegistry.unregister('should_not_run');
+      }
+    });
+  });
 });

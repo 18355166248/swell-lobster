@@ -1,9 +1,14 @@
 import { memoryStore } from '../../memory/store.js';
-import type { ToolDef } from '../types.js';
+import { ToolRiskLevel, type ToolDef } from '../types.js';
 
 export const deleteMemoryTool: ToolDef = {
   name: 'delete_memory',
   description: '删除一条不再有效的记忆（用于纠正过时信息）',
+  permission: {
+    riskLevel: ToolRiskLevel.write,
+    requiresApproval: false,
+    sideEffectSummary: 'Deletes an existing memory record from the local long-term memory store.',
+  },
   parameters: {
     query: {
       type: 'string',

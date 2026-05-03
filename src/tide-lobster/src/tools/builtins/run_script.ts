@@ -22,7 +22,7 @@ import { basename, dirname, extname, join, resolve, sep } from 'node:path';
 import { spawnSync, spawn } from 'node:child_process';
 import { builtinModules } from 'node:module';
 import { settings } from '../../config.js';
-import type { ToolDef } from '../types.js';
+import { ToolRiskLevel, type ToolDef } from '../types.js';
 
 const ALLOWED_EXTENSIONS = new Set(['.py', '.js', '.mjs']);
 const DEFAULT_TIMEOUT_S = 30;
@@ -303,6 +303,13 @@ export const runScriptTool: ToolDef = {
     'output_files[].path is the absolute filesystem path; output_files[].url is the API download link (includes required ?localPath= param).',
     'CRITICAL: In your reply ALWAYS use output_files[].url as-is for download links — NEVER hand-write or construct /api/files/ URLs. Hand-written URLs lack the ?localPath= param and will be rejected by the frontend.',
   ].join(' '),
+  permission: {
+    riskLevel: ToolRiskLevel.execute,
+    requiresApproval: true,
+    pathScopes: ['SKILLS/', 'data/skills/'],
+    sideEffectSummary:
+      'Executes a local script from the allowed skill directories and may write generated files to data/skills/.',
+  },
   parameters: {
     script_path: {
       type: 'string',

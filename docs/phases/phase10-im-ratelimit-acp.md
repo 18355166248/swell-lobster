@@ -3,8 +3,24 @@
 > **目标**：在现有 Telegram 通道基础上，扩展飞书 / 钉钉能力，补齐通道级限流与审计，为后续计划模式与多 Agent 协作打通最小委托闭环。
 > **预估工作量**：2.5 周
 > **前置条件**：阶段 8、9 已完成
+> **状态**：🟡 **部分完成**（2026-05-03）
 
 ---
+
+## 当前进度
+
+已落地：
+
+- `src/tide-lobster/src/im/rateLimiter.ts` 与 `im_rate_stats` 表，Telegram / 通用 IM 入口已支持 RPM / RPD 限流
+- `src/tide-lobster/src/tools/builtins/delegate_task.ts` 与 `src/tide-lobster/src/agents/delegateService.ts`，已具备单层子会话委托能力
+- `src/tide-lobster/src/im/channels/dingtalk/`，已接入钉钉 Stream 通道 MVP
+- IM 管理器、IM 路由和 IM 页面已补渠道类型与限流配置字段
+
+未完成：
+
+- 飞书 webhook / event subscription 通道
+- 阶段文档与任务状态收口
+- 与阶段 11 审批 / 审计链路的对接
 
 ## 背景与问题
 

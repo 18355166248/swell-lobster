@@ -1,11 +1,16 @@
 import { settings } from '../../config.js';
 import { getEmbeddingService } from '../../memory/embeddingService.js';
 import { memoryStore } from '../../memory/store.js';
-import type { ToolDef } from '../types.js';
+import { ToolRiskLevel, type ToolDef } from '../types.js';
 
 export const readMemoryTool: ToolDef = {
   name: 'read_memory',
   description: '搜索用户的长期记忆',
+  permission: {
+    riskLevel: ToolRiskLevel.readonly,
+    requiresApproval: false,
+    sideEffectSummary: 'Reads the local long-term memory store and returns matching entries.',
+  },
   parameters: {
     query: {
       type: 'string',

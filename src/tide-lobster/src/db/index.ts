@@ -463,6 +463,32 @@ const migrations: Array<{ version: number; up: (db: Database.Database) => void }
       `);
     },
   },
+  {
+    version: 22,
+    up: (db) => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS tool_approval_requests (
+          id TEXT PRIMARY KEY,
+          session_id TEXT NOT NULL,
+          tool_name TEXT NOT NULL,
+          risk_level TEXT NOT NULL,
+          arguments_json TEXT NOT NULL,
+          summary TEXT NOT NULL,
+          status TEXT NOT NULL,
+          created_at TEXT NOT NULL,
+          resolved_at TEXT,
+          resolved_by TEXT,
+          resolution_note TEXT
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_tool_approval_status_created
+          ON tool_approval_requests(status, created_at DESC);
+
+        CREATE INDEX IF NOT EXISTS idx_tool_approval_session_created
+          ON tool_approval_requests(session_id, created_at DESC);
+      `);
+    },
+  },
 ];
 
 function runMigrations(db: Database.Database): void {

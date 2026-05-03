@@ -7,10 +7,28 @@ export interface ToolParameter {
   required?: boolean;
 }
 
+export const ToolRiskLevel = {
+  readonly: 'readonly',
+  write: 'write',
+  execute: 'execute',
+  network: 'network',
+} as const;
+
+export type ToolRiskLevel = (typeof ToolRiskLevel)[keyof typeof ToolRiskLevel];
+
+export interface ToolPermissionMeta {
+  riskLevel: ToolRiskLevel;
+  requiresApproval: boolean;
+  pathScopes?: string[];
+  networkScopes?: string[];
+  sideEffectSummary: string;
+}
+
 export interface ToolDef {
   name: string;
   description: string;
   parameters: Record<string, ToolParameter>;
+  permission: ToolPermissionMeta;
   execute(
     args: Record<string, unknown>,
     context?: {
@@ -53,5 +71,6 @@ export interface ToolExecutionTrace {
   name: string;
   arguments: Record<string, unknown>;
   status: 'running' | 'completed' | 'failed';
+  approval_request_id?: string;
   result?: string;
 }

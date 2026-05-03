@@ -1,10 +1,16 @@
 import { delegateTask } from '../../agents/delegateService.js';
-import type { ToolDef } from '../types.js';
+import { ToolRiskLevel, type ToolDef } from '../types.js';
 
 export const delegateTaskTool: ToolDef = {
   name: 'delegate_task',
   description:
     'Delegate a focused task to a child agent session, optionally using an agent template.',
+  permission: {
+    riskLevel: ToolRiskLevel.execute,
+    requiresApproval: true,
+    sideEffectSummary:
+      'Creates and runs a child agent session that can consume model context and invoke allowed tools.',
+  },
   parameters: {
     task: {
       type: 'string',

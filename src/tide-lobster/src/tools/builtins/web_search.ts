@@ -1,6 +1,6 @@
 import { readConfiguredEnvValue, type SearchProvider } from '../../config.js';
 import { getFetchDispatcherForUrl } from '../../net/fetchDispatcher.js';
-import type { ToolDef } from '../types.js';
+import { ToolRiskLevel, type ToolDef } from '../types.js';
 
 type SearchResult = { title: string; url: string; snippet: string };
 
@@ -115,6 +115,13 @@ export const webSearchTool: ToolDef = {
   name: 'web_search',
   description:
     '搜索互联网获取最新信息。支持 auto、Brave Search、Tavily、DuckDuckGo 四种模式；auto 会自动选择可用提供商并回退。',
+  permission: {
+    riskLevel: ToolRiskLevel.network,
+    requiresApproval: true,
+    networkScopes: ['brave', 'tavily', 'duckduckgo'],
+    sideEffectSummary:
+      'Sends outbound search requests to configured web search providers and returns summarized results.',
+  },
   parameters: {
     query: {
       type: 'string',

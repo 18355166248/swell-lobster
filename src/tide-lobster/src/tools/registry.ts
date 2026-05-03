@@ -1,4 +1,20 @@
-import type { AnthropicTool, OpenAITool, ToolDef } from './types.js';
+import type { AnthropicTool, OpenAITool, ToolDef, ToolPermissionMeta } from './types.js';
+
+function validatePermissionMeta(tool: ToolDef): ToolPermissionMeta {
+  const permission = tool.permission;
+  if (!permission) {
+    throw new Error(`tool "${tool.name}" is missing permission metadata`);
+  }
+  if (!permission.sideEffectSummary?.trim()) {
+    throw new Error(`tool "${tool.name}" is missing sideEffectSummary`);
+  }
+  return {
+    ...permission,
+    sideEffectSummary: permission.sideEffectSummary.trim(),
+    pathScopes: permission.pathScopes?.map((scope) => scope.trim()).filter(Boolean),
+    networkScopes: permission.networkScopes?.map((scope) => scope.trim()).filter(Boolean),
+  };
+}
 
 function toJsonSchema(tool: ToolDef): OpenAITool['function']['parameters'] {
   const properties = Object.fromEntries(
@@ -33,7 +49,10 @@ export class ToolRegistry {
   private readonly tools = new Map<string, ToolDef>();
 
   register(tool: ToolDef): void {
-    this.tools.set(tool.name, tool);
+    this.tools.set(tool.name, {
+      ...tool,
+      permission: validatePermissionMeta(tool),
+    });
   }
 
   unregister(name: string): void {

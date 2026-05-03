@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join, resolve, extname } from 'node:path';
 
 import { settings } from '../../config.js';
-import type { ToolDef } from '../types.js';
+import { ToolRiskLevel, type ToolDef } from '../types.js';
 
 /** 路径安全校验：仅允许读取 data/tmp/uploads/ 下的文件 */
 function isSafePath(filePath: string): boolean {
@@ -33,6 +33,12 @@ async function extractPdfText(filePath: string): Promise<string> {
 export const readFileTool: ToolDef = {
   name: 'read_file',
   description: '读取用户上传到 data/tmp/uploads/ 的文件内容，支持 .txt、.md、.pdf',
+  permission: {
+    riskLevel: ToolRiskLevel.readonly,
+    requiresApproval: true,
+    pathScopes: ['data/tmp/uploads/'],
+    sideEffectSummary: 'Reads uploaded local files from the data/tmp/uploads directory.',
+  },
   parameters: {
     path: {
       type: 'string',

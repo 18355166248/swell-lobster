@@ -8,7 +8,7 @@
 
 import type { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { globalToolRegistry } from '../tools/registry.js';
-import type { ToolDef, ToolParameter } from '../tools/types.js';
+import { ToolRiskLevel, type ToolDef, type ToolParameter } from '../tools/types.js';
 import type { MCPToolInfo } from './types.js';
 
 /** 将任意字符串转为合法 function name：只保留字母、数字、下划线。 */
@@ -77,6 +77,11 @@ export class MCPToolBridge {
       name: toolName,
       // 前缀 [MCP] 便于在工具列表里识别来源；缺省时用工具名兜底
       description: `[MCP] ${mcpTool.description ?? mcpTool.name}`,
+      permission: {
+        riskLevel: ToolRiskLevel.network,
+        requiresApproval: true,
+        sideEffectSummary: `Calls MCP tool "${mcpTool.name}" on server "${serverId}".`,
+      },
       parameters: toToolParameters(mcpTool),
       async execute(args) {
         // 协议层仍使用 MCP 侧原始工具名，与注册表里的桥接名不同

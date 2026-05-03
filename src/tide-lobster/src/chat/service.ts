@@ -22,11 +22,12 @@ import { memoryStore } from '../memory/store.js';
 import { getTemplate } from '../agent-templates/store.js';
 import { extractorService } from '../memory/extractorService.js';
 import { globalToolRegistry } from '../tools/registry.js';
-import type { ToolCall, ToolExecutionTrace } from '../tools/types.js';
+import { ToolRiskLevel, type ToolCall, type ToolExecutionTrace } from '../tools/types.js';
 import { buildSkillsAutoRoutingPrompt } from '../skills/autoRouting.js';
 import { getSkill } from '../skills/loader.js';
 import { persistUploadedBuffer, type StoredAttachment } from '../upload/handler.js';
 import { toLLMMessages, type ChatInputAttachment } from './attachments.js';
+import { approvalStore } from '../store/approvalStore.js';
 
 /** 单次用户提问内，模型最多可发起多少轮「助手带 tool_calls → 执行工具 → 再请求模型」；防止死循环。 */
 const MAX_TOOL_ROUNDS = 25;
@@ -35,6 +36,22 @@ const MAX_TOOL_ROUNDS = 25;
 export type ChatStreamEvent =
   | { type: 'delta'; delta: string }
   | { type: 'tool_call'; name: string; status: 'running'; arguments: Record<string, unknown> }
+  | {
+      type: 'tool_approval_required';
+      requestId: string;
+      toolName: string;
+      riskLevel: ToolRiskLevel;
+      summary: string;
+      arguments: Record<string, unknown>;
+      pathScopes?: string[];
+      networkScopes?: string[];
+    }
+  | {
+      type: 'tool_approval_resolved';
+      requestId: string;
+      toolName: string;
+      decision: 'approved' | 'denied' | 'expired';
+    }
   | {
       type: 'tool_result';
       name: string;
@@ -75,6 +92,22 @@ async function emitTextAsChunks(
   for (let index = 0; index < content.length; index += chunkSize) {
     await emit(content.slice(index, index + chunkSize));
   }
+}
+
+function summarizeToolArguments(args: Record<string, unknown>): string {
+  const keys = ['script_path', 'path', 'url', 'query', 'task', 'content'];
+  const pick = [...keys, ...Object.keys(args).filter((key) => !keys.includes(key))];
+  for (const key of pick) {
+    const value = args[key];
+    if (typeof value === 'string' && value.trim()) {
+      const text = value.trim().replace(/\s+/g, ' ');
+      return `${key}: ${text.slice(0, 120)}${text.length > 120 ? '...' : ''}`;
+    }
+    if (typeof value === 'number' || typeof value === 'boolean') {
+      return `${key}: ${String(value)}`;
+    }
+  }
+  return '此工具将按当前参数执行副作用操作。';
 }
 
 function buildSkillFallbackResult(skillName: string, skillPath: string, skillContent: string): string {
@@ -563,7 +596,8 @@ export class ChatService {
           toolInvocations,
           args.onEvent,
           args.sessionId,
-          disabledToolNames
+          disabledToolNames,
+          args.signal
         );
         // 工具执行完成后，以最终状态写入 blocks
         blocks.push({ type: 'tool_invocation', invocation: trace });
@@ -593,7 +627,8 @@ export class ChatService {
     toolInvocations: ToolExecutionTrace[],
     onEvent?: (event: ChatStreamEvent) => void | Promise<void>,
     sessionId?: string, // 会话 ID，用于记录技能调用日志
-    disabledToolNames: Set<string> = new Set()
+    disabledToolNames: Set<string> = new Set(),
+    signal?: AbortSignal
   ): Promise<ToolExecutionTrace> {
     const trace: ToolExecutionTrace = {
       id: toolCall.id,
@@ -657,6 +692,59 @@ export class ChatService {
         content: trace.result,
       });
       return trace;
+    }
+
+    if (tool.permission.requiresApproval) {
+      const approval = approvalStore.createRequest({
+        sessionId: sessionId ?? 'unknown',
+        toolName: toolCall.name,
+        riskLevel: tool.permission.riskLevel,
+        arguments: toolCall.arguments,
+        summary: `${tool.permission.sideEffectSummary} ${summarizeToolArguments(toolCall.arguments)}`,
+      });
+      trace.approval_request_id = approval.id;
+      await onEvent?.({
+        type: 'tool_approval_required',
+        requestId: approval.id,
+        toolName: toolCall.name,
+        riskLevel: tool.permission.riskLevel,
+        summary: approval.summary,
+        arguments: toolCall.arguments,
+        pathScopes: tool.permission.pathScopes,
+        networkScopes: tool.permission.networkScopes,
+      });
+
+      const resolved = await approvalStore.waitForDecision(approval.id, {
+        signal,
+        timeoutMs: 60_000,
+      });
+      const decision =
+        resolved.status === 'approved'
+          ? 'approved'
+          : resolved.status === 'denied'
+            ? 'denied'
+            : 'expired';
+      await onEvent?.({
+        type: 'tool_approval_resolved',
+        requestId: approval.id,
+        toolName: toolCall.name,
+        decision,
+      });
+
+      if (resolved.status !== 'approved') {
+        trace.status = 'failed';
+        trace.result =
+          resolved.status === 'denied'
+            ? `工具 ${toolCall.name} 的执行请求已被拒绝`
+            : `工具 ${toolCall.name} 的执行请求等待审批超时`;
+        await onEvent?.({
+          type: 'tool_result',
+          name: toolCall.name,
+          status: 'failed',
+          content: trace.result,
+        });
+        return trace;
+      }
     }
 
     const TOOL_RESULT_MAX_CHARS = 50_000;

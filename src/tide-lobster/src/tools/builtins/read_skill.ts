@@ -1,7 +1,7 @@
 import { existsSync, readFileSync, realpathSync } from 'node:fs';
 import { join, resolve, sep } from 'node:path';
 import { settings } from '../../config.js';
-import type { ToolDef } from '../types.js';
+import { ToolRiskLevel, type ToolDef } from '../types.js';
 
 function getAllowedRoots(): string[] {
   const roots = [
@@ -31,6 +31,12 @@ export const readSkillTool: ToolDef = {
   name: 'read_skill',
   description:
     'Read the full content of a SKILL.md file. Only paths inside SKILLS/ or data/skills/ are allowed.',
+  permission: {
+    riskLevel: ToolRiskLevel.readonly,
+    requiresApproval: true,
+    pathScopes: ['SKILLS/', 'data/skills/'],
+    sideEffectSummary: 'Reads skill definition files from the allowed skill directories.',
+  },
   parameters: {
     path: {
       type: 'string',

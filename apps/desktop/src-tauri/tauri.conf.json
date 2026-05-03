@@ -10,6 +10,7 @@
     "frontendDist": "../../web-ui/dist"
   },
   "app": {
+    "macOSPrivateApi": true,
     "windows": [
       {
         "label": "main",
@@ -21,7 +22,8 @@
         "resizable": true,
         "fullscreen": false,
         "decorations": false,
-        "transparent": true
+        "transparent": true,
+        "shadow": false
       }
     ],
     "withGlobalTauri": true,

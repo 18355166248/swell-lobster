@@ -7,6 +7,7 @@ import { PageLoading } from '../components/PageLoading';
 import { Topbar } from '../components/Topbar';
 import { ROUTES } from '../routes';
 import { refreshEndpointsAtom } from '../store/endpoints';
+import { isTauri } from '../utils/platform';
 
 const ChatPage = lazy(async () => {
   const module = await import('../pages/Chat');
@@ -14,6 +15,7 @@ const ChatPage = lazy(async () => {
 });
 
 export function RootLayout() {
+  const inTauri = isTauri();
   const { pathname } = useLocation();
   const isChatRoute = pathname === ROUTES.CHAT;
   const [hasVisitedChat, setHasVisitedChat] = useState(isChatRoute);
@@ -34,7 +36,11 @@ export function RootLayout() {
   return (
     <>
       <div className="h-screen overflow-hidden bg-transparent">
-        <div className="flex h-full overflow-hidden rounded-[18px] bg-muted/50 dark:bg-background">
+        <div
+          className={`flex h-full overflow-hidden rounded-[18px] dark:bg-background ${
+            inTauri ? 'bg-muted' : 'bg-muted/50'
+          }`}
+        >
           <aside className="w-56 flex-shrink-0 flex flex-col overflow-hidden bg-sidebar text-sidebar-foreground border-r border-sidebar-border">
             <Sidebar />
           </aside>

@@ -22,7 +22,9 @@ import type { ColumnsType } from 'antd/es/table';
 import { DeleteOutlined, EditOutlined, ReloadOutlined } from '@ant-design/icons';
 import { TableActions } from '../../components/TableActions';
 import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router';
 import { apiDelete, apiGet, apiPatch, apiPost } from '../../api/base';
+import { ROUTES } from '../../routes';
 import { McpCustomFormFields } from './McpCustomFormFields';
 import { McpServerFormModal } from './McpServerFormModal';
 import { MarketplaceInstallFormFields } from './MarketplaceInstallFormFields';
@@ -47,6 +49,7 @@ function statusColor(status: MCPServer['status']): string {
 
 export function MCPPage() {
   const { t, i18n } = useTranslation();
+  const navigate = useNavigate();
   const isZh = (i18n.language || 'en').startsWith('zh');
 
   const [servers, setServers] = useState<MCPServer[]>([]);
@@ -338,6 +341,10 @@ export function MCPPage() {
     return `${record.command}${args}`;
   };
 
+  const openEnvEditor = (envKey: string) => {
+    navigate(`${ROUTES.CONFIG_ADVANCED}?env=${encodeURIComponent(envKey)}#env-editor`);
+  };
+
   const columns: ColumnsType<MCPServer> = [
     {
       title: t('mcp.name'),
@@ -353,6 +360,24 @@ export function MCPPage() {
           <div className="text-sm text-muted-foreground font-mono mt-1">
             <Tag>{record.type ?? 'stdio'}</Tag> {getEndpointSummary(record)}
           </div>
+          {Object.keys(record.env ?? {}).length > 0 ? (
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <Text type="secondary">{t('mcp.envVars')}:</Text>
+              {Object.keys(record.env)
+                .sort()
+                .slice(0, 3)
+                .map((envKey) => (
+                  <Button key={envKey} size="small" onClick={() => openEnvEditor(envKey)}>
+                    {envKey}
+                  </Button>
+                ))}
+              {Object.keys(record.env).length > 3 ? (
+                <Text type="secondary">
+                  {t('mcp.envMoreCount', { n: Object.keys(record.env).length - 3 })}
+                </Text>
+              ) : null}
+            </div>
+          ) : null}
           {record.error_message ? (
             <div className="text-xs text-red-500 mt-1">{record.error_message}</div>
           ) : null}

@@ -41,7 +41,15 @@ configEnvRouter.get('/api/config/env', (c) => {
   const content = readFileSync(path, 'utf-8');
   const env = parseEnv(content);
   const masked = Object.fromEntries(Object.entries(env).map(([k, v]) => [k, maskValue(k, v)]));
-  return c.json({ env: masked, masked, raw: '', path });
+  return c.json({ env: masked, masked, raw: content, path });
+});
+
+configEnvRouter.get('/api/config/env/download', (c) => {
+  const path = envPath();
+  const content = existsSync(path) ? readFileSync(path, 'utf-8') : '';
+  c.header('Content-Type', 'text/plain; charset=utf-8');
+  c.header('Content-Disposition', 'attachment; filename="swell-lobster.env"');
+  return c.body(content);
 });
 
 // ── POST /api/config/env ───────────────────────────────────────────────────────

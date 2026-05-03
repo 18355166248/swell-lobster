@@ -1,5 +1,7 @@
-import { Alert, Divider, Form, Input, Tag, Typography } from 'antd';
+import { Alert, Button, Divider, Form, Input, Space, Tag, Typography } from 'antd';
 import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router';
+import { ROUTES } from '../../routes';
 import type { MarketplaceServer } from './types';
 import { McpEnvKeyValueList } from './McpEnvKeyValueList';
 
@@ -15,6 +17,7 @@ type Props = {
  */
 export function MarketplaceInstallFormFields({ entry, isZh }: Props) {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const desc = isZh ? entry.description_zh : entry.description_en;
   const required = entry.requiredEnvKeys ?? [];
   const optional = entry.optionalEnvKeys ?? [];
@@ -29,6 +32,11 @@ export function MarketplaceInstallFormFields({ entry, isZh }: Props) {
         : entry.transportType === 'http'
           ? t('mcp.transportHttp')
           : entry.transportType;
+
+  const openEnvEditor = (envKey?: string) => {
+    const suffix = envKey ? `?env=${encodeURIComponent(envKey)}#env-editor` : '#env-editor';
+    navigate(`${ROUTES.CONFIG_ADVANCED}${suffix}`);
+  };
 
   return (
     <>
@@ -71,6 +79,11 @@ export function MarketplaceInstallFormFields({ entry, isZh }: Props) {
       </Form.Item>
 
       <Divider titlePlacement="left">{t('mcp.envTemplateSection')}</Divider>
+      <div className="mb-3">
+        <Button size="small" onClick={() => openEnvEditor()}>
+          {t('mcp.openEnvEditor')}
+        </Button>
+      </div>
       {required.length === 0 && optional.length === 0 ? (
         <Text type="secondary" className="mb-4 block">
           {t('mcp.noEnvTemplateKeys')}
@@ -82,9 +95,14 @@ export function MarketplaceInstallFormFields({ entry, isZh }: Props) {
           key={`req-${envKey}`}
           name={['templateEnv', envKey]}
           label={
-            <span>
-              <Tag color="red">{t('mcp.envRequiredTag')}</Tag> {envKey}
-            </span>
+            <Space size="small" wrap>
+              <span>
+                <Tag color="red">{t('mcp.envRequiredTag')}</Tag> {envKey}
+              </span>
+              <Button size="small" onClick={() => openEnvEditor(envKey)}>
+                {t('mcp.editEnvKey')}
+              </Button>
+            </Space>
           }
           rules={[{ required: true, message: t('mcp.envValueRequired') }]}
         >
@@ -96,9 +114,14 @@ export function MarketplaceInstallFormFields({ entry, isZh }: Props) {
           key={`opt-${envKey}`}
           name={['templateEnv', envKey]}
           label={
-            <span>
-              <Tag>{t('common.optional')}</Tag> {envKey}
-            </span>
+            <Space size="small" wrap>
+              <span>
+                <Tag>{t('common.optional')}</Tag> {envKey}
+              </span>
+              <Button size="small" onClick={() => openEnvEditor(envKey)}>
+                {t('mcp.editEnvKey')}
+              </Button>
+            </Space>
           }
         >
           <Input autoComplete="off" placeholder={envKey} />

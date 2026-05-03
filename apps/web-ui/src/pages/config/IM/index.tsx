@@ -84,9 +84,19 @@ export function ConfigIMPage() {
         ) : (
           <ul className="divide-y divide-border">
             {Object.entries(env).map(([k, v]) => (
-              <li key={k} className="px-4 py-2 flex justify-between text-sm">
-                <span className="font-mono text-foreground">{k}</span>
-                <span className="text-muted-foreground truncate max-w-[60%]">{v}</span>
+              <li key={k} className="px-4 py-2 flex items-center justify-between gap-3 text-sm">
+                <div className="min-w-0 flex-1">
+                  <div className="font-mono text-foreground">{k}</div>
+                  <div className="text-muted-foreground truncate">{v}</div>
+                </div>
+                <Button
+                  size="small"
+                  onClick={() =>
+                    navigate(`${ROUTES.CONFIG_ADVANCED}?env=${encodeURIComponent(k)}#env-editor`)
+                  }
+                >
+                  {t('configIM.editCurrentEnv')}
+                </Button>
               </li>
             ))}
           </ul>

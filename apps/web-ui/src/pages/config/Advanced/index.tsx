@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Button,
   Alert,
@@ -6,21 +6,27 @@ import {
   Typography,
   Input,
   Form,
+  Collapse,
   Divider,
   Checkbox,
   InputNumber,
   Select,
   Space,
+  Tag,
   message,
 } from 'antd';
 import { DeleteOutlined, PlusOutlined } from '@ant-design/icons';
+import { save } from '@tauri-apps/plugin-dialog';
+import { writeFile } from '@tauri-apps/plugin-fs';
 import { useTranslation } from 'react-i18next';
-import { apiGet, apiPost } from '../../../api/base';
+import { useSearchParams } from 'react-router';
+import { apiGet, apiPost, getApiBase } from '../../../api/base';
 import { ROUTES } from '../../../routes';
+import { isTauri } from '../../../utils/platform';
 
 const { Title, Text, Paragraph } = Typography;
 
-type EnvData = { env: Record<string, string>; path?: string };
+type EnvData = { env: Record<string, string>; path?: string; raw?: string };
 
 type EmbeddingConfig = {
   embeddingBaseUrl: string;
@@ -47,6 +53,17 @@ type EditableEnvRow = {
   maskedValue: string;
   isSensitive: boolean;
   isExisting: boolean;
+};
+
+type EnvPreset = {
+  hintKey: string;
+  key: string;
+  value?: string;
+};
+
+type EnvPresetGroup = {
+  presets: EnvPreset[];
+  titleKey: string;
 };
 
 const SENSITIVE_ENV_KEY_PATTERN = /(TOKEN|SECRET|PASSWORD|KEY|APIKEY)/i;
@@ -94,6 +111,76 @@ function buildEditableEnvRows(env: Record<string, string>): EditableEnvRow[] {
     .map(([key, value]) => createEnvRow({ key, value, isExisting: true }));
 }
 
+const ENV_PRESET_GROUPS: EnvPresetGroup[] = [
+  {
+    titleKey: 'configAdvanced.envPresetGroupIM',
+    presets: [
+      { key: 'TELEGRAM_BOT_TOKEN', hintKey: 'configAdvanced.envPresetHintTelegram' },
+      { key: 'DINGTALK_CLIENT_ID', hintKey: 'configAdvanced.envPresetHintDingTalkClientId' },
+      {
+        key: 'DINGTALK_CLIENT_SECRET',
+        hintKey: 'configAdvanced.envPresetHintDingTalkClientSecret',
+      },
+      { key: 'DINGTALK_APP_ID', hintKey: 'configAdvanced.envPresetHintDingTalkAppId' },
+    ],
+  },
+  {
+    titleKey: 'configAdvanced.envPresetGroupProxy',
+    presets: [
+      { key: 'HTTPS_PROXY', hintKey: 'configAdvanced.envPresetHintHttpsProxy' },
+      { key: 'HTTP_PROXY', hintKey: 'configAdvanced.envPresetHintHttpProxy' },
+      { key: 'ALL_PROXY', hintKey: 'configAdvanced.envPresetHintAllProxy' },
+      {
+        key: 'NO_PROXY',
+        value: 'localhost,127.0.0.1,::1,0.0.0.0',
+        hintKey: 'configAdvanced.envPresetHintNoProxy',
+      },
+    ],
+  },
+  {
+    titleKey: 'configAdvanced.envPresetGroupMcp',
+    presets: [
+      {
+        key: 'SWELL_MCP_EPHEMERAL_CONNECT_TIMEOUT_MS',
+        value: '120000',
+        hintKey: 'configAdvanced.envPresetHintMcpTimeout',
+      },
+      {
+        key: 'SWELL_MCP_NPX_REGISTRY',
+        value: 'https://registry.npmjs.org/',
+        hintKey: 'configAdvanced.envPresetHintMcpRegistry',
+      },
+    ],
+  },
+];
+
+function findPresetByKey(envKey: string): EnvPreset | undefined {
+  return ENV_PRESET_GROUPS.flatMap((group) => group.presets).find(
+    (preset) => preset.key === envKey
+  );
+}
+
+function parseEnvText(content: string): Record<string, string> {
+  const env: Record<string, string> = {};
+  for (let line of content.split('\n')) {
+    line = line.trim();
+    if (!line || line.startsWith('#') || !line.includes('=')) continue;
+    const eqIdx = line.indexOf('=');
+    const key = line.slice(0, eqIdx).trim();
+    if (!ENV_KEY_PATTERN.test(key)) continue;
+    let value = line.slice(eqIdx + 1).trim();
+    if (
+      value.length >= 2 &&
+      value[0] === value[value.length - 1] &&
+      (value[0] === '"' || value[0] === "'")
+    ) {
+      value = value.slice(1, -1);
+    }
+    env[key] = value;
+  }
+  return env;
+}
+
 const HIDEABLE_VIEWS = [
   { key: ROUTES.IM, labelKey: 'sidebar.im' },
   { key: ROUTES.SKILLS, labelKey: 'sidebar.skills' },
@@ -107,10 +194,12 @@ const HIDEABLE_VIEWS = [
 
 export function ConfigAdvancedPage() {
   const { t } = useTranslation();
+  const [searchParams] = useSearchParams();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [envPath, setEnvPath] = useState('');
+  const [rawEnv, setRawEnv] = useState('');
 
   const [agentName, setAgentName] = useState('');
   const [disabledViews, setDisabledViews] = useState<string[]>([]);
@@ -131,6 +220,9 @@ export function ConfigAdvancedPage() {
   });
   const [customEnvRows, setCustomEnvRows] = useState<EditableEnvRow[]>([]);
   const [deletedEnvKeys, setDeletedEnvKeys] = useState<string[]>([]);
+  const [envFilter, setEnvFilter] = useState(() => searchParams.get('env') ?? '');
+  const envEditorRef = useRef<HTMLDivElement | null>(null);
+  const envImportInputRef = useRef<HTMLInputElement | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -143,6 +235,7 @@ export function ConfigAdvancedPage() {
       setDisabledViews(viewsData.disabled ?? []);
       const env = envData.env ?? {};
       setEnvPath(envData.path ?? '');
+      setRawEnv(envData.raw ?? '');
       setAgentName(env.SWELL_AGENT_NAME ?? '');
       setEmbeddingConfig({
         embeddingBaseUrl: env.SWELL_EMBEDDING_BASE_URL ?? '',
@@ -177,6 +270,16 @@ export function ConfigAdvancedPage() {
     void load();
   }, [load]);
 
+  useEffect(() => {
+    const nextEnv = searchParams.get('env') ?? '';
+    setEnvFilter(nextEnv);
+    if (nextEnv || window.location.hash === '#env-editor') {
+      requestAnimationFrame(() => {
+        envEditorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
+    }
+  }, [searchParams]);
+
   const updateCustomEnvRow = useCallback((id: string, patch: Partial<EditableEnvRow>) => {
     setCustomEnvRows((prev) =>
       prev.map((row) => {
@@ -193,6 +296,17 @@ export function ConfigAdvancedPage() {
 
   const handleAddEnvRow = useCallback(() => {
     setCustomEnvRows((prev) => [...prev, createEnvRow({ key: '', value: '', isExisting: false })]);
+  }, []);
+
+  const handleAddPreset = useCallback((preset: EnvPreset) => {
+    setDeletedEnvKeys((prev) => prev.filter((key) => key !== preset.key));
+    setCustomEnvRows((prev) => {
+      if (prev.some((row) => row.key.trim() === preset.key)) return prev;
+      return [
+        ...prev,
+        createEnvRow({ key: preset.key, value: preset.value ?? '', isExisting: false }),
+      ];
+    });
   }, []);
 
   const handleRemoveEnvRow = useCallback(
@@ -268,6 +382,7 @@ export function ConfigAdvancedPage() {
       }
 
       for (const key of deletedEnvKeys) {
+        if (customKeys.has(key)) continue;
         envEntries[key] = '';
       }
 
@@ -281,6 +396,63 @@ export function ConfigAdvancedPage() {
     }
   };
 
+  const handleExportEnv = useCallback(async () => {
+    if (!rawEnv.trim()) {
+      setError(t('configAdvanced.envExportEmpty'));
+      return;
+    }
+    setError(null);
+    try {
+      const url = `${getApiBase()}/api/config/env/download`;
+      if (isTauri()) {
+        const savePath = await save({
+          defaultPath: 'swell-lobster.env',
+          filters: [{ name: 'Environment File', extensions: ['env'] }],
+        });
+        if (!savePath) return;
+        const res = await fetch(url);
+        if (!res.ok) throw new Error(`${res.status}`);
+        const buf = await res.arrayBuffer();
+        await writeFile(savePath, new Uint8Array(buf));
+        return;
+      }
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = 'swell-lobster.env';
+      document.body.appendChild(anchor);
+      anchor.click();
+      document.body.removeChild(anchor);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : t('configAdvanced.envExportFailed'));
+    }
+  }, [rawEnv, t]);
+
+  const handleImportEnvFile = useCallback(
+    async (file: File) => {
+      try {
+        const content = await file.text();
+        const entries = parseEnvText(content);
+        if (Object.keys(entries).length === 0) {
+          setError(t('configAdvanced.envImportEmpty'));
+          return;
+        }
+        setSaving(true);
+        setError(null);
+        await apiPost('/api/config/env', { entries });
+        void message.success(
+          t('configAdvanced.envImportSuccess', { n: Object.keys(entries).length })
+        );
+        await load();
+      } catch (e) {
+        setError(e instanceof Error ? e.message : t('configAdvanced.envImportFailed'));
+      } finally {
+        setSaving(false);
+        if (envImportInputRef.current) envImportInputRef.current.value = '';
+      }
+    },
+    [load, t]
+  );
+
   if (loading) {
     return (
       <div className="p-6 flex items-center gap-2">
@@ -289,6 +461,18 @@ export function ConfigAdvancedPage() {
       </div>
     );
   }
+
+  const visibleCustomEnvRows = customEnvRows.filter((row) => {
+    const keyword = envFilter.trim().toLowerCase();
+    if (!keyword) return true;
+    return (
+      row.key.toLowerCase().includes(keyword) ||
+      row.value.toLowerCase().includes(keyword) ||
+      row.maskedValue.toLowerCase().includes(keyword)
+    );
+  });
+
+  const envCollapseDefaultKeys = envFilter.trim() !== '' ? ['presets', 'variables'] : ['variables'];
 
   return (
     <div className="p-6 max-w-2xl">
@@ -328,7 +512,7 @@ export function ConfigAdvancedPage() {
       <Divider />
 
       {/* 隐藏模块 */}
-      <div>
+      <div id="env-editor" ref={envEditorRef}>
         <Title level={5}>{t('configAdvanced.hiddenModules')}</Title>
         <Text type="secondary" className="block mb-3">
           {t('configAdvanced.hiddenModulesHint')}
@@ -497,50 +681,170 @@ export function ConfigAdvancedPage() {
           {t('configAdvanced.envEditorSubtitle')}
         </Text>
         <Alert type="info" showIcon className="mb-4" message={t('configAdvanced.envEditorHint')} />
-        {customEnvRows.length === 0 ? (
-          <div className="mb-3 rounded border border-dashed border-border px-4 py-6 text-center text-sm text-muted-foreground">
-            {t('configAdvanced.envEmptyState')}
-          </div>
-        ) : (
-          <div className="mb-3 flex flex-col gap-2">
-            {customEnvRows.map((row) => (
-              <Space key={row.id} align="baseline" className="w-full" wrap>
-                <Input
-                  value={row.key}
-                  disabled={row.isExisting}
-                  className="min-w-[220px] flex-1"
-                  placeholder={t('configAdvanced.envKeyPlaceholder')}
-                  onChange={(e) => updateCustomEnvRow(row.id, { key: e.target.value })}
-                />
-                {row.isSensitive ? (
-                  <Input.Password
-                    value={row.value}
-                    className="min-w-[260px] flex-1"
-                    placeholder={
-                      row.maskedValue
-                        ? t('configAdvanced.envSensitiveConfigured', { value: row.maskedValue })
-                        : t('configAdvanced.envValuePlaceholder')
-                    }
-                    onChange={(e) => updateCustomEnvRow(row.id, { value: e.target.value })}
-                  />
-                ) : (
+        <Alert
+          type="warning"
+          showIcon
+          className="mb-4"
+          message={t('configAdvanced.envRuntimeHint')}
+        />
+        <div className="mb-4 flex flex-wrap gap-2">
+          <Button onClick={handleExportEnv}>{t('configAdvanced.envExport')}</Button>
+          <Button onClick={() => envImportInputRef.current?.click()}>
+            {t('configAdvanced.envImport')}
+          </Button>
+          <input
+            ref={envImportInputRef}
+            hidden
+            type="file"
+            accept=".env,text/plain"
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              if (file) void handleImportEnvFile(file);
+            }}
+          />
+        </div>
+        <Collapse
+          size="small"
+          defaultActiveKey={envCollapseDefaultKeys}
+          items={[
+            {
+              key: 'presets',
+              label: t('configAdvanced.envPresetTitle'),
+              children: (
+                <div className="rounded border border-border px-4 py-3">
+                  <Text type="secondary" className="mt-1 block mb-3">
+                    {t('configAdvanced.envPresetSubtitle')}
+                  </Text>
+                  <div className="flex flex-col gap-3">
+                    {ENV_PRESET_GROUPS.map((group) => (
+                      <div key={group.titleKey}>
+                        <Text type="secondary" className="mb-2 block text-xs uppercase">
+                          {t(group.titleKey as Parameters<typeof t>[0])}
+                        </Text>
+                        <div className="flex flex-wrap gap-2">
+                          {group.presets.map((preset) => {
+                            const exists = customEnvRows.some(
+                              (row) => row.key.trim() === preset.key
+                            );
+                            return (
+                              <Button
+                                key={preset.key}
+                                size="small"
+                                disabled={exists}
+                                onClick={() => handleAddPreset(preset)}
+                              >
+                                {preset.key}
+                              </Button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ),
+            },
+            {
+              key: 'variables',
+              label: `${t('configAdvanced.envVariableListTitle')} (${visibleCustomEnvRows.length}/${customEnvRows.length})`,
+              children: (
+                <>
                   <Input
-                    value={row.value}
-                    className="min-w-[260px] flex-1"
-                    placeholder={t('configAdvanced.envValuePlaceholder')}
-                    onChange={(e) => updateCustomEnvRow(row.id, { value: e.target.value })}
+                    value={envFilter}
+                    className="mb-3"
+                    placeholder={t('configAdvanced.envFilterPlaceholder')}
+                    onChange={(e) => setEnvFilter(e.target.value)}
                   />
-                )}
-                <Button danger icon={<DeleteOutlined />} onClick={() => handleRemoveEnvRow(row.id)}>
-                  {t('common.delete')}
-                </Button>
-              </Space>
-            ))}
-          </div>
-        )}
-        <Button type="dashed" icon={<PlusOutlined />} onClick={handleAddEnvRow}>
-          {t('configAdvanced.envAddPair')}
-        </Button>
+                  {customEnvRows.length === 0 ? (
+                    <div className="mb-3 rounded border border-dashed border-border px-4 py-6 text-center text-sm text-muted-foreground">
+                      {t('configAdvanced.envEmptyState')}
+                    </div>
+                  ) : visibleCustomEnvRows.length === 0 ? (
+                    <div className="mb-3 rounded border border-dashed border-border px-4 py-6 text-center text-sm text-muted-foreground">
+                      {t('configAdvanced.envFilterEmptyState')}
+                    </div>
+                  ) : (
+                    <div className="mb-3 flex flex-col gap-2">
+                      {visibleCustomEnvRows.map((row) => {
+                        const preset = findPresetByKey(row.key);
+                        return (
+                          <Space key={row.id} align="baseline" className="w-full" wrap>
+                            <div className="min-w-[220px] flex-1">
+                              <Input
+                                value={row.key}
+                                disabled={row.isExisting}
+                                placeholder={t('configAdvanced.envKeyPlaceholder')}
+                                onChange={(e) =>
+                                  updateCustomEnvRow(row.id, { key: e.target.value })
+                                }
+                              />
+                              {row.isExisting && (
+                                <div className="mt-1">
+                                  <Tag>{t('configAdvanced.envExistingTag')}</Tag>
+                                </div>
+                              )}
+                            </div>
+                            {row.isSensitive ? (
+                              <div className="min-w-[260px] flex-1">
+                                <Input.Password
+                                  value={row.value}
+                                  placeholder={
+                                    row.maskedValue
+                                      ? t('configAdvanced.envSensitiveConfigured', {
+                                          value: row.maskedValue,
+                                        })
+                                      : t('configAdvanced.envValuePlaceholder')
+                                  }
+                                  onChange={(e) =>
+                                    updateCustomEnvRow(row.id, { value: e.target.value })
+                                  }
+                                />
+                                <Text type="secondary" className="mt-1 block text-xs">
+                                  {preset
+                                    ? `${t('configAdvanced.envPresetHintLabel')}: ${t(
+                                        preset.hintKey as Parameters<typeof t>[0]
+                                      )}`
+                                    : t('configAdvanced.envCustomHint')}
+                                </Text>
+                              </div>
+                            ) : (
+                              <div className="min-w-[260px] flex-1">
+                                <Input
+                                  value={row.value}
+                                  placeholder={t('configAdvanced.envValuePlaceholder')}
+                                  onChange={(e) =>
+                                    updateCustomEnvRow(row.id, { value: e.target.value })
+                                  }
+                                />
+                                <Text type="secondary" className="mt-1 block text-xs">
+                                  {preset
+                                    ? `${t('configAdvanced.envPresetHintLabel')}: ${t(
+                                        preset.hintKey as Parameters<typeof t>[0]
+                                      )}`
+                                    : t('configAdvanced.envCustomHint')}
+                                </Text>
+                              </div>
+                            )}
+                            <Button
+                              danger
+                              icon={<DeleteOutlined />}
+                              onClick={() => handleRemoveEnvRow(row.id)}
+                            >
+                              {t('common.delete')}
+                            </Button>
+                          </Space>
+                        );
+                      })}
+                    </div>
+                  )}
+                  <Button type="dashed" icon={<PlusOutlined />} onClick={handleAddEnvRow}>
+                    {t('configAdvanced.envAddPair')}
+                  </Button>
+                </>
+              ),
+            },
+          ]}
+        />
       </div>
 
       <div className="mt-4">

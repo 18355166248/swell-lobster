@@ -1,5 +1,7 @@
-import { Alert, Divider, Form, Input, Select, Switch, Typography } from 'antd';
+import { Alert, Button, Divider, Form, Input, Select, Switch, Typography } from 'antd';
 import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router';
+import { ROUTES } from '../../routes';
 import { McpEnvKeyValueList } from './McpEnvKeyValueList';
 
 const { Text } = Typography;
@@ -15,6 +17,7 @@ type Props = {
  */
 export function McpCustomFormFields({ showRegistryAlert }: Props) {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const transport = Form.useWatch('transportType');
 
   return (
@@ -74,6 +77,11 @@ export function McpCustomFormFields({ showRegistryAlert }: Props) {
       <Text type="secondary" className="mb-3 block text-sm">
         {t('mcp.envKeyValueIntro')}
       </Text>
+      <div className="mb-3">
+        <Button size="small" onClick={() => navigate(`${ROUTES.CONFIG_ADVANCED}#env-editor`)}>
+          {t('mcp.openEnvEditor')}
+        </Button>
+      </div>
       <McpEnvKeyValueList />
 
       <Form.Item name="enabled" label={t('mcp.enabled')} valuePropName="checked">

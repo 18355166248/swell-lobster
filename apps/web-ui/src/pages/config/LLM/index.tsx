@@ -3,6 +3,7 @@ import { Button, Table, Alert, Space, Badge, Typography, Select, message } from 
 import { DeleteOutlined, EditOutlined } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
 import { useAtomValue, useSetAtom } from 'jotai';
+import { useNavigate } from 'react-router';
 import { TableActions } from '../../../components/TableActions';
 import { apiDelete, apiPatch, apiPost } from '../../../api/base';
 import {
@@ -12,6 +13,7 @@ import {
   refreshEndpointsAtom,
   sttEndpointsAtom,
 } from '../../../store/endpoints';
+import { ROUTES } from '../../../routes';
 import { AddEndpointDialog } from './AddEndpointDialog';
 import type { EndpointFormData, EndpointItem } from './types';
 
@@ -19,6 +21,7 @@ const { Title, Text } = Typography;
 
 export function ConfigLLMPage() {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const [messageApi, contextHolder] = message.useMessage();
   const endpoints = useAtomValue(endpointsAtom);
   const sttEndpoints = useAtomValue(sttEndpointsAtom);
@@ -213,7 +216,21 @@ export function ConfigLLMPage() {
       title: t('llm.colKey'),
       dataIndex: 'api_key_env',
       render: (v: string) =>
-        v ? <Badge status="success" text={t('llm.configured')} /> : <Text type="secondary">-</Text>,
+        v ? (
+          <Space size="small" wrap>
+            <Badge status="success" text={t('llm.configured')} />
+            <Button
+              size="small"
+              onClick={() =>
+                navigate(`${ROUTES.CONFIG_ADVANCED}?env=${encodeURIComponent(v)}#env-editor`)
+              }
+            >
+              {t('llm.editEnv')}
+            </Button>
+          </Space>
+        ) : (
+          <Text type="secondary">-</Text>
+        ),
     },
     {
       title: t('llm.colPriority'),
@@ -362,7 +379,19 @@ export function ConfigLLMPage() {
               dataIndex: 'api_key_env',
               render: (v: string) =>
                 v ? (
-                  <Badge status="success" text={t('llm.configured')} />
+                  <Space size="small" wrap>
+                    <Badge status="success" text={t('llm.configured')} />
+                    <Button
+                      size="small"
+                      onClick={() =>
+                        navigate(
+                          `${ROUTES.CONFIG_ADVANCED}?env=${encodeURIComponent(v)}#env-editor`
+                        )
+                      }
+                    >
+                      {t('llm.editEnv')}
+                    </Button>
+                  </Space>
                 ) : (
                   <Text type="secondary">-</Text>
                 ),

@@ -46,6 +46,14 @@ type LLMKeyConfig = {
   openAIKey: string;
 };
 
+type EnvImportMode = 'merge' | 'replace';
+
+type EnvChangeSummary = {
+  added: string[];
+  updated: string[];
+  deleted: string[];
+};
+
 type EditableEnvRow = {
   id: string;
   key: string;
@@ -181,6 +189,26 @@ function parseEnvText(content: string): Record<string, string> {
   return env;
 }
 
+function summarizeEnvChanges(
+  previousEnv: Record<string, string>,
+  nextEnv: Record<string, string>
+): EnvChangeSummary {
+  const previousKeys = new Set(Object.keys(previousEnv));
+  const nextKeys = new Set(Object.keys(nextEnv));
+
+  const added = Array.from(nextKeys)
+    .filter((key) => !previousKeys.has(key))
+    .sort((a, b) => a.localeCompare(b));
+  const updated = Array.from(nextKeys)
+    .filter((key) => previousKeys.has(key) && previousEnv[key] !== nextEnv[key])
+    .sort((a, b) => a.localeCompare(b));
+  const deleted = Array.from(previousKeys)
+    .filter((key) => !nextKeys.has(key))
+    .sort((a, b) => a.localeCompare(b));
+
+  return { added, updated, deleted };
+}
+
 const HIDEABLE_VIEWS = [
   { key: ROUTES.IM, labelKey: 'sidebar.im' },
   { key: ROUTES.SKILLS, labelKey: 'sidebar.skills' },
@@ -221,6 +249,8 @@ export function ConfigAdvancedPage() {
   const [customEnvRows, setCustomEnvRows] = useState<EditableEnvRow[]>([]);
   const [deletedEnvKeys, setDeletedEnvKeys] = useState<string[]>([]);
   const [envFilter, setEnvFilter] = useState(() => searchParams.get('env') ?? '');
+  const [envImportMode, setEnvImportMode] = useState<EnvImportMode>('merge');
+  const [envChangeSummary, setEnvChangeSummary] = useState<EnvChangeSummary | null>(null);
   const envEditorRef = useRef<HTMLDivElement | null>(null);
   const envImportInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -325,6 +355,7 @@ export function ConfigAdvancedPage() {
     setSaving(true);
     setError(null);
     try {
+      const previousEnv = parseEnvText(rawEnv);
       await apiPost('/api/config/views', { disabled: disabledViews });
 
       const envEntries: Record<string, string> = {
@@ -387,6 +418,12 @@ export function ConfigAdvancedPage() {
       }
 
       await apiPost('/api/config/env', { entries: envEntries });
+      const nextEnv = { ...previousEnv };
+      for (const [key, value] of Object.entries(envEntries)) {
+        if (value === '') delete nextEnv[key];
+        else nextEnv[key] = value;
+      }
+      setEnvChangeSummary(summarizeEnvChanges(previousEnv, nextEnv));
       void message.success(t('configAdvanced.saveSuccess'));
       await load();
     } catch (e) {
@@ -431,16 +468,38 @@ export function ConfigAdvancedPage() {
     async (file: File) => {
       try {
         const content = await file.text();
-        const entries = parseEnvText(content);
-        if (Object.keys(entries).length === 0) {
+        const previousEnv = parseEnvText(rawEnv);
+        const importedEntries = parseEnvText(content);
+        const importedKeys = Object.keys(importedEntries);
+        if (importedKeys.length === 0) {
           setError(t('configAdvanced.envImportEmpty'));
           return;
+        }
+        const entries: Record<string, string> = { ...importedEntries };
+        if (envImportMode === 'replace') {
+          const existingEntries = parseEnvText(rawEnv);
+          for (const existingKey of Object.keys(existingEntries)) {
+            if (!(existingKey in importedEntries)) {
+              entries[existingKey] = '';
+            }
+          }
         }
         setSaving(true);
         setError(null);
         await apiPost('/api/config/env', { entries });
+        const nextEnv = { ...previousEnv };
+        for (const [key, value] of Object.entries(entries)) {
+          if (value === '') delete nextEnv[key];
+          else nextEnv[key] = value;
+        }
+        setEnvChangeSummary(summarizeEnvChanges(previousEnv, nextEnv));
         void message.success(
-          t('configAdvanced.envImportSuccess', { n: Object.keys(entries).length })
+          t(
+            envImportMode === 'replace'
+              ? 'configAdvanced.envImportReplaceSuccess'
+              : 'configAdvanced.envImportSuccess',
+            { n: importedKeys.length }
+          )
         );
         await load();
       } catch (e) {
@@ -450,7 +509,7 @@ export function ConfigAdvancedPage() {
         if (envImportInputRef.current) envImportInputRef.current.value = '';
       }
     },
-    [load, t]
+    [envImportMode, load, rawEnv, t]
   );
 
   if (loading) {
@@ -512,7 +571,7 @@ export function ConfigAdvancedPage() {
       <Divider />
 
       {/* 隐藏模块 */}
-      <div id="env-editor" ref={envEditorRef}>
+      <div>
         <Title level={5}>{t('configAdvanced.hiddenModules')}</Title>
         <Text type="secondary" className="block mb-3">
           {t('configAdvanced.hiddenModulesHint')}
@@ -675,7 +734,7 @@ export function ConfigAdvancedPage() {
 
       <Divider />
 
-      <div>
+      <div id="env-editor" ref={envEditorRef}>
         <Title level={5}>{t('configAdvanced.envEditorTitle')}</Title>
         <Text type="secondary" className="block mb-3">
           {t('configAdvanced.envEditorSubtitle')}
@@ -687,8 +746,41 @@ export function ConfigAdvancedPage() {
           className="mb-4"
           message={t('configAdvanced.envRuntimeHint')}
         />
+        {envChangeSummary && (
+          <Alert
+            type="success"
+            showIcon
+            className="mb-4"
+            message={t('configAdvanced.envChangeSummaryTitle')}
+            description={
+              <div className="flex flex-col gap-1">
+                <Text>
+                  {t('configAdvanced.envChangeAdded')}: {envChangeSummary.added.join(', ') || '-'}
+                </Text>
+                <Text>
+                  {t('configAdvanced.envChangeUpdated')}:{' '}
+                  {envChangeSummary.updated.join(', ') || '-'}
+                </Text>
+                <Text>
+                  {t('configAdvanced.envChangeDeleted')}:{' '}
+                  {envChangeSummary.deleted.join(', ') || '-'}
+                </Text>
+              </div>
+            }
+          />
+        )}
         <div className="mb-4 flex flex-wrap gap-2">
           <Button onClick={handleExportEnv}>{t('configAdvanced.envExport')}</Button>
+          <Select
+            size="small"
+            value={envImportMode}
+            style={{ minWidth: 150 }}
+            options={[
+              { value: 'merge', label: t('configAdvanced.envImportModeMerge') },
+              { value: 'replace', label: t('configAdvanced.envImportModeReplace') },
+            ]}
+            onChange={(value) => setEnvImportMode(value as EnvImportMode)}
+          />
           <Button onClick={() => envImportInputRef.current?.click()}>
             {t('configAdvanced.envImport')}
           </Button>
@@ -703,6 +795,13 @@ export function ConfigAdvancedPage() {
             }}
           />
         </div>
+        <Text type="secondary" className="mb-4 block text-sm">
+          {t(
+            envImportMode === 'replace'
+              ? 'configAdvanced.envImportModeReplaceHint'
+              : 'configAdvanced.envImportModeMergeHint'
+          )}
+        </Text>
         <Collapse
           size="small"
           defaultActiveKey={envCollapseDefaultKeys}

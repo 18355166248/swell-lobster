@@ -112,31 +112,27 @@ interface IncomingMessage {
 
 **新建** `src/tide-lobster/src/im/channels/dingtalk/`
 
-建议先做 webhook 模式，避免引入更重的企业应用接入复杂度。
+钉钉建议直接做 Stream 模式，和 `openakita-main` 保持一致，避免公网回调依赖。
 
 能力要求：
 
-- 接收钉钉 webhook 事件
-- 校验签名（`timestamp + secret` 的 HMAC-SHA256）
-- 解析文本消息
+- 通过 Stream 长连接接收钉钉事件
+- 使用 `Client ID / Client Secret` 建立连接并获取 OpenAPI token
+- 解析 text / picture / richText / audio / video / file
 - 调用现有聊天服务生成回复
-- 通过 webhook 回复文本
-
-**新增接口：**
-
-- `POST /api/im/dingtalk/webhook/:channelId`
+- 优先用 `sessionWebhook` 回复文本，必要时回退 OpenAPI
 
 **配置字段建议：**
 
-- `webhook_secret_env`
-- `outgoing_webhook_url`
-- `allowed_keyword?`
+- `client_id_env`
+- `client_secret_env`
+- `robot_code?`
 
 **注意：**
 
-- 先只支持文本消息
-- 图片输入和富卡片回复留到后续阶段
-- 要把原始 payload 摘要写入日志，便于排障
+- 单聊 OpenAPI 回复依赖 `senderStaffId`；群聊回退走 `openConversationId`
+- `sessionWebhook` 有时效性，过期后必须回退 OpenAPI
+- 卡片、复杂群聊策略和真正的语音转写留到后续阶段
 
 ---
 

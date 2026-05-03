@@ -289,14 +289,15 @@ const zh = {
   // IM 通道
   im: {
     title: 'IM 通道',
-    subtitle: '消息通道管理：Bot 列表、连接状态',
+    subtitle:
+      '消息通道管理：Bot 列表、连接状态。钉钉使用 Stream 模式，需要配置 Client ID / Client Secret。',
     loadFailed: '加载失败',
     addChannel: '添加通道',
     channelType: '通道类型',
     selectChannelType: '选择通道类型',
     configureChannel: '配置通道',
     channelName: '通道名称',
-    channelNamePlaceholder: '例如 My Telegram Bot',
+    channelNamePlaceholder: '例如 My Telegram Bot / My DingTalk App',
     channelNameRequired: '请输入通道名称',
     channelTypeRequired: '请选择通道类型',
     statusRunning: '运行中',
@@ -533,13 +534,14 @@ const zh = {
   // 配置-IM通道
   configIM: {
     title: 'IM 通道',
-    subtitle: '启用通道开关，然后在「消息通道 → Bot 配置」中添加和管理 Bot',
+    subtitle: 'Bot 本身在「消息通道」管理；IM 相关环境变量统一在高级配置中编辑更稳妥。',
     envHint:
-      '环境变量（.env）中与 IM 相关的配置将在此展示，当前为只读预览；完整编辑可在高级配置或 .env 文件中进行。',
-    noEnv: '暂无环境变量或 .env 不存在',
-    saveConfig: '保存配置',
+      '这里会筛出与 Telegram、钉钉等通道相关的环境变量，便于确认配置是否已生效；修改请前往高级配置中的环境变量编辑区。',
+    envPathLabel: '当前环境变量写入文件',
+    noEnv: '当前未发现 IM 相关环境变量',
+    editEnv: '前往高级配置编辑环境变量',
+    openBotConfig: '前往消息通道管理 Bot',
     loadFailed: '加载失败',
-    saveFailed: '保存失败',
   },
 
   // 配置-工具与技能
@@ -572,9 +574,23 @@ const zh = {
   // 配置-高级
   configAdvanced: {
     title: '高级配置',
-    subtitle: '基本设置、隐藏模块、向量检索、API Keys、网络搜索',
+    subtitle: '基本设置、隐藏模块、向量检索、API Keys、网络搜索、环境变量',
     loadFailed: '加载失败',
     envPathLabel: '当前环境变量写入文件',
+    envEditorTitle: '环境变量编辑',
+    envEditorSubtitle:
+      '统一维护桌面端全局 .env。IM、MCP、代理等不适合单独做表单的配置，建议都在这里处理。',
+    envEditorHint:
+      '这里展示未被上方专用表单覆盖的环境变量。敏感值不会明文回显；留空表示保持原值不变，删除按钮会移除该变量。',
+    envEmptyState: '当前没有额外环境变量，可直接添加。',
+    envAddPair: '添加变量',
+    envKeyPlaceholder: '例如 DINGTALK_CLIENT_ID',
+    envValuePlaceholder: '输入变量值',
+    envSensitiveConfigured: '当前已配置：{{value}}；留空表示不修改',
+    envKeyRequired: '请输入变量名',
+    envValueRequired: '请填写变量值',
+    envInvalidKey: '环境变量名不合法：{{key}}',
+    envDuplicateKey: '环境变量重复：{{key}}',
     agentName: 'Agent 名称',
     agentNamePlaceholder: 'Swell-Lobster',
     agentNameHint: '助手的名称，用于身份标识（SWELL_AGENT_NAME）',

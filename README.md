@@ -136,6 +136,7 @@ feat: 新增聊天会话管理功能
 
 ## 相关文档
 
+- 桌面端使用手册：[docs/desktop-user-guide.md](docs/desktop-user-guide.md)
 - 运行与排障指南：[docs/runtime-guide.md](docs/runtime-guide.md)
 - 桌面发布前验收清单：[docs/desktop-validation-checklist.md](docs/desktop-validation-checklist.md)
 - 桌面环境变量与代理：[docs/desktop-env-config.md](docs/desktop-env-config.md)

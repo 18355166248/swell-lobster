@@ -58,13 +58,14 @@ export interface ChannelTypeDef {
  * 跨平台统一入站消息。
  *
  * `chat_id` / `user_id` / `message_id` 均为字符串，便于与 SQLite、JSON 交互；
+ * `chat_id` 表示平台侧会话标识，例如 Telegram chat id、钉钉 conversationId。
  * 图片类消息通过 `images` + 可选 `caption` 传入多模态聊天参数。
  */
 export interface UnifiedMessage {
   channel_type: ChannelType;
   /** 本通道在系统中的配置 id（非 Telegram chat id） */
   channel_id: string;
-  /** 平台侧会话 id，发送回复时使用 */
+  /** 平台侧会话 id，发送回复时使用；例如 Telegram chat id、钉钉 conversationId */
   chat_id: string;
   user_id: string;
   message_id: string;
@@ -79,4 +80,23 @@ export interface UnifiedMessage {
 export interface SendOptions {
   parseMode?: 'Markdown' | 'HTML' | 'plain';
   replyToMessageId?: string;
+}
+
+/**
+ * webhook 入站请求的最小抽象。
+ *
+ * 路由层负责读取原始 body 与 query / headers，具体平台适配器再自行解析事件格式，
+ * 这样飞书 / 钉钉都能复用同一条 `IMManager.handleWebhook` 入口。
+ */
+export interface WebhookRequest {
+  headers: Headers;
+  query: Record<string, string | undefined>;
+  bodyText: string;
+  contentType?: string;
+}
+
+/** webhook 处理结果；路由层直接按该结构回给第三方平台。 */
+export interface WebhookResponse {
+  status: 200 | 202 | 400 | 401 | 403 | 404 | 500;
+  body: unknown;
 }

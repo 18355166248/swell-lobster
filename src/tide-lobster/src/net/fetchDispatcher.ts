@@ -5,6 +5,7 @@
  * 「省略 dispatcher」仍会走全局代理，NO_PROXY 对某主机应直连时无法生效，易出现 TLS ECONNRESET。
  */
 
+import { readConfiguredEnvValueAny } from '../config.js';
 import { Agent, ProxyAgent, setGlobalDispatcher } from 'undici';
 import type { Dispatcher } from 'undici';
 
@@ -29,19 +30,13 @@ function proxyUrlForTarget(targetUrl: string): string | undefined {
   } catch {
     return undefined;
   }
-  const noProxy = process.env.NO_PROXY ?? process.env.no_proxy ?? '';
+  const noProxy = readConfiguredEnvValueAny(['NO_PROXY', 'no_proxy']);
   if (noProxy && shouldBypassProxy(hostname, noProxy)) return undefined;
 
   const isHttps = targetUrl.startsWith('https:');
   const raw = isHttps
-    ? (process.env.HTTPS_PROXY ??
-      process.env.https_proxy ??
-      process.env.ALL_PROXY ??
-      process.env.all_proxy)
-    : (process.env.HTTP_PROXY ??
-      process.env.http_proxy ??
-      process.env.ALL_PROXY ??
-      process.env.all_proxy);
+    ? readConfiguredEnvValueAny(['HTTPS_PROXY', 'https_proxy', 'ALL_PROXY', 'all_proxy'])
+    : readConfiguredEnvValueAny(['HTTP_PROXY', 'http_proxy', 'ALL_PROXY', 'all_proxy']);
   const trimmed = raw?.trim();
   return trimmed || undefined;
 }
@@ -67,11 +62,12 @@ export function getFetchDispatcherForUrl(url: string): Dispatcher {
  * 仅当 HTTPS_PROXY / HTTP_PROXY 等变量存在时生效；不影响已显式传入 dispatcher 的调用。
  */
 export function setupGlobalProxy(): void {
-  const proxyUrl =
-    process.env.HTTPS_PROXY ??
-    process.env.https_proxy ??
-    process.env.HTTP_PROXY ??
-    process.env.http_proxy;
+  const proxyUrl = readConfiguredEnvValueAny([
+    'HTTPS_PROXY',
+    'https_proxy',
+    'HTTP_PROXY',
+    'http_proxy',
+  ]);
   if (!proxyUrl?.trim()) return;
   setGlobalDispatcher(new ProxyAgent(proxyUrl.trim()));
   console.log('[proxy] global dispatcher set:', proxyUrl.trim());

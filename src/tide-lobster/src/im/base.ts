@@ -1,4 +1,12 @@
-import type { ChannelStatus, ChannelType, SendOptions, UnifiedMessage } from './types.js';
+import { readConfiguredEnvValue } from '../config.js';
+import type {
+  ChannelStatus,
+  ChannelType,
+  SendOptions,
+  UnifiedMessage,
+  WebhookRequest,
+  WebhookResponse,
+} from './types.js';
 
 /**
  * IM 通道适配器抽象基类。
@@ -21,6 +29,16 @@ export abstract class ChannelAdapter {
   ) {}
 
   /**
+   * 运行时读取环境变量。
+   *
+   * 统一从当前应用实际使用的用户配置 `.env` 文件读取，
+   * 避免桌面端“文件已修改，但当前进程环境未同步”导致行为不一致。
+   */
+  protected readEnvVar(envName: string): string {
+    return readConfiguredEnvValue(envName);
+  }
+
+  /**
    * 启动通道：建立 Bot API 连接、开始 long polling / webhook 等。
    * 实现须保证可重复调用前先 `stop` 或由管理器处理重复启动。
    */
@@ -33,7 +51,8 @@ export abstract class ChannelAdapter {
   abstract getStatus(): ChannelStatus;
 
   /**
-   * 向平台侧会话发送文本；`chatId` 为该平台会话标识（Telegram 为数字字符串）。
+   * 向平台侧会话发送文本；`chatId` 为该平台会话标识，
+   * 例如 Telegram 的数字 chat id、钉钉的 conversationId。
    */
   abstract sendMessage(chatId: string, content: string, options?: SendOptions): Promise<void>;
 
@@ -42,4 +61,14 @@ export abstract class ChannelAdapter {
    * 将 `UnifiedMessage` 送入聊天管线。
    */
   onMessage: ((msg: UnifiedMessage) => Promise<void>) | null = null;
+
+  /**
+   * 事件推送平台的默认实现：显式报不支持。
+   *
+   * Telegram 这类轮询型通道不会走这里；飞书等若采用 HTTP 回调可覆写本方法，
+   * 把事件解析成 `UnifiedMessage` 后复用同一条聊天处理链路。
+   */
+  async handleWebhook(_request: WebhookRequest): Promise<WebhookResponse> {
+    throw new Error(`${this.channelType} 通道不支持 webhook`);
+  }
 }

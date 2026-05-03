@@ -280,14 +280,15 @@ const en = {
 
   im: {
     title: 'Messaging',
-    subtitle: 'Message channel management: Bot list, connection status',
+    subtitle:
+      'Message channel management: bot list and connection status. DingTalk uses Stream mode and requires Client ID / Client Secret.',
     loadFailed: 'Load failed',
     addChannel: 'Add Channel',
     channelType: 'Channel Type',
     selectChannelType: 'Select channel type',
     configureChannel: 'Configure Channel',
     channelName: 'Channel Name',
-    channelNamePlaceholder: 'e.g. My Telegram Bot',
+    channelNamePlaceholder: 'e.g. My Telegram Bot / My DingTalk App',
     channelNameRequired: 'Channel name is required',
     channelTypeRequired: 'Channel type is required',
     statusRunning: 'Running',
@@ -523,13 +524,15 @@ const en = {
 
   configIM: {
     title: 'IM Channel',
-    subtitle: 'Enable channel switches, then add and manage Bots in "Messaging → Bot Config"',
+    subtitle:
+      'Manage Bots in "Messaging"; IM-related environment variables are better edited centrally in Advanced Config.',
     envHint:
-      'IM-related environment variables (.env) are shown here as read-only preview; full editing in Advanced Config or .env file.',
-    noEnv: 'No environment variables or .env not found',
-    saveConfig: 'Save Config',
+      'This page filters environment variables related to Telegram, DingTalk, and similar channels so you can confirm they are loaded. Edit them in the environment section of Advanced Config.',
+    envPathLabel: 'Current environment file',
+    noEnv: 'No IM-related environment variables found',
+    editEnv: 'Edit environment variables in Advanced Config',
+    openBotConfig: 'Open Messaging Bot Config',
     loadFailed: 'Load failed',
-    saveFailed: 'Save failed',
   },
 
   configTools: {
@@ -558,9 +561,24 @@ const en = {
 
   configAdvanced: {
     title: 'Advanced Config',
-    subtitle: 'Basic settings, hidden modules, vector search, API keys, web search',
+    subtitle:
+      'Basic settings, hidden modules, vector search, API keys, web search, environment variables',
     loadFailed: 'Load failed',
     envPathLabel: 'Current environment file',
+    envEditorTitle: 'Environment Variable Editor',
+    envEditorSubtitle:
+      'Maintain the desktop app global .env in one place. IM, MCP, proxy, and other advanced keys that do not deserve dedicated forms should be handled here.',
+    envEditorHint:
+      'This section shows environment variables not already covered by the dedicated forms above. Sensitive values are never shown in full; leaving them blank keeps the current value, while Delete removes the variable.',
+    envEmptyState: 'No additional environment variables yet. Add one below.',
+    envAddPair: 'Add variable',
+    envKeyPlaceholder: 'e.g. DINGTALK_CLIENT_ID',
+    envValuePlaceholder: 'Enter value',
+    envSensitiveConfigured: 'Currently configured: {{value}}; leave blank to keep unchanged',
+    envKeyRequired: 'Please enter an environment variable name',
+    envValueRequired: 'Please enter a value',
+    envInvalidKey: 'Invalid environment variable name: {{key}}',
+    envDuplicateKey: 'Duplicate environment variable: {{key}}',
     agentName: 'Agent Name',
     agentNamePlaceholder: 'Swell-Lobster',
     agentNameHint: 'Name used for identity (SWELL_AGENT_NAME)',

@@ -1,6 +1,7 @@
 import { requestWithFallback, type LLMRequestMessage } from '../chat/llmClient.js';
 import { ChatStore } from '../chat/chatStore.js';
 import type { EndpointConfig } from '../chat/models.js';
+import { readConfiguredEnvValue } from '../config.js';
 import { EndpointStore } from '../store/endpointStore.js';
 import { memoryStore } from './store.js';
 import type { CreateMemoryInput, MemoryType } from './types.js';
@@ -130,7 +131,7 @@ ${fullText}
         },
         resolveApiKey: (fallback) => {
           if (!fallback.api_key_env) return apiKey;
-          return String(process.env[fallback.api_key_env] ?? apiKey);
+          return readConfiguredEnvValue(fallback.api_key_env) || apiKey;
         },
       });
 
@@ -260,7 +261,7 @@ ${content}
         },
         resolveApiKey: (fallback) => {
           if (!fallback.api_key_env) return apiKey;
-          return String(process.env[fallback.api_key_env] ?? apiKey);
+          return readConfiguredEnvValue(fallback.api_key_env) || apiKey;
         },
       });
 

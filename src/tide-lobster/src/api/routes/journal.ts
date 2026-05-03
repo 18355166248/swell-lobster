@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { readConfiguredEnvValue } from '../../config.js';
 import { getDb } from '../../db/index.js';
 import { extractorService } from '../../memory/extractorService.js';
 import { memoryStore } from '../../memory/store.js';
@@ -112,7 +113,7 @@ journalRouter.post('/api/journal', async (c) => {
       const endpoints = endpointStore.listEndpoints();
       const endpoint = endpoints.find((ep) => ep.enabled && ep.priority === 0) ?? endpoints.find((ep) => ep.enabled);
       if (endpoint && endpoint.api_key_env) {
-        const apiKey = process.env[endpoint.api_key_env] ?? '';
+        const apiKey = readConfiguredEnvValue(endpoint.api_key_env);
         extractorService
           .extractFromJournal(
             Number(result.lastInsertRowid),
@@ -184,7 +185,7 @@ journalRouter.put('/api/journal/:id', async (c) => {
       const endpoints = endpointStore.listEndpoints();
       const endpoint = endpoints.find((ep) => ep.enabled && ep.priority === 0) ?? endpoints.find((ep) => ep.enabled);
       if (endpoint && endpoint.api_key_env) {
-        const apiKey = process.env[endpoint.api_key_env] ?? '';
+        const apiKey = readConfiguredEnvValue(endpoint.api_key_env);
 
         // 删除旧记忆
         memoryStore.deleteBySource('journal', String(id));
@@ -242,7 +243,7 @@ journalRouter.post('/api/journal/:id/extract-memory', async (c) => {
     return c.json({ detail: 'no default endpoint configured' }, 400);
   }
 
-  const apiKey = process.env[endpoint.api_key_env] ?? '';
+  const apiKey = readConfiguredEnvValue(endpoint.api_key_env);
 
   try {
     await extractorService.extractFromJournal(

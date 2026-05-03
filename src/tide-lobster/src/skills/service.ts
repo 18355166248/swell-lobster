@@ -4,7 +4,7 @@
 import { getSkill } from './loader.js';
 import { requestChatCompletion } from '../chat/llmClient.js';
 import { EndpointStore } from '../store/endpointStore.js';
-import { readAppEnvFile } from '../config.js';
+import { readConfiguredEnvValue } from '../config.js';
 import { logSkillInvocation } from './logger.js';
 
 const endpointStore = new EndpointStore();
@@ -20,9 +20,7 @@ function renderPromptTemplate(template: string, payload: Record<string, unknown>
 }
 
 export function getApiKey(envName: string): string {
-  if (!envName) return '';
-  if (process.env[envName]) return String(process.env[envName]);
-  return readAppEnvFile()[envName] ?? '';
+  return readConfiguredEnvValue(envName);
 }
 
 export async function executeSkill(

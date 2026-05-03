@@ -1,28 +1,42 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Button, Alert, Spin, Typography } from 'antd';
+import { Button, Alert, Spin, Typography, Space } from 'antd';
 import { useTranslation } from 'react-i18next';
-import { apiGet, apiPost } from '../../../api/base';
+import { useNavigate } from 'react-router';
+import { apiGet } from '../../../api/base';
+import { ROUTES } from '../../../routes';
 
 const { Title, Text } = Typography;
 
 type EnvMap = Record<string, string>;
+type EnvData = { env: EnvMap; path?: string };
+
+const IM_ENV_KEY_PATTERN =
+  /(DINGTALK|TELEGRAM|LARK|FEISHU|SLACK|DISCORD|WECHAT|WX|BOT|WEBHOOK|CLIENT_ID|CLIENT_SECRET|APP_SECRET|APP_KEY|ROBOT)/i;
 
 export function ConfigIMPage() {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const [env, setEnv] = useState<EnvMap>({});
+  const [envPath, setEnvPath] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const data = await apiGet<{ env: EnvMap }>('/api/config/env');
-      setEnv(data.env ?? {});
+      const data = await apiGet<EnvData>('/api/config/env');
+      const imEnv = Object.fromEntries(
+        Object.entries(data.env ?? {})
+          .filter(([key]) => IM_ENV_KEY_PATTERN.test(key))
+          .sort(([a], [b]) => a.localeCompare(b))
+      );
+      setEnv(imEnv);
+      setEnvPath(data.path ?? '');
     } catch (e) {
       setError(e instanceof Error ? e.message : t('configIM.loadFailed'));
       setEnv({});
+      setEnvPath('');
     } finally {
       setLoading(false);
     }
@@ -31,19 +45,6 @@ export function ConfigIMPage() {
   useEffect(() => {
     void load();
   }, [load]);
-
-  const handleSave = async () => {
-    setSaving(true);
-    setError(null);
-    try {
-      await apiPost('/api/config/env', { entries: env });
-      await load();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : t('configIM.saveFailed'));
-    } finally {
-      setSaving(false);
-    }
-  };
 
   if (loading) {
     return (
@@ -62,6 +63,15 @@ export function ConfigIMPage() {
       <Text type="secondary">{t('configIM.subtitle')}</Text>
 
       {error && <Alert type="error" title={error} className="mt-3" showIcon />}
+      {!error && envPath && (
+        <Alert
+          type="info"
+          showIcon
+          className="mt-3"
+          message={t('configIM.envPathLabel')}
+          description={<code>{envPath}</code>}
+        />
+      )}
 
       <div className="mt-6 border border-border rounded overflow-hidden">
         <div className="px-4 py-3 bg-muted text-sm text-muted-foreground">
@@ -83,9 +93,12 @@ export function ConfigIMPage() {
         )}
       </div>
       <div className="mt-6">
-        <Button type="primary" onClick={handleSave} loading={saving}>
-          {t('configIM.saveConfig')}
-        </Button>
+        <Space wrap>
+          <Button type="primary" onClick={() => navigate(ROUTES.CONFIG_ADVANCED)}>
+            {t('configIM.editEnv')}
+          </Button>
+          <Button onClick={() => navigate(ROUTES.IM)}>{t('configIM.openBotConfig')}</Button>
+        </Space>
       </div>
     </div>
   );

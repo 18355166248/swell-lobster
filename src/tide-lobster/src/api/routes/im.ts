@@ -72,18 +72,66 @@ const CHANNEL_TYPES = [
       },
     ],
   },
+  {
+    type: 'dingtalk',
+    label: 'DingTalk',
+    fields: [
+      {
+        key: 'client_id_env',
+        label: 'Client ID 环境变量名',
+        type: 'string',
+        required: true,
+        hint: '例如 DINGTALK_CLIENT_ID，对应钉钉应用的 Client ID / AppKey',
+      },
+      {
+        key: 'client_secret_env',
+        label: 'Client Secret 环境变量名',
+        type: 'string',
+        required: true,
+        hint: '例如 DINGTALK_CLIENT_SECRET，对应钉钉应用的 Client Secret / AppSecret',
+      },
+      {
+        key: 'robot_code',
+        label: 'robotCode',
+        type: 'string',
+        hint: '可选；默认使用 Client ID。若开发者后台显示的机器人编码不同，可在这里显式填写',
+      },
+      {
+        key: 'rpm_limit',
+        label: '每分钟请求数上限（RPM）',
+        type: 'number',
+        hint: '留空表示不限制；建议先设置为 10~30',
+      },
+      {
+        key: 'rpd_limit',
+        label: '每日请求数上限（RPD）',
+        type: 'number',
+        hint: '留空表示不限制；适合控制外部 IM 渠道总配额',
+      },
+      {
+        key: 'limit_message',
+        label: '限流提示文案',
+        type: 'string',
+        hint: '超过频率限制时返回给用户的消息',
+      },
+    ],
+  },
 ];
+
+function decorateChannel(
+  _c: { req: { url: string } },
+  channel: ReturnType<typeof imStore.list>[number]
+) {
+  const status = channel.enabled ? imManager.getRunningStatus(channel.id) : 'stopped';
+  return { ...channel, status };
+}
 
 /** 返回可用的通道类型元数据，供前端渲染「添加通道」表单 */
 imRouter.get('/api/im/channel-types', (c) => c.json(CHANNEL_TYPES));
 
 /** 列出所有通道；`enabled` 时 `status` 取 `imManager.getRunningStatus` */
 imRouter.get('/api/im/channels', (c) => {
-  const channels = imStore.list().map((ch) => ({
-    ...ch,
-    // 用运行时实际状态覆盖 DB 中的状态
-    status: ch.enabled ? imManager.getRunningStatus(ch.id) : 'stopped',
-  }));
+  const channels = imStore.list().map((ch) => decorateChannel(c, ch));
   return c.json({ channels });
 });
 
@@ -106,7 +154,7 @@ imRouter.post('/api/im/channels', async (c) => {
     enabled: body.enabled ?? false,
   });
 
-  return c.json(channel, 201);
+  return c.json(decorateChannel(c, channel), 201);
 });
 
 /** 更新名称、config、enabled；不隐式启停适配器 */
@@ -126,7 +174,7 @@ imRouter.patch('/api/im/channels/:id', async (c) => {
     config: body.config,
     enabled: body.enabled,
   });
-  return c.json(updated);
+  return c.json(updated ? decorateChannel(c, updated) : updated);
 });
 
 /** 先 `stopChannel` 再删库，避免残留轮询 */

@@ -81,12 +81,34 @@ export function readAppEnvFile(): Record<string, string> {
   }
 }
 
+/**
+ * 读取桌面端用户可编辑的全局环境变量。
+ *
+ * 与运行参数不同，这类配置统一来自应用实际使用的 `.env` 文件，
+ * 例如 `~/.swell-lobster/.env`。这里不再优先读取 `process.env`，避免桌面端
+ * “文件已修改但当前进程环境未同步” 导致的配置错乱。
+ */
+export function readConfiguredEnvValue(envName: string): string {
+  if (!envName) return '';
+  return readAppEnvFile()[envName]?.trim() ?? '';
+}
+
+/** 按顺序读取多个候选键，返回第一个非空值。 */
+export function readConfiguredEnvValueAny(envNames: string[]): string {
+  const env = readAppEnvFile();
+  for (const envName of envNames) {
+    const value = env[envName]?.trim();
+    if (value) return value;
+  }
+  return '';
+}
+
 function env(swellKey: string, fallback: string): string {
   return process.env[`SWELL_${swellKey}`] ?? process.env[swellKey] ?? fallback;
 }
 
 function envNumber(swellKey: string, fallback: number): number {
-  const raw = process.env[`SWELL_${swellKey}`] ?? process.env[swellKey];
+  const raw = readConfiguredEnvValueAny([`SWELL_${swellKey}`, swellKey]);
   if (!raw) return fallback;
   const parsed = Number(raw);
   return Number.isFinite(parsed) ? parsed : fallback;
@@ -97,7 +119,7 @@ function envEnum<T extends readonly string[]>(
   allowed: T,
   fallback: T[number]
 ): T[number] {
-  const raw = (process.env[`SWELL_${swellKey}`] ?? process.env[swellKey] ?? '').trim();
+  const raw = readConfiguredEnvValueAny([`SWELL_${swellKey}`, swellKey]).trim();
   if (allowed.includes(raw)) return raw as T[number];
   return fallback;
 }
@@ -113,14 +135,15 @@ export const settings = {
   port: parseInt(process.env.API_PORT ?? '18900', 10),
   host: process.env.API_HOST ?? '127.0.0.1',
   // 向量 embedding 配置（可选，未配置时降级为 LIKE 检索）
-  embeddingBaseUrl: process.env.SWELL_EMBEDDING_BASE_URL?.trim() ?? '',
-  embeddingModel: process.env.SWELL_EMBEDDING_MODEL?.trim() ?? 'text-embedding-3-small',
-  embeddingApiKeyEnv: process.env.SWELL_EMBEDDING_API_KEY_ENV?.trim() ?? '',
+  embeddingBaseUrl: readConfiguredEnvValue('SWELL_EMBEDDING_BASE_URL'),
+  embeddingModel: readConfiguredEnvValue('SWELL_EMBEDDING_MODEL') || 'text-embedding-3-small',
+  embeddingApiKeyEnv: readConfiguredEnvValue('SWELL_EMBEDDING_API_KEY_ENV'),
   memorySemanticMinScore: envNumber('MEMORY_SEMANTIC_MIN_SCORE', 0.75),
   // 网络搜索配置（可选）
   searchProvider: envEnum('SEARCH_PROVIDER', SEARCH_PROVIDERS, 'auto'),
-  braveSearchApiKeyEnv: process.env.SWELL_BRAVE_SEARCH_API_KEY_ENV?.trim() ?? 'BRAVE_SEARCH_API_KEY',
-  tavilyApiKeyEnv: process.env.SWELL_TAVILY_API_KEY_ENV?.trim() ?? 'TAVILY_API_KEY',
+  braveSearchApiKeyEnv:
+    readConfiguredEnvValue('SWELL_BRAVE_SEARCH_API_KEY_ENV') || 'BRAVE_SEARCH_API_KEY',
+  tavilyApiKeyEnv: readConfiguredEnvValue('SWELL_TAVILY_API_KEY_ENV') || 'TAVILY_API_KEY',
 } as const;
 
 export type Settings = typeof settings;

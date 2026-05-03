@@ -10,8 +10,10 @@ import {
   Checkbox,
   InputNumber,
   Select,
+  Space,
   message,
 } from 'antd';
+import { DeleteOutlined, PlusOutlined } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
 import { apiGet, apiPost } from '../../../api/base';
 import { ROUTES } from '../../../routes';
@@ -37,6 +39,60 @@ type LLMKeyConfig = {
   llmOpenAIKey: string;
   openAIKey: string;
 };
+
+type EditableEnvRow = {
+  id: string;
+  key: string;
+  value: string;
+  maskedValue: string;
+  isSensitive: boolean;
+  isExisting: boolean;
+};
+
+const SENSITIVE_ENV_KEY_PATTERN = /(TOKEN|SECRET|PASSWORD|KEY|APIKEY)/i;
+const ENV_KEY_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/;
+const MANAGED_ENV_KEYS = new Set([
+  'SWELL_AGENT_NAME',
+  'SWELL_EMBEDDING_BASE_URL',
+  'SWELL_EMBEDDING_MODEL',
+  'SWELL_EMBEDDING_API_KEY_ENV',
+  'SWELL_MEMORY_SEMANTIC_MIN_SCORE',
+  'SWELL_SEARCH_PROVIDER',
+  'BRAVE_SEARCH_API_KEY',
+  'TAVILY_API_KEY',
+  'LLM_API_KEY_OPENAI',
+  'OPENAI_API_KEY',
+]);
+
+let envRowSequence = 0;
+
+function createEnvRow({
+  key,
+  value,
+  isExisting,
+}: {
+  key: string;
+  value: string;
+  isExisting: boolean;
+}): EditableEnvRow {
+  envRowSequence += 1;
+  const isSensitive = SENSITIVE_ENV_KEY_PATTERN.test(key);
+  return {
+    id: `env-row-${envRowSequence}`,
+    key,
+    value: isSensitive ? '' : value,
+    maskedValue: value,
+    isSensitive,
+    isExisting,
+  };
+}
+
+function buildEditableEnvRows(env: Record<string, string>): EditableEnvRow[] {
+  return Object.entries(env)
+    .filter(([key]) => !MANAGED_ENV_KEYS.has(key))
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([key, value]) => createEnvRow({ key, value, isExisting: true }));
+}
 
 const HIDEABLE_VIEWS = [
   { key: ROUTES.IM, labelKey: 'sidebar.im' },
@@ -73,6 +129,8 @@ export function ConfigAdvancedPage() {
     llmOpenAIKey: '',
     openAIKey: '',
   });
+  const [customEnvRows, setCustomEnvRows] = useState<EditableEnvRow[]>([]);
+  const [deletedEnvKeys, setDeletedEnvKeys] = useState<string[]>([]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -106,6 +164,8 @@ export function ConfigAdvancedPage() {
         llmOpenAIKey: env.LLM_API_KEY_OPENAI ?? '',
         openAIKey: env.OPENAI_API_KEY ?? '',
       });
+      setCustomEnvRows(buildEditableEnvRows(env));
+      setDeletedEnvKeys([]);
     } catch (e) {
       setError(e instanceof Error ? e.message : t('configAdvanced.loadFailed'));
     } finally {
@@ -116,6 +176,36 @@ export function ConfigAdvancedPage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  const updateCustomEnvRow = useCallback((id: string, patch: Partial<EditableEnvRow>) => {
+    setCustomEnvRows((prev) =>
+      prev.map((row) => {
+        if (row.id !== id) return row;
+        const nextKey = patch.key ?? row.key;
+        return {
+          ...row,
+          ...patch,
+          isSensitive: SENSITIVE_ENV_KEY_PATTERN.test(nextKey.trim()),
+        };
+      })
+    );
+  }, []);
+
+  const handleAddEnvRow = useCallback(() => {
+    setCustomEnvRows((prev) => [...prev, createEnvRow({ key: '', value: '', isExisting: false })]);
+  }, []);
+
+  const handleRemoveEnvRow = useCallback(
+    (id: string) => {
+      const target = customEnvRows.find((row) => row.id === id);
+      if (!target) return;
+      if (target.isExisting) {
+        setDeletedEnvKeys((prev) => (prev.includes(target.key) ? prev : [...prev, target.key]));
+      }
+      setCustomEnvRows((prev) => prev.filter((row) => row.id !== id));
+    },
+    [customEnvRows]
+  );
 
   const handleSave = async () => {
     setSaving(true);
@@ -143,6 +233,42 @@ export function ConfigAdvancedPage() {
       }
       if (llmKeys.openAIKey && !llmKeys.openAIKey.includes('***')) {
         envEntries.OPENAI_API_KEY = llmKeys.openAIKey;
+      }
+
+      const customKeys = new Set<string>();
+      for (const row of customEnvRows) {
+        const key = row.key.trim();
+        const value = row.value.trim();
+        if (!key && !value) continue;
+        if (!key) {
+          setError(t('configAdvanced.envKeyRequired'));
+          setSaving(false);
+          return;
+        }
+        if (!ENV_KEY_PATTERN.test(key)) {
+          setError(t('configAdvanced.envInvalidKey', { key }));
+          setSaving(false);
+          return;
+        }
+        if (customKeys.has(key)) {
+          setError(t('configAdvanced.envDuplicateKey', { key }));
+          setSaving(false);
+          return;
+        }
+        customKeys.add(key);
+        if (!row.isExisting && value === '') {
+          setError(t('configAdvanced.envValueRequired'));
+          setSaving(false);
+          return;
+        }
+        if (row.isSensitive && row.isExisting && value === '') {
+          continue;
+        }
+        envEntries[key] = value;
+      }
+
+      for (const key of deletedEnvKeys) {
+        envEntries[key] = '';
       }
 
       await apiPost('/api/config/env', { entries: envEntries });
@@ -361,6 +487,60 @@ export function ConfigAdvancedPage() {
             />
           </Form.Item>
         </Form>
+      </div>
+
+      <Divider />
+
+      <div>
+        <Title level={5}>{t('configAdvanced.envEditorTitle')}</Title>
+        <Text type="secondary" className="block mb-3">
+          {t('configAdvanced.envEditorSubtitle')}
+        </Text>
+        <Alert type="info" showIcon className="mb-4" message={t('configAdvanced.envEditorHint')} />
+        {customEnvRows.length === 0 ? (
+          <div className="mb-3 rounded border border-dashed border-border px-4 py-6 text-center text-sm text-muted-foreground">
+            {t('configAdvanced.envEmptyState')}
+          </div>
+        ) : (
+          <div className="mb-3 flex flex-col gap-2">
+            {customEnvRows.map((row) => (
+              <Space key={row.id} align="baseline" className="w-full" wrap>
+                <Input
+                  value={row.key}
+                  disabled={row.isExisting}
+                  className="min-w-[220px] flex-1"
+                  placeholder={t('configAdvanced.envKeyPlaceholder')}
+                  onChange={(e) => updateCustomEnvRow(row.id, { key: e.target.value })}
+                />
+                {row.isSensitive ? (
+                  <Input.Password
+                    value={row.value}
+                    className="min-w-[260px] flex-1"
+                    placeholder={
+                      row.maskedValue
+                        ? t('configAdvanced.envSensitiveConfigured', { value: row.maskedValue })
+                        : t('configAdvanced.envValuePlaceholder')
+                    }
+                    onChange={(e) => updateCustomEnvRow(row.id, { value: e.target.value })}
+                  />
+                ) : (
+                  <Input
+                    value={row.value}
+                    className="min-w-[260px] flex-1"
+                    placeholder={t('configAdvanced.envValuePlaceholder')}
+                    onChange={(e) => updateCustomEnvRow(row.id, { value: e.target.value })}
+                  />
+                )}
+                <Button danger icon={<DeleteOutlined />} onClick={() => handleRemoveEnvRow(row.id)}>
+                  {t('common.delete')}
+                </Button>
+              </Space>
+            ))}
+          </div>
+        )}
+        <Button type="dashed" icon={<PlusOutlined />} onClick={handleAddEnvRow}>
+          {t('configAdvanced.envAddPair')}
+        </Button>
       </div>
 
       <div className="mt-4">

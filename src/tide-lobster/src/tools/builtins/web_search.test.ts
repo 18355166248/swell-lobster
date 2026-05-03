@@ -2,18 +2,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mockDispatcher = Symbol('dispatcher');
 const mockGetFetchDispatcherForUrl = vi.fn(() => mockDispatcher);
-const mockSettings = {
-  searchProvider: 'auto',
-  braveSearchApiKeyEnv: 'BRAVE_SEARCH_API_KEY',
-  tavilyApiKeyEnv: 'TAVILY_API_KEY',
-};
+const mockEnv: Record<string, string> = {};
 
 vi.mock('../../net/fetchDispatcher.js', () => ({
   getFetchDispatcherForUrl: mockGetFetchDispatcherForUrl,
 }));
 
 vi.mock('../../config.js', () => ({
-  settings: mockSettings,
+  readConfiguredEnvValue: (envName: string) => mockEnv[envName] ?? '',
 }));
 
 describe('webSearchTool', () => {
@@ -21,21 +17,16 @@ describe('webSearchTool', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mockSettings.searchProvider = 'auto';
-    mockSettings.braveSearchApiKeyEnv = 'BRAVE_SEARCH_API_KEY';
-    mockSettings.tavilyApiKeyEnv = 'TAVILY_API_KEY';
-    delete process.env.BRAVE_SEARCH_API_KEY;
-    delete process.env.TAVILY_API_KEY;
+    for (const key of Object.keys(mockEnv)) delete mockEnv[key];
+    mockEnv.SWELL_SEARCH_PROVIDER = 'auto';
   });
 
   afterEach(() => {
     global.fetch = originalFetch;
-    delete process.env.BRAVE_SEARCH_API_KEY;
-    delete process.env.TAVILY_API_KEY;
   });
 
   it('uses Brave Search when BRAVE_SEARCH_API_KEY is configured', async () => {
-    process.env.BRAVE_SEARCH_API_KEY = 'brave-key';
+    mockEnv.BRAVE_SEARCH_API_KEY = 'brave-key';
     global.fetch = vi.fn().mockResolvedValue({
       ok: true,
       json: async () => ({
@@ -60,7 +51,7 @@ describe('webSearchTool', () => {
   });
 
   it('falls back to DuckDuckGo when Brave Search fails', async () => {
-    process.env.BRAVE_SEARCH_API_KEY = 'brave-key';
+    mockEnv.BRAVE_SEARCH_API_KEY = 'brave-key';
     global.fetch = vi
       .fn()
       .mockResolvedValueOnce({
@@ -82,7 +73,7 @@ describe('webSearchTool', () => {
   });
 
   it('uses Tavily when Brave is absent and Tavily key is configured', async () => {
-    process.env.TAVILY_API_KEY = 'tavily-key';
+    mockEnv.TAVILY_API_KEY = 'tavily-key';
     global.fetch = vi.fn().mockResolvedValue({
       ok: true,
       json: async () => ({
@@ -104,8 +95,8 @@ describe('webSearchTool', () => {
   });
 
   it('uses explicit duckduckgo provider without checking paid keys', async () => {
-    mockSettings.searchProvider = 'duckduckgo';
-    process.env.BRAVE_SEARCH_API_KEY = 'brave-key';
+    mockEnv.SWELL_SEARCH_PROVIDER = 'duckduckgo';
+    mockEnv.BRAVE_SEARCH_API_KEY = 'brave-key';
     global.fetch = vi.fn().mockResolvedValue({
       ok: true,
       text: async () =>
@@ -121,7 +112,7 @@ describe('webSearchTool', () => {
   });
 
   it('returns configuration error when explicit brave provider has no key', async () => {
-    mockSettings.searchProvider = 'brave';
+    mockEnv.SWELL_SEARCH_PROVIDER = 'brave';
     global.fetch = vi.fn() as typeof fetch;
 
     const { webSearchTool } = await import('./web_search.js');

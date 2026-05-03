@@ -55,8 +55,6 @@ function resolveApiKeyValue(
 
   const envKey = apiKeyEnv?.trim() ?? '';
   if (envKey) {
-    const runtimeValue = process.env[envKey]?.trim();
-    if (runtimeValue) return runtimeValue;
     const fileValue = readEnvFile()[envKey]?.trim();
     if (fileValue) return fileValue;
   }

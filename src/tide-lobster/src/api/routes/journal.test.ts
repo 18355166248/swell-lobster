@@ -19,6 +19,7 @@ describe('journalRouter', () => {
     mkdirSync(join(repoRoot, 'identity'), { recursive: true });
     mkdirSync(join(repoRoot, 'data'), { recursive: true });
     writeFileSync(join(repoRoot, 'identity', 'assistant.md'), 'You are a test assistant.');
+    process.env.SWELL_GLOBAL_ENV_DIR = repoRoot;
     process.env.SWELL_PROJECT_ROOT = repoRoot;
     process.env.SWELL_DATA_DIR = join(repoRoot, 'data');
     process.env.SWELL_IDENTITY_DIR = join(repoRoot, 'identity');
@@ -35,7 +36,7 @@ describe('journalRouter', () => {
     delete process.env.SWELL_PROJECT_ROOT;
     delete process.env.SWELL_DATA_DIR;
     delete process.env.SWELL_IDENTITY_DIR;
-    delete process.env.TEST_ENDPOINT_KEY;
+    delete process.env.SWELL_GLOBAL_ENV_DIR;
     vi.resetModules();
   });
 
@@ -56,7 +57,7 @@ describe('journalRouter', () => {
         priority: 0,
       },
     ]);
-    process.env.TEST_ENDPOINT_KEY = 'test-key';
+    writeFileSync(join(repoRoot, '.env'), 'TEST_ENDPOINT_KEY=test-key\n', 'utf-8');
 
     mockExtractFromJournal.mockResolvedValue(undefined);
 
@@ -101,7 +102,7 @@ describe('journalRouter', () => {
         priority: 0,
       },
     ]);
-    process.env.TEST_ENDPOINT_KEY = 'test-key';
+    writeFileSync(join(repoRoot, '.env'), 'TEST_ENDPOINT_KEY=test-key\n', 'utf-8');
 
     const db = getDb();
     const result = db
@@ -176,7 +177,7 @@ describe('journalRouter', () => {
         priority: 0,
       },
     ]);
-    process.env.TEST_ENDPOINT_KEY = 'test-key';
+    writeFileSync(join(repoRoot, '.env'), 'TEST_ENDPOINT_KEY=test-key\n', 'utf-8');
     mockExtractFromJournal.mockResolvedValue(undefined);
 
     const db = getDb();

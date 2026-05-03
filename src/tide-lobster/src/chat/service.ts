@@ -5,7 +5,7 @@
  */
 import { randomUUID } from 'node:crypto';
 
-import { readAppEnvFile } from '../config.js';
+import { readConfiguredEnvValue } from '../config.js';
 import type {
   ChatAttachment,
   ChatSession,
@@ -714,11 +714,9 @@ export class ChatService {
     });
   }
 
-  /** 先读 process.env，再读当前生效的 .env（桌面打包版优先用户主目录全局文件）。 */
+  /** 统一从当前生效的用户配置 .env 读取 API Key。 */
   getApiKeyValue(envName: string): string {
-    if (!envName) return '';
-    if (process.env[envName]) return String(process.env[envName]);
-    return readAppEnvFile()[envName] ?? '';
+    return readConfiguredEnvValue(envName);
   }
 
   private async prepareAttachments(attachments: ChatInputAttachment[]): Promise<ChatAttachment[]> {

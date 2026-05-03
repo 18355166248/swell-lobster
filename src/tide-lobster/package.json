@@ -21,6 +21,7 @@
     "@modelcontextprotocol/sdk": "^1.18.1",
     "@types/better-sqlite3": "^7.6.13",
     "better-sqlite3": "^12.8.0",
+    "dingtalk-stream": "^2.1.6-beta.1",
     "dotenv": "^16.4.0",
     "grammy": "^1.41.1",
     "gray-matter": "^4.0.3",

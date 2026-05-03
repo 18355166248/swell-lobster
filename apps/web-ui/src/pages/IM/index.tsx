@@ -37,6 +37,7 @@ type Channel = {
   channel_type: string;
   name: string;
   config: Record<string, unknown>;
+  webhook_url?: string;
   enabled: boolean;
   status: ChannelStatus;
   error_message: string | null;
@@ -418,6 +419,11 @@ export function IMPage() {
                 render: (name: string, record) => (
                   <div>
                     <div className="font-medium text-foreground">{name}</div>
+                    {record.webhook_url && (
+                      <div className="text-xs text-muted-foreground mt-0.5 break-all">
+                        Webhook: {record.webhook_url}
+                      </div>
+                    )}
                     {record.status === 'error' && record.error_message && (
                       <div className="text-xs text-destructive mt-0.5">{record.error_message}</div>
                     )}

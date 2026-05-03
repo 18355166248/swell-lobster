@@ -1,3 +1,4 @@
+import { readConfiguredEnvValue } from '../config.js';
 import { getFetchDispatcherForUrl } from '../net/fetchDispatcher.js';
 
 export type EmbeddingConfig = {
@@ -30,7 +31,7 @@ export class EmbeddingService {
 
   async embed(text: string): Promise<number[]> {
     const { baseUrl, model, apiKeyEnv } = this.config;
-    const apiKey = apiKeyEnv ? (process.env[apiKeyEnv] ?? '') : '';
+    const apiKey = apiKeyEnv ? readConfiguredEnvValue(apiKeyEnv) : '';
     const url = `${baseUrl.replace(/\/$/, '')}/embeddings`;
 
     const res = await fetch(url, {
@@ -63,11 +64,11 @@ let _service: EmbeddingService | null = null;
 
 /** 从环境变量构建单例；未配置时返回 null（降级到 LIKE 检索）。 */
 export function getEmbeddingService(): EmbeddingService | null {
-  const baseUrl = process.env.SWELL_EMBEDDING_BASE_URL?.trim();
+  const baseUrl = readConfiguredEnvValue('SWELL_EMBEDDING_BASE_URL');
   if (!baseUrl) return null;
 
-  const model = process.env.SWELL_EMBEDDING_MODEL?.trim() || 'text-embedding-3-small';
-  const apiKeyEnv = process.env.SWELL_EMBEDDING_API_KEY_ENV?.trim() || undefined;
+  const model = readConfiguredEnvValue('SWELL_EMBEDDING_MODEL') || 'text-embedding-3-small';
+  const apiKeyEnv = readConfiguredEnvValue('SWELL_EMBEDDING_API_KEY_ENV') || undefined;
 
   if (
     !_service ||

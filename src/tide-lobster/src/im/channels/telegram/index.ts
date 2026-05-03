@@ -41,17 +41,17 @@ export class TelegramChannel extends ChannelAdapter {
 
   private buildBotConfig(): ConstructorParameters<typeof Bot>[1] {
     const proxyUrl =
-      process.env.HTTPS_PROXY ||
-      process.env.https_proxy ||
-      process.env.HTTP_PROXY ||
-      process.env.http_proxy;
+      this.readEnvVar('HTTPS_PROXY') ||
+      this.readEnvVar('https_proxy') ||
+      this.readEnvVar('HTTP_PROXY') ||
+      this.readEnvVar('http_proxy');
     console.log('[telegram] proxy url:', proxyUrl ?? '(none)');
     if (!proxyUrl) return {};
     return { client: { baseFetchConfig: { agent: new HttpsProxyAgent(proxyUrl) } } };
   }
 
   async start(): Promise<void> {
-    const token = process.env[this.cfg.bot_token_env];
+    const token = this.readEnvVar(this.cfg.bot_token_env);
     if (!token) throw new Error(`环境变量 ${this.cfg.bot_token_env} 未设置`);
 
     console.log('[telegram] starting channel, bot_token_env:', this.cfg.bot_token_env);
@@ -197,7 +197,11 @@ export class TelegramChannel extends ChannelAdapter {
     const photo = ctx.message?.photo?.at(-1);
     if (!photo) return;
 
-    const token = process.env[this.cfg.bot_token_env]!;
+    const token = this.readEnvVar(this.cfg.bot_token_env);
+    if (!token) {
+      await ctx.reply('抱歉，当前 Telegram Bot Token 未配置。');
+      return;
+    }
     let base64 = '';
     try {
       const file = await ctx.api.getFile(photo.file_id);

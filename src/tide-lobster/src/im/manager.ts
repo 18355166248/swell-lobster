@@ -7,9 +7,10 @@
  */
 import { randomUUID } from 'node:crypto';
 import { ChannelAdapter } from './base.js';
+import { DingtalkChannel } from './channels/dingtalk/index.js';
 import { TelegramChannel } from './channels/telegram/index.js';
 import { imStore } from './store.js';
-import type { IMChannelConfig, UnifiedMessage } from './types.js';
+import type { IMChannelConfig, UnifiedMessage, WebhookRequest, WebhookResponse } from './types.js';
 import type { ChatService } from '../chat/service.js';
 import { IdentityService } from '../identity/identityService.js';
 import { getDb } from '../db/index.js';
@@ -20,6 +21,8 @@ function createAdapter(cfg: IMChannelConfig): ChannelAdapter {
   switch (cfg.channel_type) {
     case 'telegram':
       return new TelegramChannel(cfg.id, cfg.config);
+    case 'dingtalk':
+      return new DingtalkChannel(cfg.id, cfg.config);
     default:
       throw new Error(`不支持的通道类型: ${cfg.channel_type}`);
   }
@@ -64,6 +67,19 @@ export class IMManager {
   /** 进程内真实状态；无适配器时视为 `stopped` */
   getRunningStatus(id: string): 'running' | 'stopped' | 'error' {
     return this.adapters.get(id)?.getStatus() ?? 'stopped';
+  }
+
+  /**
+   * 将第三方 webhook 请求转交给对应适配器。
+   *
+   * 这层只负责按 `channel_id` 找到已经启动的适配器，不关心钉钉 / 飞书的事件格式细节。
+   */
+  async handleWebhook(id: string, request: WebhookRequest): Promise<WebhookResponse> {
+    const adapter = this.adapters.get(id);
+    if (!adapter) {
+      throw new Error('通道未启动');
+    }
+    return adapter.handleWebhook(request);
   }
 
   /**

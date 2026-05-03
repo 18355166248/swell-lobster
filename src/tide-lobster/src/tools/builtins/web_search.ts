@@ -1,4 +1,4 @@
-import { settings, type SearchProvider } from '../../config.js';
+import { readConfiguredEnvValue, type SearchProvider } from '../../config.js';
 import { getFetchDispatcherForUrl } from '../../net/fetchDispatcher.js';
 import type { ToolDef } from '../types.js';
 
@@ -87,13 +87,27 @@ async function searchTavily(query: string, limit: number, apiKey: string): Promi
 
 function getSearchConfig(): {
   provider: SearchProvider;
+  braveEnvKey: string;
   braveKey: string;
+  tavilyEnvKey: string;
   tavilyKey: string;
 } {
+  const providerRaw = readConfiguredEnvValue('SWELL_SEARCH_PROVIDER');
+  const provider: SearchProvider =
+    providerRaw === 'brave' ||
+    providerRaw === 'tavily' ||
+    providerRaw === 'duckduckgo' ||
+    providerRaw === 'auto'
+      ? providerRaw
+      : 'auto';
+  const braveEnvKey = readConfiguredEnvValue('SWELL_BRAVE_SEARCH_API_KEY_ENV') || 'BRAVE_SEARCH_API_KEY';
+  const tavilyEnvKey = readConfiguredEnvValue('SWELL_TAVILY_API_KEY_ENV') || 'TAVILY_API_KEY';
   return {
-    provider: settings.searchProvider,
-    braveKey: process.env[settings.braveSearchApiKeyEnv]?.trim() ?? '',
-    tavilyKey: process.env[settings.tavilyApiKeyEnv]?.trim() ?? '',
+    provider,
+    braveEnvKey,
+    braveKey: readConfiguredEnvValue(braveEnvKey),
+    tavilyEnvKey,
+    tavilyKey: readConfiguredEnvValue(tavilyEnvKey),
   };
 }
 
@@ -118,7 +132,8 @@ export const webSearchTool: ToolDef = {
     if (!keyword) return '未提供搜索关键词';
 
     const maxResults = Math.min(Number(limit ?? 5), 10);
-    const { provider: configuredProvider, braveKey, tavilyKey } = getSearchConfig();
+    const { provider: configuredProvider, braveEnvKey, braveKey, tavilyEnvKey, tavilyKey } =
+      getSearchConfig();
 
     let results: SearchResult[];
     let providerLabel = '';
@@ -126,13 +141,13 @@ export const webSearchTool: ToolDef = {
     try {
       if (configuredProvider === 'brave') {
         if (!braveKey) {
-          return `搜索失败：当前已强制使用 Brave Search，但未配置 ${settings.braveSearchApiKeyEnv}`;
+          return `搜索失败：当前已强制使用 Brave Search，但未配置 ${braveEnvKey}`;
         }
         providerLabel = 'Brave Search';
         results = await searchBrave(keyword, maxResults, braveKey);
       } else if (configuredProvider === 'tavily') {
         if (!tavilyKey) {
-          return `搜索失败：当前已强制使用 Tavily，但未配置 ${settings.tavilyApiKeyEnv}`;
+          return `搜索失败：当前已强制使用 Tavily，但未配置 ${tavilyEnvKey}`;
         }
         providerLabel = 'Tavily';
         results = await searchTavily(keyword, maxResults, tavilyKey);

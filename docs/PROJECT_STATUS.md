@@ -223,7 +223,7 @@ swell-lobster/
 - [x] API 文档（已有 api-reference.md）
 - [x] 数据库 Schema 文档（已有 database-schema.md）
 - [ ] 部署文档与运行说明收尾
-- [ ] 用户手册
+- [x] 桌面端用户手册（`docs/desktop-user-guide.md`）
 
 ### 安全
 

@@ -1,6 +1,7 @@
 # 运行与排障指南
 
-本文收敛 SwellLobster 的启动链路、桌面运行关系、构建入口和常见排障方式。环境变量与代理细节请配合 [desktop-env-config.md](desktop-env-config.md) 一起看。
+本文收敛 SwellLobster 的启动链路、桌面运行关系、构建入口和常见排障方式。  
+如果你主要想看“如何作为桌面端用户使用产品”，先读 [desktop-user-guide.md](desktop-user-guide.md)；环境变量与代理细节请配合 [desktop-env-config.md](desktop-env-config.md) 一起看。
 
 ## 启动链路
 

@@ -26,12 +26,6 @@ const tasks = [
     cwd: 'apps/web-ui',
   },
   {
-    label: 'web:build',
-    command: 'npm',
-    args: ['run', 'build'],
-    cwd: 'apps/web-ui',
-  },
-  {
     label: 'desktop:check',
     command: 'cargo',
     args: ['check', '--manifest-path', 'apps/desktop/src-tauri/Cargo.toml'],

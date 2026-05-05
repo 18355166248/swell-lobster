@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   Badge,
   Alert,
@@ -63,7 +63,7 @@ export function StatusPage() {
   const [clearingTmp, setClearingTmp] = useState(false);
   const [clearingOutputs, setClearingOutputs] = useState(false);
 
-  const loadHealth = () => {
+  const loadHealth = useCallback(() => {
     setLoading(true);
     setError(null);
     apiGet<{
@@ -78,22 +78,22 @@ export function StatusPage() {
       .then(setHealth)
       .catch((e) => setError(e instanceof Error ? e.message : t('status.loadFailed')))
       .finally(() => setLoading(false));
-  };
+  }, [t]);
 
-  const loadAudit = () => {
+  const loadAudit = useCallback(() => {
     setAuditError(null);
     apiGet<{ records: AuditRecord[] }>('/api/approvals/audit?limit=20')
       .then((data) => setAuditRecords(data.records))
       .catch((e) => setAuditError(e instanceof Error ? e.message : t('status.auditLoadFailed')));
-  };
+  }, [t]);
 
-  const loadCacheInfo = () => {
+  const loadCacheInfo = useCallback(() => {
     apiGet<{ tmp: { count: number; bytes: number }; outputs: { count: number; bytes: number } }>(
       '/api/cache/info'
     )
       .then(setCacheInfo)
       .catch(() => {});
-  };
+  }, []);
 
   const handleClearCache = async (target: 'tmp' | 'outputs') => {
     const setSaving = target === 'tmp' ? setClearingTmp : setClearingOutputs;
@@ -113,7 +113,7 @@ export function StatusPage() {
     loadHealth();
     loadAudit();
     loadCacheInfo();
-  }, [t]);
+  }, [loadAudit, loadCacheInfo, loadHealth]);
 
   const handleViewLog = async () => {
     setOpeningLog(true);

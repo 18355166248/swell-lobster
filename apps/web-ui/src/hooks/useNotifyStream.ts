@@ -9,7 +9,10 @@ type NotifyEvent = {
 
 export function useNotifyStream(onEvent: (e: NotifyEvent) => void) {
   const onEventRef = useRef(onEvent);
-  onEventRef.current = onEvent;
+
+  useEffect(() => {
+    onEventRef.current = onEvent;
+  }, [onEvent]);
 
   useEffect(() => {
     let es: EventSource;
@@ -21,7 +24,9 @@ export function useNotifyStream(onEvent: (e: NotifyEvent) => void) {
       es.addEventListener('notify', (e) => {
         try {
           onEventRef.current(JSON.parse((e as MessageEvent).data) as NotifyEvent);
-        } catch {}
+        } catch {
+          /* 非 JSON 或结构异常时忽略 */
+        }
       });
       es.onerror = () => {
         es.close();

@@ -1044,6 +1044,7 @@ export function ChatPage() {
       selectedEndpointName,
       updateSessionMessages,
       setChatGenerating,
+      handleStreamEvent,
       t,
     ]
   );

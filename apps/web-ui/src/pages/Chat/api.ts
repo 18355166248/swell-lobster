@@ -5,6 +5,8 @@ import type {
   ChatSession,
   EndpointItem,
   PersonaInfo,
+  PlanState,
+  PlanStepState,
   SessionSearchResult,
   SessionSummary,
 } from './types';
@@ -203,6 +205,25 @@ export async function sendMessageStream(
                 ? chunk.decision
                 : 'expired',
           });
+        }
+        if (chunk.type === 'plan_created' && chunk.plan) {
+          onEvent({ type: 'plan_created', plan: chunk.plan as PlanState });
+        }
+        if (
+          (chunk.type === 'plan_step_started' ||
+            chunk.type === 'plan_step_completed' ||
+            chunk.type === 'plan_step_failed') &&
+          typeof chunk.planId === 'string' &&
+          chunk.step
+        ) {
+          onEvent({
+            type: chunk.type,
+            planId: chunk.planId,
+            step: chunk.step as PlanStepState,
+          });
+        }
+        if ((chunk.type === 'plan_completed' || chunk.type === 'plan_failed') && chunk.plan) {
+          onEvent({ type: chunk.type, plan: chunk.plan as PlanState });
         }
         if (chunk.done) {
           return {

@@ -46,6 +46,25 @@ export type ChatMessage = {
   blocks?: MessageBlock[];
   attachments?: ChatAttachment[];
   imageUrls?: string[];
+  plan?: PlanState;
+};
+
+export type PlanStepState = {
+  id: string;
+  stepOrder: number;
+  title: string;
+  description: string;
+  mode: 'main_agent' | 'delegate_agent';
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'skipped';
+  outputSummary?: string | null;
+  errorMessage?: string | null;
+};
+
+export type PlanState = {
+  id: string;
+  goal: string;
+  status: 'draft' | 'running' | 'completed' | 'failed' | 'cancelled';
+  steps: PlanStepState[];
 };
 
 export type ChatSession = {
@@ -119,4 +138,10 @@ export type ChatStreamEvent =
       content: string;
       truncated?: boolean;
       original_length?: number;
-    };
+    }
+  | { type: 'plan_created'; plan: PlanState }
+  | { type: 'plan_step_started'; planId: string; step: PlanStepState }
+  | { type: 'plan_step_completed'; planId: string; step: PlanStepState }
+  | { type: 'plan_step_failed'; planId: string; step: PlanStepState }
+  | { type: 'plan_completed'; plan: PlanState }
+  | { type: 'plan_failed'; plan: PlanState };

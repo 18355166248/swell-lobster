@@ -25,6 +25,7 @@ import type {
   ChatStreamEvent,
   ChatSession,
   MessageBlock,
+  PlanState,
   SessionSearchResult,
   SessionSummary,
   ToolInvocation,
@@ -36,6 +37,7 @@ import { ChatComposer } from './components/ChatComposer';
 import { LoadingBubble } from './components/LoadingBubble';
 import { PersonaSelect } from './components/PersonaSelect';
 import { MessageActions } from './components/MessageActions';
+import { PlanTimeline } from './components/PlanTimeline';
 
 const lastPersonaAtom = atomWithStorage<string | null>('chat_last_persona', null);
 
@@ -216,6 +218,57 @@ function applyStreamEvent(messages: ChatMessage[], event: ChatStreamEvent): Chat
       });
 
       return { ...message, tool_invocations: toolInvocations, blocks };
+    });
+  }
+
+  if (event.type === 'plan_created') {
+    const planState: PlanState = {
+      id: event.plan.id,
+      goal: event.plan.goal,
+      status: event.plan.status,
+      steps: event.plan.steps.map((s) => ({
+        id: s.id,
+        stepOrder: s.stepOrder,
+        title: s.title,
+        description: s.description,
+        mode: s.mode,
+        status: s.status,
+        outputSummary: s.outputSummary,
+        errorMessage: s.errorMessage,
+      })),
+    };
+    return updateLastAssistantMessage(messages, (msg) => ({
+      ...msg,
+      plan: planState,
+      blocks: msg.blocks ?? [],
+    }));
+  }
+
+  if (
+    event.type === 'plan_step_started' ||
+    event.type === 'plan_step_completed' ||
+    event.type === 'plan_step_failed'
+  ) {
+    return updateLastAssistantMessage(messages, (msg) => {
+      if (!msg.plan || msg.plan.id !== event.planId) return msg;
+      const steps = msg.plan.steps.map((s) =>
+        s.id === event.step.id
+          ? {
+              ...s,
+              status: event.step.status,
+              outputSummary: event.step.outputSummary,
+              errorMessage: event.step.errorMessage,
+            }
+          : s
+      );
+      return { ...msg, plan: { ...msg.plan, steps } };
+    });
+  }
+
+  if (event.type === 'plan_completed' || event.type === 'plan_failed') {
+    return updateLastAssistantMessage(messages, (msg) => {
+      if (!msg.plan || msg.plan.id !== event.plan.id) return msg;
+      return { ...msg, plan: { ...msg.plan, status: event.plan.status } };
     });
   }
 
@@ -1202,8 +1255,9 @@ export function ChatPage() {
                         }`}
                       >
                         {blocks ? (
-                          // 流式构建的消息：按 blocks 有序渲染
+                          // 流式构建的消息：计划时间线优先展示，然后按 blocks 有序渲染
                           <div className="flex flex-col gap-2">
+                            {messageRow?.plan && <PlanTimeline plan={messageRow.plan} />}
                             {blocks.map((block, blockIndex) => {
                               if (block.type === 'tool_invocation') {
                                 return (

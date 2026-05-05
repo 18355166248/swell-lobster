@@ -765,6 +765,28 @@ const zh = {
       allSources: '全部来源',
     },
   },
+
+  plan: {
+    title: '执行计划',
+    goal: '目标',
+    statusDraft: '草稿',
+    statusRunning: '执行中',
+    statusCompleted: '已完成',
+    statusFailed: '失败',
+    statusCancelled: '已取消',
+    stepStatusPending: '等待',
+    stepStatusRunning: '执行中',
+    stepStatusCompleted: '已完成',
+    stepStatusFailed: '失败',
+    stepStatusSkipped: '已跳过',
+    modeMainAgent: '主 Agent',
+    modeDelegateAgent: '子 Agent',
+    stepOf: '共 {{total}} 步',
+    retry: '重试',
+    retryFailed: '重试失败',
+    cancel: '取消计划',
+    cancelFailed: '取消失败',
+  },
 } as const;
 
 export default zh;

@@ -754,6 +754,28 @@ const en = {
       allSources: 'All sources',
     },
   },
+
+  plan: {
+    title: 'Execution Plan',
+    goal: 'Goal',
+    statusDraft: 'Draft',
+    statusRunning: 'Running',
+    statusCompleted: 'Completed',
+    statusFailed: 'Failed',
+    statusCancelled: 'Cancelled',
+    stepStatusPending: 'Pending',
+    stepStatusRunning: 'Running',
+    stepStatusCompleted: 'Completed',
+    stepStatusFailed: 'Failed',
+    stepStatusSkipped: 'Skipped',
+    modeMainAgent: 'Main Agent',
+    modeDelegateAgent: 'Sub-Agent',
+    stepOf: '{{total}} steps total',
+    retry: 'Retry',
+    retryFailed: 'Retry failed',
+    cancel: 'Cancel Plan',
+    cancelFailed: 'Cancel failed',
+  },
 };
 
 export default en;

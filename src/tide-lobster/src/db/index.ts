@@ -534,6 +534,44 @@ const migrations: Array<{ version: number; up: (db: Database.Database) => void }
       `);
     },
   },
+  {
+    version: 25,
+    up: (db) => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS execution_plans (
+          id TEXT PRIMARY KEY,
+          session_id TEXT NOT NULL,
+          goal TEXT NOT NULL,
+          status TEXT NOT NULL,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_execution_plans_session
+          ON execution_plans(session_id, created_at DESC);
+
+        CREATE TABLE IF NOT EXISTS execution_plan_steps (
+          id TEXT PRIMARY KEY,
+          plan_id TEXT NOT NULL,
+          step_order INTEGER NOT NULL,
+          title TEXT NOT NULL,
+          description TEXT NOT NULL,
+          mode TEXT NOT NULL,
+          template_id TEXT,
+          status TEXT NOT NULL,
+          depends_on_json TEXT NOT NULL DEFAULT '[]',
+          output_summary TEXT,
+          error_message TEXT,
+          started_at TEXT,
+          completed_at TEXT,
+          FOREIGN KEY (plan_id) REFERENCES execution_plans(id) ON DELETE CASCADE
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_execution_plan_steps_plan
+          ON execution_plan_steps(plan_id, step_order ASC);
+      `);
+    },
+  },
 ];
 
 function runMigrations(db: Database.Database): void {

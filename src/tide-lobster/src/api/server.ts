@@ -29,6 +29,7 @@ import { exportRouter } from './routes/export.js';
 import { agentTemplatesRouter } from './routes/agentTemplates.js';
 import { agentRouter } from './routes/agent.js';
 import { approvalsRouter } from './routes/approvals.js';
+import { plansRouter } from './routes/plans.js';
 import { resolveAppEnvPath, settings } from '../config.js';
 
 export function createApp(): Hono {
@@ -88,6 +89,7 @@ export function createApp(): Hono {
   app.route('/', agentTemplatesRouter); // /api/agent-templates/* — Agent 模板
   app.route('/', agentRouter); // /api/agent/* — 子 Agent 委托
   app.route('/', approvalsRouter); // /api/approvals/* — 工具审批请求
+  app.route('/', plansRouter); // /api/plans/* — 执行计划
 
   return app;
 }

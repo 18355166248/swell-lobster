@@ -29,6 +29,8 @@ import { persistUploadedBuffer, type StoredAttachment } from '../upload/handler.
 import { toLLMMessages, type ChatInputAttachment } from './attachments.js';
 import { approvalStore } from '../store/approvalStore.js';
 import { executionAuditService, type AuditDecision } from '../tools/executionAudit.js';
+import { planStore } from '../store/planStore.js';
+import type { ExecutionPlan, ExecutionStep, PlanDraft, PlanEvent } from '../planner/planSchema.js';
 
 /** 单次用户提问内，模型最多可发起多少轮「助手带 tool_calls → 执行工具 → 再请求模型」；防止死循环。 */
 const MAX_TOOL_ROUNDS = 25;
@@ -60,7 +62,8 @@ export type ChatStreamEvent =
       content: string;
       truncated?: boolean;
       original_length?: number;
-    };
+    }
+  | PlanEvent;
 
 /**
  * 从最新消息往前截断，控制发给模型的上下文总字符数（默认约 60k），避免超长请求。
@@ -362,6 +365,23 @@ export class ChatService {
       if (event.type === 'delta') accumulated += event.delta;
       await onEvent(event);
     };
+
+    // 计划模式：检测到触发词时走分步执行路径
+    if (this.isPlanModeTrigger(userMessage)) {
+      return this.chatStreamPlan({
+        session: sessionAfterUser,
+        endpoint,
+        apiKey,
+        userMessage,
+        baseMessages,
+        systemPrompt,
+        onEvent: trackingOnEvent,
+        signal,
+        trackedToolInvocations,
+        trackedBlocks,
+        disabledToolNames: args.disabled_tool_names ?? [],
+      });
+    }
 
     try {
       const assistant = await this.runCompletion({
@@ -991,5 +1011,261 @@ export class ChatService {
     const out =
       typeof rateOut === 'number' && Number.isFinite(rateOut) && rateOut >= 0 ? rateOut : 0;
     return (usage.prompt_tokens / 1_000_000) * rateIn + (usage.completion_tokens / 1_000_000) * out;
+  }
+
+  // ─── 计划模式 ───────────────────────────────────────────────────────────────
+
+  private isPlanModeTrigger(message: string): boolean {
+    const lower = message.toLowerCase();
+    return (
+      lower.startsWith('/plan ') ||
+      lower.startsWith('/计划 ') ||
+      lower.includes('请分步执行') ||
+      lower.includes('制定执行计划') ||
+      lower.includes('step by step plan')
+    );
+  }
+
+  private extractGoalFromMessage(message: string): string {
+    return message
+      .replace(/^\/plan\s+/i, '')
+      .replace(/^\/计划\s+/, '')
+      .replace(/请分步执行\s*/, '')
+      .replace(/制定执行计划[：:]\s*/, '')
+      .trim() || message;
+  }
+
+  /** 用一次无工具 LLM 调用生成结构化计划，返回解析后的 PlanDraft 或 null。 */
+  private async generatePlanDraft(
+    goal: string,
+    endpoint: EndpointConfig,
+    apiKey: string,
+    signal?: AbortSignal
+  ): Promise<PlanDraft | null> {
+    const systemPrompt = `你是一个任务规划助手。用户给出一个目标，你需要将其拆解为 3~8 个清晰的执行步骤。
+只返回 JSON，不加任何解释。格式严格遵守：
+{
+  "goal": "...",
+  "steps": [
+    {
+      "title": "简短标题",
+      "description": "具体执行说明",
+      "mode": "main_agent"
+    }
+  ]
+}
+mode 只允许 "main_agent" 或 "delegate_agent"。
+delegate_agent 仅用于需要专门子 Agent 执行的步骤（如代码生成、文档撰写），此时可加 "templateId" 字段。
+步骤之间如有依赖，用 "dependsOn": ["前置步骤title"] 标注。`;
+
+    try {
+      const result = await requestWithFallback({
+        endpoint,
+        apiKey,
+        messages: [{ role: 'user', content: `目标：${goal}` }],
+        systemPrompt,
+        signal,
+      });
+
+      const text = result.content.trim();
+      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) return null;
+      const draft = JSON.parse(jsonMatch[0]) as PlanDraft;
+
+      if (!draft.steps?.length || draft.steps.length < 1 || draft.steps.length > 10) return null;
+      for (const s of draft.steps) {
+        if (!s.title || !s.description) return null;
+        if (s.mode !== 'main_agent' && s.mode !== 'delegate_agent') s.mode = 'main_agent';
+      }
+      return draft;
+    } catch {
+      return null;
+    }
+  }
+
+  /** 执行计划中的单个步骤，返回输出摘要和是否成功。 */
+  private async executeStep(
+    step: ExecutionStep,
+    context: {
+      endpoint: EndpointConfig;
+      apiKey: string;
+      sessionId: string;
+      previousSummaries: string;
+      onEvent?: (event: ChatStreamEvent) => void | Promise<void>;
+      signal?: AbortSignal;
+      disabledToolNames?: string[];
+    }
+  ): Promise<{ summary: string; success: boolean }> {
+    const contextHeader = context.previousSummaries
+      ? `已完成的步骤摘要：\n${context.previousSummaries}\n\n`
+      : '';
+
+    const stepPrompt = `${contextHeader}当前任务：${step.title}\n\n${step.description}\n\n请执行此步骤并输出结果。`;
+
+    const messages: LLMRequestMessage[] = [{ role: 'user', content: stepPrompt }];
+
+    try {
+      const result = await this.runCompletion({
+        endpoint: context.endpoint,
+        apiKey: context.apiKey,
+        sessionId: context.sessionId,
+        messages,
+        onEvent: context.onEvent,
+        signal: context.signal,
+        disabledToolNames: context.disabledToolNames ?? [],
+      });
+
+      const summary =
+        result.content.length > 500
+          ? result.content.slice(0, 500) + '...'
+          : result.content;
+
+      return { summary, success: true };
+    } catch {
+      return { summary: '步骤执行失败', success: false };
+    }
+  }
+
+  /** 计划模式聊天流：生成计划 → 逐步执行 → 汇总结果落盘。 */
+  private async chatStreamPlan(args: {
+    session: ChatSession;
+    endpoint: EndpointConfig;
+    apiKey: string;
+    userMessage: string;
+    baseMessages: LLMRequestMessage[];
+    systemPrompt?: string;
+    onEvent: (event: ChatStreamEvent) => void | Promise<void>;
+    signal?: AbortSignal;
+    trackedToolInvocations: ToolExecutionTrace[];
+    trackedBlocks: MessageBlock[];
+    disabledToolNames: string[];
+  }): Promise<{ session: ChatSession; message: string }> {
+    const goal = this.extractGoalFromMessage(args.userMessage);
+
+    // 1. 生成计划
+    const draft = await this.generatePlanDraft(
+      goal,
+      args.endpoint,
+      args.apiKey,
+      args.signal
+    );
+
+    if (!draft) {
+      // 计划生成失败，回退到普通模式
+      const assistant = await this.runCompletion({
+        endpoint: args.endpoint,
+        apiKey: args.apiKey,
+        sessionId: args.session.id,
+        messages: args.baseMessages,
+        systemPrompt: args.systemPrompt,
+        onEvent: args.onEvent,
+        signal: args.signal,
+        toolInvocationsRef: args.trackedToolInvocations,
+        blocksRef: args.trackedBlocks,
+        disabledToolNames: args.disabledToolNames,
+      });
+      const appended = this.store.appendAssistantMessageWithMeta({
+        sessionId: args.session.id,
+        assistantContent: assistant.content,
+        endpointName: args.endpoint.name,
+        blocks: assistant.blocks,
+      });
+      if (!appended) throw new Error('failed to persist chat session');
+      this.recordUsage({
+        messageId: appended.messageId,
+        endpointName: args.endpoint.name,
+        endpoint: args.endpoint,
+        usage: assistant.usage,
+      });
+      this.attachToolInvocations(appended.session, assistant.toolInvocations);
+      return { session: appended.session, message: assistant.content };
+    }
+
+    // 2. 保存计划
+    const plan = planStore.createPlan({
+      sessionId: args.session.id,
+      goal: draft.goal || goal,
+      steps: draft.steps,
+    });
+    planStore.setPlanStatus(plan.id, 'running');
+
+    await args.onEvent({ type: 'plan_created', plan: planStore.getById(plan.id)! });
+
+    // 3. 逐步执行
+    const stepSummaries: string[] = [];
+    let planFailed = false;
+
+    for (const step of plan.steps) {
+      if (args.signal?.aborted) {
+        planStore.setStepStatus(step.id, 'skipped');
+        continue;
+      }
+
+      const updatedStep = planStore.setStepStatus(step.id, 'running');
+      if (updatedStep) {
+        await args.onEvent({ type: 'plan_step_started', planId: plan.id, step: updatedStep });
+      }
+
+      const previousSummaries = stepSummaries
+        .map((s, i) => `步骤 ${i + 1}：${s}`)
+        .join('\n');
+
+      const { summary, success } = await this.executeStep(step, {
+        endpoint: args.endpoint,
+        apiKey: args.apiKey,
+        sessionId: args.session.id,
+        previousSummaries,
+        onEvent: args.onEvent,
+        signal: args.signal,
+        disabledToolNames: args.disabledToolNames,
+      });
+
+      if (success) {
+        const completed = planStore.setStepStatus(step.id, 'completed', { outputSummary: summary });
+        stepSummaries.push(summary);
+        if (completed) {
+          await args.onEvent({ type: 'plan_step_completed', planId: plan.id, step: completed });
+        }
+      } else {
+        const failed = planStore.setStepStatus(step.id, 'failed', { errorMessage: summary });
+        planFailed = true;
+        if (failed) {
+          await args.onEvent({ type: 'plan_step_failed', planId: plan.id, step: failed });
+        }
+        break;
+      }
+    }
+
+    // 4. 生成最终汇总回复
+    const finalStatus = planFailed ? 'failed' : 'completed';
+    planStore.setPlanStatus(plan.id, finalStatus);
+
+    const finalPlan = planStore.getById(plan.id)!;
+    await args.onEvent(
+      finalStatus === 'completed'
+        ? { type: 'plan_completed', plan: finalPlan }
+        : { type: 'plan_failed', plan: finalPlan }
+    );
+
+    const summaryContent = planFailed
+      ? `计划执行遇到问题，已完成 ${stepSummaries.length}/${plan.steps.length} 个步骤。\n\n${stepSummaries.map((s, i) => `**步骤 ${i + 1}**：${s}`).join('\n\n')}`
+      : `计划已完成，共执行 ${plan.steps.length} 个步骤。\n\n${stepSummaries.map((s, i) => `**步骤 ${i + 1} - ${plan.steps[i]?.title ?? ''}**：${s}`).join('\n\n')}`;
+
+    // 通过 delta 事件推送摘要
+    await emitTextAsChunks(summaryContent, async (delta) => {
+      await args.onEvent({ type: 'delta', delta });
+    });
+
+    // 5. 落盘
+    const appended = this.store.appendAssistantMessageWithMeta({
+      sessionId: args.session.id,
+      assistantContent: summaryContent,
+      endpointName: args.endpoint.name,
+    });
+    if (!appended) throw new Error('failed to persist plan summary');
+
+    this.triggerMemoryExtraction(args.session.id, args.endpoint, args.apiKey);
+
+    return { session: appended.session, message: summaryContent };
   }
 }

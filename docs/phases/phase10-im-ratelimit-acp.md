@@ -3,7 +3,7 @@
 > **目标**：在现有 Telegram 通道基础上，扩展飞书 / 钉钉能力，补齐通道级限流与审计，为后续计划模式与多 Agent 协作打通最小委托闭环。
 > **预估工作量**：2.5 周
 > **前置条件**：阶段 8、9 已完成
-> **状态**：🟡 **部分完成**（2026-05-03）
+> **状态**：🟡 **主体已完成**（步骤1-6已完成，步骤7测试待补）
 
 ---
 
@@ -14,13 +14,14 @@
 - `src/tide-lobster/src/im/rateLimiter.ts` 与 `im_rate_stats` 表，Telegram / 通用 IM 入口已支持 RPM / RPD 限流
 - `src/tide-lobster/src/tools/builtins/delegate_task.ts` 与 `src/tide-lobster/src/agents/delegateService.ts`，已具备单层子会话委托能力
 - `src/tide-lobster/src/im/channels/dingtalk/`，已接入钉钉 Stream 通道 MVP
-- IM 管理器、IM 路由和 IM 页面已补渠道类型与限流配置字段
+- `src/tide-lobster/src/im/channels/feishu/`，已接入飞书 WSClient 长连接通道（支持文本/富文本/图片，无需公网 URL）
+- `src/tide-lobster/src/types/lark-sdk.d.ts`，飞书 SDK 类型声明
+- IM 管理器、IM 路由和 IM 页面已补飞书渠道类型与配置字段（domain 选择）
 
 未完成：
 
-- 飞书 webhook / event subscription 通道
-- 阶段文档与任务状态收口
-- 与阶段 11 审批 / 审计链路的对接
+- 飞书通道自动化测试（集成验证）
+- 阶段文档最终收口（等验证完成后标为全部 ✅）
 
 ## 背景与问题
 
@@ -323,12 +324,12 @@ im_rate_stats (
 
 ## 完成情况
 
-| 步骤   | 内容                            | 状态      |
-| ------ | ------------------------------- | --------- |
-| 步骤 1 | IM 抽象层收敛                   | ⬜ 待实现 |
-| 步骤 2 | 钉钉通道                        | ⬜ 待实现 |
-| 步骤 3 | 飞书通道                        | ⬜ 待实现 |
-| 步骤 4 | 通道级速率限制                  | ⬜ 待实现 |
-| 步骤 5 | Agent 间通信（`delegate_task`） | ⬜ 待实现 |
-| 步骤 6 | 前端与配置收口                  | ⬜ 待实现 |
-| 步骤 7 | 测试与回归                      | ⬜ 待实现 |
+| 步骤   | 内容                            | 状态                                                                    |
+| ------ | ------------------------------- | ----------------------------------------------------------------------- |
+| 步骤 1 | IM 抽象层收敛                   | ✅ 已完成（rateLimiter.ts、base.ts 通用 webhook 支持）                  |
+| 步骤 2 | 钉钉通道                        | ✅ 已完成（channels/dingtalk/index.ts，Stream SDK）                     |
+| 步骤 3 | 飞书通道                        | ✅ 已完成（channels/feishu/index.ts，Webhook 模式，支持签名校验）       |
+| 步骤 4 | 通道级速率限制                  | ✅ 已完成（im/rateLimiter.ts、im_rate_stats 表）                        |
+| 步骤 5 | Agent 间通信（`delegate_task`） | ✅ 已完成（tools/builtins/delegate_task.ts、agents/delegateService.ts） |
+| 步骤 6 | 前端与配置收口                  | ✅ 已完成（IM 页面数据驱动，通道类型字段已补飞书）                      |
+| 步骤 7 | 测试与回归                      | ⬜ 待实现（飞书 webhook 验签单测、通道集成验证）                        |

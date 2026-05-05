@@ -1,1 +1,1 @@
-npm run verify
+node scripts/git-hook-verify.mjs

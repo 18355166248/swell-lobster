@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { approvalStore, type ApprovalGrantScope } from '../../store/approvalStore.js';
+import { executionAuditService } from '../../tools/executionAudit.js';
 
 export const approvalsRouter = new Hono();
 
@@ -54,4 +55,10 @@ approvalsRouter.post('/api/approvals/:id/deny', async (c) => {
   );
   if (!request) return c.json({ detail: 'approval request not found' }, 404);
   return c.json({ request });
+});
+
+approvalsRouter.get('/api/approvals/audit', (c) => {
+  const sessionId = (c.req.query('sessionId') ?? '').trim() || undefined;
+  const limit = Number.parseInt(c.req.query('limit') ?? '50', 10);
+  return c.json({ records: executionAuditService.listRecent({ sessionId, limit }) });
 });

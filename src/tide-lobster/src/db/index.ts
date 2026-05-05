@@ -509,6 +509,31 @@ const migrations: Array<{ version: number; up: (db: Database.Database) => void }
       `);
     },
   },
+  {
+    version: 24,
+    up: (db) => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS tool_execution_audit (
+          id TEXT PRIMARY KEY,
+          session_id TEXT NOT NULL,
+          tool_name TEXT NOT NULL,
+          approval_request_id TEXT,
+          risk_level TEXT NOT NULL,
+          decision TEXT NOT NULL,
+          duration_ms INTEGER NOT NULL,
+          status TEXT NOT NULL,
+          output_summary TEXT NOT NULL,
+          created_at TEXT NOT NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_tool_execution_audit_created
+          ON tool_execution_audit(created_at DESC);
+
+        CREATE INDEX IF NOT EXISTS idx_tool_execution_audit_session
+          ON tool_execution_audit(session_id, created_at DESC);
+      `);
+    },
+  },
 ];
 
 function runMigrations(db: Database.Database): void {

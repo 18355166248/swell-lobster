@@ -1,5 +1,16 @@
 import { useEffect, useState } from 'react';
-import { Badge, Alert, Spin, Typography, Button, Space, message, Descriptions } from 'antd';
+import {
+  Badge,
+  Alert,
+  Spin,
+  Typography,
+  Button,
+  Space,
+  message,
+  Descriptions,
+  Table,
+  Tag,
+} from 'antd';
 import { FileTextOutlined, ReloadOutlined } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
 import { invoke } from '@tauri-apps/api/core';
@@ -17,6 +28,17 @@ async function openLog(): Promise<void> {
   await invoke('open_file', { path });
 }
 
+interface AuditRecord {
+  id: string;
+  tool_name: string;
+  risk_level: string;
+  decision: string;
+  status: string;
+  duration_ms: number;
+  output_summary: string;
+  created_at: string;
+}
+
 export function StatusPage() {
   const { t } = useTranslation();
   const [health, setHealth] = useState<{
@@ -32,6 +54,8 @@ export function StatusPage() {
   const [error, setError] = useState<string | null>(null);
   const [openingLog, setOpeningLog] = useState(false);
   const [restarting, setRestarting] = useState(false);
+  const [auditRecords, setAuditRecords] = useState<AuditRecord[]>([]);
+  const [auditError, setAuditError] = useState<string | null>(null);
 
   const loadHealth = () => {
     setLoading(true);
@@ -50,8 +74,16 @@ export function StatusPage() {
       .finally(() => setLoading(false));
   };
 
+  const loadAudit = () => {
+    setAuditError(null);
+    apiGet<{ records: AuditRecord[] }>('/api/approvals/audit?limit=20')
+      .then((data) => setAuditRecords(data.records))
+      .catch((e) => setAuditError(e instanceof Error ? e.message : t('status.auditLoadFailed')));
+  };
+
   useEffect(() => {
     loadHealth();
+    loadAudit();
   }, [t]);
 
   const handleViewLog = async () => {
@@ -167,6 +199,99 @@ export function StatusPage() {
           </Space>
         </div>
       )}
+
+      <div className="mt-8">
+        <div className="flex items-center justify-between mb-3">
+          <Title level={5} style={{ margin: 0 }}>
+            {t('status.auditTitle')}
+          </Title>
+          <Button size="small" icon={<ReloadOutlined />} onClick={loadAudit}>
+            {t('common.refresh')}
+          </Button>
+        </div>
+        {auditError && <Alert type="error" message={auditError} className="mb-3" showIcon />}
+        <Table<AuditRecord>
+          dataSource={auditRecords}
+          rowKey="id"
+          size="small"
+          pagination={false}
+          locale={{ emptyText: t('status.auditEmpty') }}
+          columns={[
+            {
+              title: t('status.auditTool'),
+              dataIndex: 'tool_name',
+              key: 'tool_name',
+              render: (v: string) => <Text code>{v}</Text>,
+            },
+            {
+              title: t('status.auditRisk'),
+              dataIndex: 'risk_level',
+              key: 'risk_level',
+              render: (v: string) => {
+                const colorMap: Record<string, string> = {
+                  readonly: 'default',
+                  write: 'blue',
+                  execute: 'orange',
+                  network: 'purple',
+                };
+                return <Tag color={colorMap[v] ?? 'default'}>{v}</Tag>;
+              },
+            },
+            {
+              title: t('status.auditDecision'),
+              dataIndex: 'decision',
+              key: 'decision',
+              render: (v: string) => {
+                const labelMap: Record<string, string> = {
+                  skipped: t('status.auditDecisionSkipped'),
+                  approved: t('status.auditDecisionApproved'),
+                  denied: t('status.auditDecisionDenied'),
+                  expired: t('status.auditDecisionExpired'),
+                };
+                const colorMap: Record<string, string> = {
+                  skipped: 'default',
+                  approved: 'success',
+                  denied: 'error',
+                  expired: 'warning',
+                };
+                return <Tag color={colorMap[v] ?? 'default'}>{labelMap[v] ?? v}</Tag>;
+              },
+            },
+            {
+              title: t('status.auditStatus'),
+              dataIndex: 'status',
+              key: 'status',
+              render: (v: string) => (
+                <Badge
+                  status={v === 'success' ? 'success' : 'error'}
+                  text={
+                    v === 'success' ? t('status.auditStatusSuccess') : t('status.auditStatusFailed')
+                  }
+                />
+              ),
+            },
+            {
+              title: t('status.auditDuration'),
+              dataIndex: 'duration_ms',
+              key: 'duration_ms',
+              render: (v: number) => `${v}ms`,
+            },
+            {
+              title: t('status.auditTime'),
+              dataIndex: 'created_at',
+              key: 'created_at',
+              render: (v: string) => new Date(v).toLocaleString(),
+            },
+            {
+              title: t('status.auditOutput'),
+              dataIndex: 'output_summary',
+              key: 'output_summary',
+              ellipsis: true,
+              render: (v: string) => <Text type="secondary">{v}</Text>,
+            },
+          ]}
+        />
+      </div>
     </div>
   );
 }

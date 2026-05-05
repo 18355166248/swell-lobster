@@ -28,6 +28,7 @@ import { getSkill } from '../skills/loader.js';
 import { persistUploadedBuffer, type StoredAttachment } from '../upload/handler.js';
 import { toLLMMessages, type ChatInputAttachment } from './attachments.js';
 import { approvalStore } from '../store/approvalStore.js';
+import { executionAuditService, type AuditDecision } from '../tools/executionAudit.js';
 
 /** 单次用户提问内，模型最多可发起多少轮「助手带 tool_calls → 执行工具 → 再请求模型」；防止死循环。 */
 const MAX_TOOL_ROUNDS = 25;
@@ -726,6 +727,9 @@ export class ChatService {
       return trace;
     }
 
+    let auditDecision: AuditDecision = 'skipped';
+    let approvalRequestId: string | undefined;
+
     if (tool.permission.requiresApproval) {
       if (!(sessionId && approvalStore.hasSessionGrant(sessionId, toolCall.name))) {
       const approval = approvalStore.createRequest({
@@ -736,6 +740,7 @@ export class ChatService {
         summary: `${tool.permission.sideEffectSummary} ${summarizeToolArguments(toolCall.arguments)}`,
       });
       trace.approval_request_id = approval.id;
+      approvalRequestId = approval.id;
       await onEvent?.({
         type: 'tool_approval_required',
         requestId: approval.id,
@@ -757,6 +762,7 @@ export class ChatService {
           : resolved.status === 'denied'
             ? 'denied'
             : 'expired';
+      auditDecision = decision;
       await onEvent?.({
         type: 'tool_approval_resolved',
         requestId: approval.id,
@@ -776,6 +782,16 @@ export class ChatService {
           status: 'failed',
           content: trace.result,
         });
+        executionAuditService.record({
+          sessionId: sessionId ?? 'unknown',
+          toolName: toolCall.name,
+          approvalRequestId,
+          riskLevel: tool.permission.riskLevel,
+          decision: auditDecision,
+          durationMs: 0,
+          status: 'failed',
+          outputSummary: trace.result,
+        });
         throw new ToolApprovalInterruptedError(
           trace.result,
           resolved.status === 'denied'
@@ -784,10 +800,13 @@ export class ChatService {
           trace
         );
       }
+      } else {
+        auditDecision = 'approved';
       }
     }
 
     const TOOL_RESULT_MAX_CHARS = 50_000;
+    const startMs = Date.now();
     try {
       const rawResult = await tool.execute(toolCall.arguments, { sessionId });
       const truncated = rawResult.length > TOOL_RESULT_MAX_CHARS;
@@ -804,6 +823,16 @@ export class ChatService {
         truncated,
         original_length: truncated ? rawResult.length : undefined,
       });
+      executionAuditService.record({
+        sessionId: sessionId ?? 'unknown',
+        toolName: toolCall.name,
+        approvalRequestId,
+        riskLevel: tool.permission.riskLevel,
+        decision: auditDecision,
+        durationMs: Date.now() - startMs,
+        status: 'success',
+        outputSummary: trace.result ?? '',
+      });
     } catch (error) {
       trace.status = 'failed';
       trace.result = error instanceof Error ? error.message : String(error);
@@ -812,6 +841,16 @@ export class ChatService {
         name: toolCall.name,
         status: 'failed',
         content: trace.result,
+      });
+      executionAuditService.record({
+        sessionId: sessionId ?? 'unknown',
+        toolName: toolCall.name,
+        approvalRequestId,
+        riskLevel: tool.permission.riskLevel,
+        decision: auditDecision,
+        durationMs: Date.now() - startMs,
+        status: 'failed',
+        outputSummary: trace.result,
       });
     }
     return trace;

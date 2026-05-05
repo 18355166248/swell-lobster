@@ -18,41 +18,17 @@
  *   { exit_code, stdout, stderr, output_files: [{filename, url}], timed_out }
  */
 import { existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, statSync, writeFileSync } from 'node:fs';
-import { basename, dirname, extname, join, resolve, sep } from 'node:path';
+import { dirname, extname, join, resolve, sep } from 'node:path';
 import { spawnSync, spawn } from 'node:child_process';
 import { builtinModules } from 'node:module';
 import { settings } from '../../config.js';
 import { ToolRiskLevel, type ToolDef } from '../types.js';
+import { getExecuteAllowedRoots, getScriptWritableRoot, isPathWithinRoots } from '../policy.js';
 
 const ALLOWED_EXTENSIONS = new Set(['.py', '.js', '.mjs']);
 const DEFAULT_TIMEOUT_S = 30;
 const MAX_TIMEOUT_S = 120;
 const MAX_OUTPUT_BYTES = 512 * 1024; // 512 KB
-
-function getAllowedRoots(): string[] {
-  const roots = [
-    join(settings.projectRoot, 'SKILLS'),
-    join(settings.dataDir, 'skills'),
-  ];
-  return roots.map((r) => {
-    try {
-      return realpathSync(r);
-    } catch {
-      return resolve(r);
-    }
-  });
-}
-
-/** 动态生成的脚本只允许写入 data/skills/ 目录，不允许写入 SKILLS/（只读技能库）。 */
-function getWritableRoot(): string {
-  const dir = join(settings.dataDir, 'skills');
-  try {
-    return realpathSync(dir);
-  } catch {
-    return resolve(dir);
-  }
-}
-
 /** 从脚本内容中提取所有裸模块名（非相对路径、非 node: 内置）。*/
 function extractBareImports(source: string): string[] {
   const specifiers = new Set<string>();
@@ -114,16 +90,6 @@ function ensureEsmModulesAvailable(scriptContent: string): void {
   if (result.status !== 0) {
     console.error('[run_script] npm install failed:', result.stderr?.toString().slice(0, 500));
   }
-}
-
-function isPathAllowed(filePath: string, roots: string[]): boolean {
-  let real: string;
-  try {
-    real = realpathSync(filePath);
-  } catch {
-    return false;
-  }
-  return roots.some((root) => real === root || real.startsWith(root + sep));
 }
 
 function getOutputDir(): string {
@@ -363,7 +329,7 @@ export const runScriptTool: ToolDef = {
         });
       }
       const resolvedPath = resolve(scriptPath);
-      const writableRoot = getWritableRoot();
+      const writableRoot = getScriptWritableRoot();
       const allowed = resolvedPath === writableRoot || resolvedPath.startsWith(writableRoot + sep);
       if (!allowed) {
         // 尝试自动重定向：SKILLS/ → data/skills/
@@ -387,8 +353,7 @@ export const runScriptTool: ToolDef = {
     }
 
     // 4. 路径安全校验
-    const roots = getAllowedRoots();
-    if (!isPathAllowed(scriptPath, roots)) {
+    if (!isPathWithinRoots(scriptPath, getExecuteAllowedRoots())) {
       return JSON.stringify({
         error: 'script_path is outside the allowed skills directories.',
       });

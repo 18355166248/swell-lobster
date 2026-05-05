@@ -1,15 +1,8 @@
 import { existsSync, readFileSync } from 'node:fs';
-import { join, resolve, extname } from 'node:path';
+import { extname } from 'node:path';
 
-import { settings } from '../../config.js';
 import { ToolRiskLevel, type ToolDef } from '../types.js';
-
-/** 路径安全校验：仅允许读取 data/tmp/uploads/ 下的文件 */
-function isSafePath(filePath: string): boolean {
-  const uploadDir = resolve(join(settings.projectRoot, 'data', 'tmp', 'uploads'));
-  const resolved = resolve(filePath);
-  return resolved.startsWith(uploadDir + '/') || resolved.startsWith(uploadDir + '\\');
-}
+import { getReadAllowedRoots, isPathWithinRoots } from '../policy.js';
 
 async function extractPdfText(filePath: string): Promise<string> {
   // 动态 import 避免 pdfjs-dist 的 worker 警告影响非 PDF 路径
@@ -50,7 +43,7 @@ export const readFileTool: ToolDef = {
     const p = String(filePath ?? '').trim();
     if (!p) return '未提供文件路径';
 
-    if (!isSafePath(p)) {
+    if (!isPathWithinRoots(p, getReadAllowedRoots())) {
       return `路径不在允许范围内，仅支持读取 data/tmp/uploads/ 目录下的文件`;
     }
 

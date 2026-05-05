@@ -27,6 +27,7 @@ type SessionListProps = {
   onSelectSearchResult: (result: SessionSearchResult) => void;
   onDelete: (sessionId: string) => Promise<void>;
   onRename: (sessionId: string, newTitle: string) => Promise<void>;
+  unreadSessions?: Set<string>;
 };
 
 /** 列表预览：压空白并截断，避免搜索命中长消息撑破侧栏。 */
@@ -41,6 +42,7 @@ export function SessionList({
   onSelectSearchResult,
   onDelete,
   onRename,
+  unreadSessions,
 }: SessionListProps) {
   const { t } = useTranslation();
   const { modal, message } = App.useApp();
@@ -372,6 +374,9 @@ export function SessionList({
                   )}
                   {chatGenerating.has(session.id) && (
                     <span className="inline-flex shrink-0 w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  )}
+                  {!chatGenerating.has(session.id) && unreadSessions?.has(session.id) && (
+                    <span className="inline-flex shrink-0 w-1.5 h-1.5 rounded-full bg-blue-400" />
                   )}
                   <span className="truncate">{session.title || t('chat.newSession')}</span>
                 </span>

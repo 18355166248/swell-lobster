@@ -31,6 +31,7 @@ import { agentRouter } from './routes/agent.js';
 import { approvalsRouter } from './routes/approvals.js';
 import { plansRouter } from './routes/plans.js';
 import { cacheRouter } from './routes/cache.js';
+import { notifyRouter } from './routes/notify.js';
 import { resolveAppEnvPath, settings } from '../config.js';
 
 export function createApp(): Hono {
@@ -92,6 +93,7 @@ export function createApp(): Hono {
   app.route('/', approvalsRouter); // /api/approvals/* — 工具审批请求
   app.route('/', plansRouter); // /api/plans/* — 执行计划
   app.route('/', cacheRouter); // /api/cache/* — 缓存管理
+  app.route('/', notifyRouter); // /api/notify/* — 实时通知（SSE）
 
   return app;
 }

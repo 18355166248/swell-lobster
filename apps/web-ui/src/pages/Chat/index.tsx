@@ -38,6 +38,7 @@ import { LoadingBubble } from './components/LoadingBubble';
 import { PersonaSelect } from './components/PersonaSelect';
 import { MessageActions } from './components/MessageActions';
 import { PlanTimeline } from './components/PlanTimeline';
+import { useNotifyStream } from '../../hooks/useNotifyStream';
 
 const lastPersonaAtom = atomWithStorage<string | null>('chat_last_persona', null);
 
@@ -484,6 +485,7 @@ export function ChatPage() {
   const [input, setInput] = useState('');
   const [pendingAttachments, setPendingAttachments] = useState<UploadedAttachment[]>([]);
   const [chatGeneratingSessions, setChatGenerating] = useAtom(chatGeneratingAtom);
+  const [unreadSessions, setUnreadSessions] = useState<Set<string>>(() => new Set());
 
   // 当前展示的消息（由 activeSessionId 派生，不是独立 state）
   const messages = useMemo(
@@ -650,6 +652,38 @@ export function ChatPage() {
     setSessions((prev) => upsertSessionSummary(prev, detail));
   };
 
+  const activeSessionIdRef = useRef(activeSessionId);
+  activeSessionIdRef.current = activeSessionId;
+
+  useNotifyStream((event) => {
+    if (event.type === 'im_start') {
+      setChatGenerating((prev) => new Set(prev).add(event.session_id));
+      setSessions((prev) => {
+        if (prev.find((s) => s.id === event.session_id)) return prev;
+        // 新 IM 用户首次对话：session 尚未在列表中，异步刷新列表
+        void fetchChatBootstrap()
+          .then((data) => {
+            const list = Array.isArray(data.sessions) ? data.sessions : [];
+            setSessions(list);
+          })
+          .catch(() => {});
+        return prev;
+      });
+    }
+    if (event.type === 'im_done') {
+      setChatGenerating((prev) => {
+        const next = new Set(prev);
+        next.delete(event.session_id);
+        return next;
+      });
+      if (event.session_id === activeSessionIdRef.current) {
+        void loadSession(event.session_id);
+      } else {
+        setUnreadSessions((prev) => new Set(prev).add(event.session_id));
+      }
+    }
+  });
+
   useEffect(() => {
     const run = async () => {
       setBootLoading(true);
@@ -727,6 +761,12 @@ export function ChatPage() {
     shouldScrollToBottomRef.current = true;
     userIsAtBottomRef.current = true;
     scrollBehaviorRef.current = 'instant';
+    setUnreadSessions((prev) => {
+      if (!prev.has(sessionId)) return prev;
+      const next = new Set(prev);
+      next.delete(sessionId);
+      return next;
+    });
 
     // 目标会话正在生成中：消息已在 map 里实时更新，直接切换 ID 即可，不能重新从 API 加载
     if (chatGeneratingSessions.has(sessionId)) {
@@ -1140,6 +1180,7 @@ export function ChatPage() {
             onSelectSearchResult={handleSelectSearchResult}
             onDelete={handleDeleteSession}
             onRename={handleRenameSession}
+            unreadSessions={unreadSessions}
           />
         </div>
       </aside>

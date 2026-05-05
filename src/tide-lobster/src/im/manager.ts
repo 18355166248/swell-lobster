@@ -16,6 +16,7 @@ import type { ChatService } from '../chat/service.js';
 import { IdentityService } from '../identity/identityService.js';
 import { getDb } from '../db/index.js';
 import { checkRateLimit } from './rateLimiter.js';
+import { notifyBus } from '../notify/bus.js';
 
 /** 工厂：按 `channel_type` 实例化具体适配器，未知类型抛错 */
 function createAdapter(cfg: IMChannelConfig): ChannelAdapter {
@@ -126,6 +127,8 @@ export class IMManager {
         title: `${msg.channel_type} - ${msg.user_id}`,
       });
 
+      notifyBus.emit('event', { type: 'im_start', session_id: session.id, channel_type: msg.channel_type });
+
       const chatArgs: Parameters<ChatService['chat']>[0] = {
         conversation_id: session.id,
         message: msg.text ?? (msg.images?.length ? (msg.caption ?? '请描述这张图片') : ''),
@@ -143,6 +146,7 @@ export class IMManager {
       // 走与 Web UI 相同的 `ChatService.chat`：按 `conversation_id` 续写历史、选端点/人格、
       // 流式或非流式调用 LLM；`result.message` 为助手最终文本（已落库一侧由 ChatService 负责）。
       const result = await this.chatService.chat(chatArgs);
+      notifyBus.emit('event', { type: 'im_done', session_id: session.id });
       // 将助手回复发回该 IM 侧 `chat_id`（如 Telegram 的 chat id），与入站同一会话线程。
       await adapter.sendMessage(msg.chat_id, result.message, { replyToMessageId: msg.message_id });
     } catch (err: unknown) {

@@ -412,24 +412,28 @@ imRouter.post('/api/im/channels/:id/webhook', async (c) => {
 // 飞书机器人扫码安装（Device Code OAuth 流）
 // ──────────────────────────────────────────────
 
+/** 动态导入的 feishu-auth 与包内类型不完全一致，此处仅描述本路由实际调用的方法 */
+type FeishuAuthInstance = {
+  setDomain(isLark: boolean): void;
+  init(): Promise<unknown>;
+  begin(): Promise<{
+    verification_uri_complete: string;
+    device_code: string;
+    interval?: number;
+    expire_in?: number;
+  }>;
+  poll(deviceCode: string): Promise<{
+    error?: string;
+    error_description?: string;
+    client_id?: string;
+    client_secret?: string;
+    user_info?: { tenant_brand?: string };
+  }>;
+};
+
 type FeishuAuthModule = {
-  FeishuAuth: new () => {
-    setDomain(isLark: boolean): void;
-    init(): Promise<void>;
-    begin(): Promise<{
-      verification_uri_complete: string;
-      device_code: string;
-      interval?: number;
-      expire_in?: number;
-    }>;
-    poll(deviceCode: string): Promise<{
-      error?: string;
-      error_description?: string;
-      client_id?: string;
-      client_secret?: string;
-      user_info?: { tenant_brand?: string };
-    }>;
-  };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  FeishuAuth: new (...args: any[]) => FeishuAuthInstance;
 };
 
 /** deviceCode → { isLark, expireAt } 的短暂会话状态，仅内存 */
@@ -443,12 +447,14 @@ setInterval(() => {
 
 /** 获取飞书 QR 码：返回供前端渲染的 verification_uri_complete 与 deviceCode */
 imRouter.post('/api/im/feishu/install/qrcode', async (c) => {
-  const body = await c.req.json<{ isLark?: boolean }>().catch(() => ({}));
+  const body = await c
+    .req.json<{ isLark?: boolean }>()
+    .catch((): { isLark?: boolean } => ({}));
   const isLark = body.isLark === true;
   try {
     const { FeishuAuth } = (await import(
       '@larksuite/openclaw-lark-tools/dist/utils/feishu-auth.js'
-    )) as FeishuAuthModule;
+    )) as unknown as FeishuAuthModule;
     const auth = new FeishuAuth();
     auth.setDomain(isLark);
     await auth.init();
@@ -476,7 +482,7 @@ imRouter.post('/api/im/feishu/install/poll', async (c) => {
   try {
     const { FeishuAuth } = (await import(
       '@larksuite/openclaw-lark-tools/dist/utils/feishu-auth.js'
-    )) as FeishuAuthModule;
+    )) as unknown as FeishuAuthModule;
     const auth = new FeishuAuth();
     auth.setDomain(session.isLark);
     const resp = await auth.poll(deviceCode);
@@ -502,7 +508,10 @@ imRouter.post('/api/im/feishu/install/poll', async (c) => {
 imRouter.post('/api/im/feishu/install/verify', async (c) => {
   const body = await c
     .req.json<{ appId: string; appSecret: string; domain?: string }>()
-    .catch(() => ({ appId: '', appSecret: '' }));
+    .catch((): { appId: string; appSecret: string; domain?: string } => ({
+      appId: '',
+      appSecret: '',
+    }));
   const { appId, appSecret, domain } = body;
   if (!appId || !appSecret) return c.json({ detail: 'appId and appSecret required' }, 400);
   try {

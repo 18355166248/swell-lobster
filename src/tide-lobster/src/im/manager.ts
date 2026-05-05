@@ -144,7 +144,7 @@ export class IMManager {
       // 流式或非流式调用 LLM；`result.message` 为助手最终文本（已落库一侧由 ChatService 负责）。
       const result = await this.chatService.chat(chatArgs);
       // 将助手回复发回该 IM 侧 `chat_id`（如 Telegram 的 chat id），与入站同一会话线程。
-      await adapter.sendMessage(msg.chat_id, result.message);
+      await adapter.sendMessage(msg.chat_id, result.message, { replyToMessageId: msg.message_id });
     } catch (err: unknown) {
       await adapter.sendMessage(msg.chat_id, '抱歉，处理消息时出现错误。').catch(() => {});
       console.error('[IMManager] handleMessage error:', err);

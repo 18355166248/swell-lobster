@@ -61,6 +61,34 @@ function resolveReceiveIdType(target: string): string {
   return 'chat_id';
 }
 
+/** 将非 ASCII 字符转为 \uXXXX，避免飞书 API 对编码的潜在问题（参考 LobsterAI stringifyAsciiJson） */
+function asciiJson(value: unknown): string {
+  return JSON.stringify(value).replace(/[^\x00-\x7F]/g, (c) =>
+    `\\u${c.charCodeAt(0).toString(16).padStart(4, '0')}`
+  );
+}
+
+/**
+ * 将标准 Markdown 转为飞书卡片 markdown 元素兼容的格式。
+ * 飞书卡片不支持 # ## ### 标题语法，转成加粗替代。
+ */
+function normalizeForFeishu(text: string): string {
+  return text.replace(/^#{1,6}\s+(.+)$/gm, '**$1**');
+}
+
+/** 检测文本是否含有 Markdown 语法，需要用卡片渲染 */
+function hasMarkdownSyntax(text: string): boolean {
+  return /```[\s\S]*?```|\*\*.*?\*\*|^#{1,6}\s|\[.+?\]\(.+?\)/m.test(text);
+}
+
+/** 构造飞书卡片 JSON，markdown 元素直接渲染 md 格式 */
+function buildMarkdownCard(content: string): string {
+  return asciiJson({
+    config: { wide_screen_mode: true },
+    elements: [{ tag: 'markdown', content: normalizeForFeishu(content) }],
+  });
+}
+
 function parsePostContent(content: string): string {
   try {
     const parsed = JSON.parse(content) as {
@@ -167,25 +195,53 @@ export class FeishuChannel extends ChannelAdapter {
     return this._status;
   }
 
-  async sendMessage(chatId: string, content: string, _options?: SendOptions): Promise<void> {
+  async sendMessage(chatId: string, content: string, options?: SendOptions): Promise<void> {
     if (!this.restClient) throw new Error('飞书通道未启动');
+    const useCard = hasMarkdownSyntax(content);
+    const msgType = useCard ? 'interactive' : 'text';
+    const msgContent = useCard ? buildMarkdownCard(content) : asciiJson({ text: content });
+
+    const replyToMessageId = options?.replyToMessageId;
+    if (replyToMessageId) {
+      const response = await this.restClient.im.message.reply({
+        path: { message_id: replyToMessageId },
+        data: { content: msgContent, msg_type: msgType },
+      });
+      if (response.code !== 0) {
+        throw new Error(`飞书回复消息失败: ${response.msg ?? response.code}`);
+      }
+      return;
+    }
+
     const receiveIdType = resolveReceiveIdType(chatId);
     const response = await this.restClient.im.message.create({
       params: { receive_id_type: receiveIdType },
-      data: {
-        receive_id: chatId,
-        msg_type: 'text',
-        content: JSON.stringify({ text: content }),
-      },
+      data: { receive_id: chatId, msg_type: msgType, content: msgContent },
     });
     if (response.code !== 0) {
       throw new Error(`飞书发送消息失败: ${response.msg ?? response.code}`);
     }
   }
 
+  private async addReaction(messageId: string, emojiType: string): Promise<void> {
+    if (!this.restClient) return;
+    try {
+      await this.restClient.request({
+        method: 'POST',
+        url: `/open-apis/im/v1/messages/${messageId}/reactions`,
+        data: { reaction_type: { emoji_type: emojiType } },
+      });
+    } catch {
+      // reaction 失败不影响主流程
+    }
+  }
+
   private async handleInboundMessage(event: FeishuMessageEvent): Promise<void> {
     const messageId = event.message.message_id;
     if (isMessageProcessed(messageId)) return;
+
+    // 立即给消息加「在处理」反应，无需等待 LLM 回复（fire-and-forget）
+    void this.addReaction(messageId, 'Get');
 
     const chatId = event.message.chat_id?.trim();
     if (!chatId) return;

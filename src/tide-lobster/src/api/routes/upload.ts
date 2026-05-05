@@ -25,7 +25,7 @@ uploadRouter.get('/api/uploads/:filename', (c) => {
   const raw = c.req.param('filename');
   // 防止路径穿越：只取文件名部分
   const filename = basename(raw);
-  const filePath = join(settings.projectRoot, 'data', 'tmp', 'uploads', filename);
+  const filePath = join(settings.dataDir, 'tmp', 'uploads', filename);
 
   if (!existsSync(filePath)) {
     return c.json({ detail: 'not found' }, 404);

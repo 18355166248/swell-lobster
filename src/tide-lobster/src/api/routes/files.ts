@@ -36,7 +36,7 @@ const MIME_TYPES: Record<string, string> = {
 
 function getOutputDir(): string {
   const dir = resolve(
-    process.env['SWELL_OUTPUT_DIR'] ?? join(settings.projectRoot, 'data', 'outputs')
+    process.env['SWELL_OUTPUT_DIR'] ?? join(settings.dataDir, 'outputs')
   );
   mkdirSync(dir, { recursive: true });
   return dir;

@@ -7,7 +7,7 @@
  */
 
 import { resolve, dirname, join } from 'node:path';
-import { existsSync } from 'node:fs';
+import { existsSync, mkdirSync, copyFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { config as loadDotenv } from 'dotenv';
 import { readFileSync } from 'node:fs';
@@ -53,6 +53,23 @@ export function globalEnvPath(): string | null {
 const repoEnvPath = resolve(REPO_ROOT, '.env');
 const packagedDesktop = Boolean(process.env.SWELL_GLOBAL_ENV_DIR?.trim());
 const globalDesktopEnvPath = globalEnvPath();
+
+// 确保 ~/.swell-lobster/.env 存在；若不存在且仓库根 .env 存在则复制过去作为初始配置
+function initGlobalEnvFile(): void {
+  if (!globalDesktopEnvPath) return;
+  const globalDir = resolve(globalDesktopEnvPath, '..');
+  try {
+    mkdirSync(globalDir, { recursive: true });
+    if (!existsSync(globalDesktopEnvPath) && existsSync(repoEnvPath)) {
+      copyFileSync(repoEnvPath, globalDesktopEnvPath);
+      console.log('[config] initialized global .env from repo .env');
+    }
+  } catch (err) {
+    console.warn('[config] failed to initialize global .env:', err);
+  }
+}
+
+initGlobalEnvFile();
 
 if (!packagedDesktop && existsSync(repoEnvPath)) {
   loadDotenv({ path: repoEnvPath });
@@ -130,7 +147,7 @@ export type SearchProvider = typeof SEARCH_PROVIDERS[number];
 export const settings = {
   identityDir: env('IDENTITY_DIR', resolve(REPO_ROOT, 'identity')),
   projectRoot: env('PROJECT_ROOT', REPO_ROOT),
-  dataDir: env('DATA_DIR', resolve(REPO_ROOT, 'data')),
+  dataDir: env('DATA_DIR', join(homedir(), '.swell-lobster', 'data')),
   agentName: env('AGENT_NAME', 'Swell-Lobster'),
   port: parseInt(process.env.API_PORT ?? '18900', 10),
   host: process.env.API_HOST ?? '127.0.0.1',

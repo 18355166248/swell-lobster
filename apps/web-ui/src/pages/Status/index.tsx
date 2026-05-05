@@ -11,10 +11,10 @@ import {
   Table,
   Tag,
 } from 'antd';
-import { FileTextOutlined, ReloadOutlined } from '@ant-design/icons';
+import { FileTextOutlined, ReloadOutlined, DeleteOutlined } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
 import { invoke } from '@tauri-apps/api/core';
-import { apiGet } from '../../api/base';
+import { apiGet, apiPost } from '../../api/base';
 import { reportFrontendError } from '../../logging/frontend';
 import { isTauri } from '../../utils/platform';
 
@@ -56,6 +56,12 @@ export function StatusPage() {
   const [restarting, setRestarting] = useState(false);
   const [auditRecords, setAuditRecords] = useState<AuditRecord[]>([]);
   const [auditError, setAuditError] = useState<string | null>(null);
+  const [cacheInfo, setCacheInfo] = useState<{
+    tmp: { count: number; bytes: number };
+    outputs: { count: number; bytes: number };
+  } | null>(null);
+  const [clearingTmp, setClearingTmp] = useState(false);
+  const [clearingOutputs, setClearingOutputs] = useState(false);
 
   const loadHealth = () => {
     setLoading(true);
@@ -81,9 +87,32 @@ export function StatusPage() {
       .catch((e) => setAuditError(e instanceof Error ? e.message : t('status.auditLoadFailed')));
   };
 
+  const loadCacheInfo = () => {
+    apiGet<{ tmp: { count: number; bytes: number }; outputs: { count: number; bytes: number } }>(
+      '/api/cache/info'
+    )
+      .then(setCacheInfo)
+      .catch(() => {});
+  };
+
+  const handleClearCache = async (target: 'tmp' | 'outputs') => {
+    const setSaving = target === 'tmp' ? setClearingTmp : setClearingOutputs;
+    setSaving(true);
+    try {
+      await apiPost('/api/cache/clear', { targets: [target] });
+      message.success(t('status.cacheClearSuccess'));
+      loadCacheInfo();
+    } catch {
+      message.error(t('status.cacheClearFailed'));
+    } finally {
+      setSaving(false);
+    }
+  };
+
   useEffect(() => {
     loadHealth();
     loadAudit();
+    loadCacheInfo();
   }, [t]);
 
   const handleViewLog = async () => {
@@ -199,6 +228,44 @@ export function StatusPage() {
           </Space>
         </div>
       )}
+
+      <div className="mt-8">
+        <Title level={5} style={{ margin: 0, marginBottom: 12 }}>
+          {t('status.cacheTitle')}
+        </Title>
+        <Descriptions column={1} size="small">
+          <Descriptions.Item label={t('status.cacheTmp')}>
+            <Space>
+              <Text type="secondary">
+                {cacheInfo ? `${cacheInfo.tmp.count} ${t('status.cacheFiles')}` : '-'}
+              </Text>
+              <Button
+                size="small"
+                icon={<DeleteOutlined />}
+                loading={clearingTmp}
+                onClick={() => handleClearCache('tmp')}
+              >
+                {t('status.cacheClearTmp')}
+              </Button>
+            </Space>
+          </Descriptions.Item>
+          <Descriptions.Item label={t('status.cacheOutputs')}>
+            <Space>
+              <Text type="secondary">
+                {cacheInfo ? `${cacheInfo.outputs.count} ${t('status.cacheFiles')}` : '-'}
+              </Text>
+              <Button
+                size="small"
+                icon={<DeleteOutlined />}
+                loading={clearingOutputs}
+                onClick={() => handleClearCache('outputs')}
+              >
+                {t('status.cacheClearOutputs')}
+              </Button>
+            </Space>
+          </Descriptions.Item>
+        </Descriptions>
+      </div>
 
       <div className="mt-8">
         <div className="flex items-center justify-between mb-3">

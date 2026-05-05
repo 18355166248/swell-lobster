@@ -93,7 +93,7 @@ function ensureEsmModulesAvailable(scriptContent: string): void {
 }
 
 function getOutputDir(): string {
-  const dir = process.env['SWELL_OUTPUT_DIR'] ?? join(settings.projectRoot, 'data', 'outputs');
+  const dir = process.env['SWELL_OUTPUT_DIR'] ?? join(settings.dataDir, 'outputs');
   mkdirSync(dir, { recursive: true });
   return resolve(dir);
 }

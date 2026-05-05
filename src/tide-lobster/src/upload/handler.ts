@@ -71,7 +71,7 @@ export function persistUploadedBuffer(args: {
 
   const kind = args.kind ?? (isImageMimeType(mimeType) ? 'image' : 'file');
   const filename = `${randomUUID()}.${ext}`;
-  const uploadDir = join(settings.projectRoot, 'data', 'tmp', 'uploads');
+  const uploadDir = join(settings.dataDir, 'tmp', 'uploads');
   mkdirSync(uploadDir, { recursive: true });
   writeFileSync(join(uploadDir, filename), args.buffer);
 

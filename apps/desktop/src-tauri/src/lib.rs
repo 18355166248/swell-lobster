@@ -79,11 +79,7 @@ fn resolve_output_dir(app: &AppHandle) -> PathBuf {
     if let Ok(custom) = std::env::var("SWELL_OUTPUT_DIR") {
         return PathBuf::from(custom);
     }
-    app.path()
-        .document_dir()
-        .unwrap_or_else(|_| PathBuf::from("."))
-        .join("SwellLobster")
-        .join("outputs")
+    resolve_global_env_dir(app).join("data").join("outputs")
 }
 
 fn resolve_log_path(app: &AppHandle) -> PathBuf {
@@ -379,17 +375,11 @@ fn start_tide_lobster(app: &AppHandle) -> Result<CommandChild, String> {
         );
     }
 
-    let data_dir = app
-        .path()
-        .app_data_dir()
-        .unwrap_or_else(|_| resource_dir.join("data"));
+    let data_dir = resolve_global_env_dir(app).join("data");
     std::fs::create_dir_all(&data_dir).ok();
 
-    // 同时创建 LocalAppData 目录，方便用户在两个位置都能放 .env（Local 优先）
-    let local_data_dir = app.path().app_local_data_dir().ok();
-    if let Some(ref d) = local_data_dir {
-        std::fs::create_dir_all(d).ok();
-    }
+    // local_data_dir 与 data_dir 保持一致
+    let local_data_dir: Option<PathBuf> = Some(data_dir.clone());
 
     // 透传系统代理环境变量，使 tide-lobster 的 fetchDispatcher 能正确走代理
     let proxy_vars = ["HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "NO_PROXY",

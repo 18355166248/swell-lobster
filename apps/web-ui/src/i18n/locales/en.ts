@@ -311,6 +311,14 @@ const en = {
     auditDecisionExpired: 'Expired',
     auditStatusSuccess: 'Success',
     auditStatusFailed: 'Failed',
+    cacheTitle: 'Cache Management',
+    cacheTmp: 'Upload temp files',
+    cacheOutputs: 'Script output files',
+    cacheClearTmp: 'Clear temp files',
+    cacheClearOutputs: 'Clear output files',
+    cacheClearSuccess: 'Cache cleared',
+    cacheClearFailed: 'Clear failed',
+    cacheFiles: 'files',
   },
 
   im: {

@@ -319,6 +319,14 @@ const zh = {
     auditDecisionExpired: '已超时',
     auditStatusSuccess: '成功',
     auditStatusFailed: '失败',
+    cacheTitle: '缓存管理',
+    cacheTmp: '上传临时文件',
+    cacheOutputs: '脚本输出文件',
+    cacheClearTmp: '清理临时文件',
+    cacheClearOutputs: '清理输出文件',
+    cacheClearSuccess: '缓存已清理',
+    cacheClearFailed: '清理失败',
+    cacheFiles: '个文件',
   },
 
   // IM 通道

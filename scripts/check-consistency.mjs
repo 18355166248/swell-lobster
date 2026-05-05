@@ -1,7 +1,8 @@
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const repoRoot = resolve(new URL('..', import.meta.url).pathname);
+const repoRoot = fileURLToPath(new URL('..', import.meta.url));
 
 function read(relativePath) {
   return readFileSync(resolve(repoRoot, relativePath), 'utf8');
@@ -67,6 +68,7 @@ function buildGuideChecks() {
           '.claude',
           '.trae',
           '.playwright-mcp',
+          '.playwright',
           'node_modules',
           'data',
         ]);

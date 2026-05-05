@@ -8,6 +8,7 @@
 import { randomUUID } from 'node:crypto';
 import { ChannelAdapter } from './base.js';
 import { DingtalkChannel } from './channels/dingtalk/index.js';
+import { FeishuChannel } from './channels/feishu/index.js';
 import { TelegramChannel } from './channels/telegram/index.js';
 import { imStore } from './store.js';
 import type { IMChannelConfig, UnifiedMessage, WebhookRequest, WebhookResponse } from './types.js';
@@ -23,6 +24,8 @@ function createAdapter(cfg: IMChannelConfig): ChannelAdapter {
       return new TelegramChannel(cfg.id, cfg.config);
     case 'dingtalk':
       return new DingtalkChannel(cfg.id, cfg.config);
+    case 'feishu':
+      return new FeishuChannel(cfg.id, cfg.config);
     default:
       throw new Error(`不支持的通道类型: ${cfg.channel_type}`);
   }

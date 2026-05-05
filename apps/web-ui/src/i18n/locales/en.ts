@@ -363,6 +363,20 @@ const en = {
     pairingCode: 'Pairing Code',
     pairingRequestedAt: 'Requested At',
     manage: 'Manage',
+    feishuQrTitle: 'Scan QR to Install Feishu Bot',
+    feishuQrRescan: 'Rescan QR Code',
+    feishuQrHint:
+      'Use the Feishu app to scan the QR code — no need to fill in App ID / Secret manually',
+    feishuQrDomain: 'Edition',
+    feishuQrScan: 'Generate QR Code',
+    feishuQrLoading: 'Fetching QR code...',
+    feishuQrInstruction: 'Scan with your Feishu app to complete installation',
+    feishuQrCountdown: 'QR code expires in {{seconds}}s',
+    feishuQrExpired: 'QR code expired, please try again',
+    feishuQrSuccess: 'Scan successful! App ID and Secret have been filled in automatically',
+    feishuQrFailed: 'Failed to get QR code',
+    feishuQrRetry: 'Retry',
+    feishuQrOrManual: 'or fill in manually',
   },
 
   mcp: {

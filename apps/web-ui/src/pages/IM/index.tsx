@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   Alert,
   Badge,
@@ -25,6 +25,7 @@ import {
   SettingOutlined,
 } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
+import { QRCodeSVG } from 'qrcode.react';
 import { apiGet, apiPost, apiPatch, apiDelete } from '../../api/base';
 import { TableActions } from '../../components/TableActions';
 
@@ -113,6 +114,160 @@ function formValuesToConfig(
   return config;
 }
 
+type QrState = 'idle' | 'loading' | 'showing' | 'success' | 'error';
+
+interface FeishuQrWizardProps {
+  onSuccess: (appId: string, appSecret: string, domain: 'feishu' | 'lark') => void;
+}
+
+function FeishuQrWizard({ onSuccess }: FeishuQrWizardProps) {
+  const { t } = useTranslation();
+  const [qrState, setQrState] = useState<QrState>('idle');
+  const [isLark, setIsLark] = useState(false);
+  const [qrUrl, setQrUrl] = useState('');
+  const [countdown, setCountdown] = useState(0);
+  const [errMsg, setErrMsg] = useState('');
+  const pollRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const clear = () => {
+    if (pollRef.current) clearTimeout(pollRef.current);
+    if (timerRef.current) clearInterval(timerRef.current);
+  };
+
+  useEffect(() => () => clear(), []);
+
+  const start = async () => {
+    clear();
+    setQrState('loading');
+    setErrMsg('');
+    try {
+      const res = await apiPost<{
+        url: string;
+        deviceCode: string;
+        interval: number;
+        expireIn: number;
+      }>('/api/im/feishu/install/qrcode', { isLark });
+      setQrUrl(res.url);
+      setCountdown(res.expireIn);
+      setQrState('showing');
+      timerRef.current = setInterval(() => {
+        setCountdown((n) => {
+          if (n <= 1) {
+            clear();
+            setQrState('error');
+            setErrMsg(t('im.feishuQrExpired'));
+            return 0;
+          }
+          return n - 1;
+        });
+      }, 1000);
+      const poll = async () => {
+        try {
+          const r = await apiPost<{
+            done: boolean;
+            appId?: string;
+            appSecret?: string;
+            domain?: string;
+            error?: string;
+          }>('/api/im/feishu/install/poll', { deviceCode: res.deviceCode });
+          if (r.done && r.appId && r.appSecret) {
+            clear();
+            setQrState('success');
+            onSuccess(r.appId, r.appSecret, (r.domain as 'feishu' | 'lark') ?? 'feishu');
+          } else if (r.error) {
+            clear();
+            setErrMsg(r.error);
+            setQrState('error');
+          } else {
+            pollRef.current = setTimeout(() => void poll(), res.interval * 1000);
+          }
+        } catch {
+          pollRef.current = setTimeout(() => void poll(), res.interval * 1000);
+        }
+      };
+      pollRef.current = setTimeout(() => void poll(), res.interval * 1000);
+    } catch (e) {
+      setErrMsg(e instanceof Error ? e.message : t('im.feishuQrFailed'));
+      setQrState('error');
+    }
+  };
+
+  const reset = () => {
+    clear();
+    setQrState('idle');
+    setQrUrl('');
+    setErrMsg('');
+  };
+
+  if (qrState === 'success') {
+    return (
+      <div className="mb-4 rounded-lg border border-green-300 bg-green-50 p-3 text-center text-sm text-green-700">
+        {t('im.feishuQrSuccess')}
+      </div>
+    );
+  }
+
+  if (qrState === 'error') {
+    return (
+      <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3">
+        <div className="text-sm text-red-700">{errMsg || t('im.feishuQrFailed')}</div>
+        <Button size="small" className="mt-2" onClick={reset}>
+          {t('im.feishuQrRetry')}
+        </Button>
+      </div>
+    );
+  }
+
+  if (qrState === 'loading') {
+    return (
+      <div className="mb-4 rounded-lg border border-border bg-accent/20 p-4 text-center">
+        <Spin size="small" />
+        <div className="mt-2 text-sm text-muted-foreground">{t('im.feishuQrLoading')}</div>
+      </div>
+    );
+  }
+
+  if (qrState === 'showing') {
+    return (
+      <div className="mb-4 rounded-lg border border-border bg-accent/20 p-4 text-center">
+        <div className="mb-2 text-sm text-muted-foreground">{t('im.feishuQrInstruction')}</div>
+        <div className="my-3 flex justify-center">
+          <QRCodeSVG value={qrUrl} size={160} />
+        </div>
+        <div className="text-xs text-muted-foreground">
+          {t('im.feishuQrCountdown', { seconds: countdown })}
+        </div>
+        <Button size="small" className="mt-2" onClick={reset}>
+          {t('common.cancel')}
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mb-4 rounded-lg border border-border bg-accent/20 p-4 text-center">
+      <div className="mb-2 text-sm text-muted-foreground">{t('im.feishuQrHint')}</div>
+      <div className="mb-3 flex items-center justify-center gap-2">
+        <span className="text-xs text-muted-foreground">{t('im.feishuQrDomain')}</span>
+        <Select
+          size="small"
+          value={isLark ? 'lark' : 'feishu'}
+          onChange={(v) => setIsLark(v === 'lark')}
+          options={[
+            { value: 'feishu', label: '飞书（国内）' },
+            { value: 'lark', label: 'Lark（国际版）' },
+          ]}
+          style={{ width: 140 }}
+        />
+      </div>
+      <Button type="primary" onClick={() => void start()}>
+        {t('im.feishuQrScan')}
+      </Button>
+    </div>
+  );
+}
+
 export function IMPage() {
   const { t } = useTranslation();
   const [channels, setChannels] = useState<Channel[]>([]);
@@ -140,6 +295,18 @@ export function IMPage() {
   const [pendingRequests, setPendingRequests] = useState<PendingRequest[]>([]);
   const [approvedUsers, setApprovedUsers] = useState<number[]>([]);
   const [pairingLoading, setPairingLoading] = useState(false);
+
+  // 飞书扫码结果（add / edit 两套独立状态）
+  const [feishuAddQrResult, setFeishuAddQrResult] = useState<{
+    appId: string;
+    appSecret: string;
+    domain: 'feishu' | 'lark';
+  } | null>(null);
+  const [feishuEditQrResult, setFeishuEditQrResult] = useState<{
+    appId: string;
+    appSecret: string;
+    domain: 'feishu' | 'lark';
+  } | null>(null);
 
   const [messageApi, contextHolder] = message.useMessage();
 
@@ -219,6 +386,7 @@ export function IMPage() {
     addForm.resetFields();
     setSelectedType(null);
     setAddStep(1);
+    setFeishuAddQrResult(null);
     setAddOpen(true);
   };
 
@@ -229,15 +397,31 @@ export function IMPage() {
   };
 
   const handleAddSubmit = async () => {
+    const isFeishuQr = selectedType?.type === 'feishu' && feishuAddQrResult !== null;
     let values: Record<string, unknown>;
     try {
-      values = await addForm.validateFields();
+      if (isFeishuQr) {
+        await addForm.validateFields(['channel_name']);
+        values = addForm.getFieldsValue();
+      } else {
+        values = await addForm.validateFields();
+      }
     } catch {
       return;
     }
     setAddSaving(true);
     try {
-      const config = formValuesToConfig(selectedType?.fields ?? [], values);
+      const fieldsForConfig = isFeishuQr
+        ? (selectedType?.fields ?? []).filter(
+            (f) => !['app_id_env', 'app_secret_env'].includes(f.key)
+          )
+        : (selectedType?.fields ?? []);
+      const config = formValuesToConfig(fieldsForConfig, values);
+      if (isFeishuQr && feishuAddQrResult) {
+        config.app_id = feishuAddQrResult.appId;
+        config.app_secret = feishuAddQrResult.appSecret;
+        config.domain = feishuAddQrResult.domain;
+      }
       const channel = await apiPost<Channel>('/api/im/channels', {
         channel_type: values.channel_type,
         name: values.channel_name,
@@ -246,6 +430,7 @@ export function IMPage() {
       });
       setChannels((prev) => [...prev, channel]);
       setAddOpen(false);
+      setFeishuAddQrResult(null);
     } catch (e) {
       messageApi.error(e instanceof Error ? e.message : t('im.saveFailed'));
     } finally {
@@ -262,14 +447,21 @@ export function IMPage() {
       channel_name: channel.name,
       ...configToFormValues(typeDef.fields, channel.config),
     });
+    setFeishuEditQrResult(null);
     setEditChannel(channel);
   };
 
   const handleEditSubmit = async () => {
     if (!editChannel) return;
+    const isFeishuQr = editChannel.channel_type === 'feishu' && feishuEditQrResult !== null;
     let values: Record<string, unknown>;
     try {
-      values = await editForm.validateFields();
+      if (isFeishuQr) {
+        await editForm.validateFields(['channel_name']);
+        values = editForm.getFieldsValue();
+      } else {
+        values = await editForm.validateFields();
+      }
     } catch {
       return;
     }
@@ -278,13 +470,22 @@ export function IMPage() {
 
     setEditSaving(true);
     try {
-      const config = formValuesToConfig(typeDef.fields, values);
+      const fieldsForConfig = isFeishuQr
+        ? typeDef.fields.filter((f) => !['app_id_env', 'app_secret_env'].includes(f.key))
+        : typeDef.fields;
+      const config = formValuesToConfig(fieldsForConfig, values);
+      if (isFeishuQr && feishuEditQrResult) {
+        config.app_id = feishuEditQrResult.appId;
+        config.app_secret = feishuEditQrResult.appSecret;
+        config.domain = feishuEditQrResult.domain;
+      }
       const updated = await apiPatch<Channel>(`/api/im/channels/${editChannel.id}`, {
         name: String(values.channel_name ?? editChannel.name),
         config,
       });
       setChannels((prev) => prev.map((c) => (c.id === editChannel.id ? { ...c, ...updated } : c)));
       setEditChannel(null);
+      setFeishuEditQrResult(null);
     } catch (e) {
       messageApi.error(e instanceof Error ? e.message : t('im.updateFailed'));
     } finally {
@@ -546,19 +747,58 @@ export function IMPage() {
               >
                 <Input placeholder={t('im.channelNamePlaceholder')} />
               </Form.Item>
-              {selectedType.fields.map((field) => (
-                <Form.Item
-                  key={field.key}
-                  name={field.key}
-                  label={field.label}
-                  rules={
-                    field.required ? [{ required: true, message: `${field.label} 不能为空` }] : []
-                  }
-                  extra={field.hint}
-                >
-                  {renderField(field)}
-                </Form.Item>
-              ))}
+
+              {selectedType.type === 'feishu' && (
+                <>
+                  <div className="mb-2 text-sm font-medium text-foreground">
+                    {t('im.feishuQrTitle')}
+                  </div>
+                  <FeishuQrWizard
+                    onSuccess={(appId, appSecret, domain) => {
+                      setFeishuAddQrResult({ appId, appSecret, domain });
+                    }}
+                  />
+                  {!feishuAddQrResult && (
+                    <div className="mb-3 flex items-center gap-2">
+                      <div className="h-px flex-1 bg-border" />
+                      <span className="text-xs text-muted-foreground">
+                        {t('im.feishuQrOrManual')}
+                      </span>
+                      <div className="h-px flex-1 bg-border" />
+                    </div>
+                  )}
+                </>
+              )}
+
+              {(!feishuAddQrResult || selectedType.type !== 'feishu') &&
+                selectedType.fields.map((field) => (
+                  <Form.Item
+                    key={field.key}
+                    name={field.key}
+                    label={field.label}
+                    rules={
+                      field.required ? [{ required: true, message: `${field.label} 不能为空` }] : []
+                    }
+                    extra={field.hint}
+                  >
+                    {renderField(field)}
+                  </Form.Item>
+                ))}
+
+              {feishuAddQrResult &&
+                selectedType.type === 'feishu' &&
+                selectedType.fields
+                  .filter((f) => !['app_id_env', 'app_secret_env'].includes(f.key))
+                  .map((field) => (
+                    <Form.Item
+                      key={field.key}
+                      name={field.key}
+                      label={field.label}
+                      extra={field.hint}
+                    >
+                      {renderField(field)}
+                    </Form.Item>
+                  ))}
             </>
           )}
         </Form>
@@ -588,21 +828,50 @@ export function IMPage() {
             >
               <Input />
             </Form.Item>
-            {(channelTypes.find((t) => t.type === editChannel.channel_type)?.fields ?? []).map(
-              (field) => (
+
+            {editChannel.channel_type === 'feishu' && (
+              <>
+                <div className="mb-2 text-sm font-medium text-foreground">
+                  {t('im.feishuQrRescan')}
+                </div>
+                <FeishuQrWizard
+                  onSuccess={(appId, appSecret, domain) => {
+                    setFeishuEditQrResult({ appId, appSecret, domain });
+                  }}
+                />
+                {feishuEditQrResult && (
+                  <div className="mb-3 flex items-center gap-2">
+                    <div className="h-px flex-1 bg-border" />
+                    <span className="text-xs text-muted-foreground">
+                      {t('im.feishuQrOrManual')}
+                    </span>
+                    <div className="h-px flex-1 bg-border" />
+                  </div>
+                )}
+              </>
+            )}
+
+            {(channelTypes.find((t) => t.type === editChannel.channel_type)?.fields ?? [])
+              .filter((f) =>
+                editChannel.channel_type === 'feishu' && feishuEditQrResult
+                  ? !['app_id_env', 'app_secret_env'].includes(f.key)
+                  : true
+              )
+              .map((field) => (
                 <Form.Item
                   key={field.key}
                   name={field.key}
                   label={field.label}
                   rules={
-                    field.required ? [{ required: true, message: `${field.label} 不能为空` }] : []
+                    field.required && !(editChannel.channel_type === 'feishu' && feishuEditQrResult)
+                      ? [{ required: true, message: `${field.label} 不能为空` }]
+                      : []
                   }
                   extra={field.hint}
                 >
                   {renderField(field)}
                 </Form.Item>
-              )
-            )}
+              ))}
           </Form>
         )}
       </Modal>

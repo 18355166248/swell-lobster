@@ -9,6 +9,11 @@
  * - POST approve          — 通过 userId 或 code 批准用户
  * - GET  approved         — 获取已批准用户列表
  * - DELETE approved/:uid  — 撤销已批准用户的访问权限
+ *
+ * 飞书机器人扫码安装端点（`/api/im/feishu/install/*`）：
+ * - POST qrcode  — 获取二维码 URL 与设备码
+ * - POST poll    — 轮询扫码结果，成功后返回 appId / appSecret
+ * - POST verify  — 验证已有 App ID + Secret 是否有效
  */
 import { Hono } from 'hono';
 import { imStore } from '../../im/store.js';
@@ -129,6 +134,60 @@ const CHANNEL_TYPES = [
       },
     ],
   },
+  {
+    type: 'feishu',
+    label: '飞书',
+    fields: [
+      {
+        key: 'app_id_env',
+        label: 'App ID 环境变量名',
+        type: 'string',
+        required: true,
+        hint: '例如 FEISHU_APP_ID，对应飞书应用的 App ID',
+      },
+      {
+        key: 'app_secret_env',
+        label: 'App Secret 环境变量名',
+        type: 'string',
+        required: true,
+        hint: '例如 FEISHU_APP_SECRET，对应飞书应用的 App Secret',
+      },
+      {
+        key: 'domain',
+        label: '版本',
+        type: 'select',
+        options: [
+          { value: 'feishu', label: '飞书（国内）' },
+          { value: 'lark', label: 'Lark（国际版）' },
+        ],
+        hint: '默认飞书；海外部署或使用 Lark 时选"Lark（国际版）"',
+      },
+      {
+        key: 'rpm_limit',
+        label: '每分钟请求数上限（RPM）',
+        type: 'number',
+        hint: '留空表示不限制；建议先设置为 10~30',
+      },
+      {
+        key: 'rpd_limit',
+        label: '每日请求数上限（RPD）',
+        type: 'number',
+        hint: '留空表示不限制；适合控制外部 IM 渠道总配额',
+      },
+      {
+        key: 'limit_message',
+        label: '限流提示文案',
+        type: 'string',
+        hint: '超过频率限制时返回给用户的消息',
+      },
+      {
+        key: 'auto_approve_tools',
+        label: '自动审批工具执行',
+        type: 'boolean',
+        hint: '开启后 IM 会话中的工具调用（如搜索、脚本）无需手动审批，适合个人自用场景',
+      },
+    ],
+  },
 ];
 
 function decorateChannel(
@@ -136,7 +195,10 @@ function decorateChannel(
   channel: ReturnType<typeof imStore.list>[number]
 ) {
   const status = channel.enabled ? imManager.getRunningStatus(channel.id) : 'stopped';
-  return { ...channel, status };
+  // 掩码敏感字段，避免明文 Secret 在 API 响应中暴露
+  const config = { ...channel.config };
+  if (config.app_secret) config.app_secret = '***';
+  return { ...channel, config, status };
 }
 
 /** 返回可用的通道类型元数据，供前端渲染「添加通道」表单 */
@@ -299,4 +361,167 @@ imRouter.delete('/api/im/channels/:id/pairing/approved/:userId', (c) => {
 
   revokeUser(id, userId);
   return c.json({ status: 'ok' });
+});
+
+/**
+ * 为 HTTP webhook 型通道预留的事件接收端点。
+ *
+ * 当前飞书通道使用 WSClient 长连接，无需此路由。
+ * 若未来接入其他 webhook 型平台，可实现 `handleWebhook` 并通过此端点接收推送。
+ */
+imRouter.post('/api/im/channels/:id/webhook', async (c) => {
+  const id = c.req.param('id');
+  const channel = imStore.get(id);
+  if (!channel) return c.json({ detail: 'channel not found' }, 404);
+
+  const bodyText = await c.req.text();
+  const request = {
+    headers: c.req.raw.headers,
+    query: Object.fromEntries(new URL(c.req.url).searchParams.entries()),
+    bodyText,
+    contentType: c.req.header('content-type'),
+  };
+
+  try {
+    const result = await imManager.handleWebhook(id, request);
+    return new Response(JSON.stringify(result.body), {
+      status: result.status,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  } catch {
+    // 适配器未启动时，尝试处理飞书 URL 验证 challenge（无需凭证）
+    let parsed: Record<string, unknown>;
+    try {
+      parsed = JSON.parse(bodyText) as Record<string, unknown>;
+    } catch {
+      return c.json({ detail: 'channel not running' }, 503);
+    }
+    const header = parsed.header as Record<string, unknown> | undefined;
+    const event = parsed.event as Record<string, unknown> | undefined;
+    if (header?.event_type === 'url_verification' && event?.challenge) {
+      return c.json({ challenge: event.challenge });
+    }
+    if (parsed.type === 'url_verification' && parsed.challenge) {
+      return c.json({ challenge: parsed.challenge });
+    }
+    return c.json({ detail: 'channel not running' }, 503);
+  }
+});
+
+// ──────────────────────────────────────────────
+// 飞书机器人扫码安装（Device Code OAuth 流）
+// ──────────────────────────────────────────────
+
+type FeishuAuthModule = {
+  FeishuAuth: new () => {
+    setDomain(isLark: boolean): void;
+    init(): Promise<void>;
+    begin(): Promise<{
+      verification_uri_complete: string;
+      device_code: string;
+      interval?: number;
+      expire_in?: number;
+    }>;
+    poll(deviceCode: string): Promise<{
+      error?: string;
+      error_description?: string;
+      client_id?: string;
+      client_secret?: string;
+      user_info?: { tenant_brand?: string };
+    }>;
+  };
+};
+
+/** deviceCode → { isLark, expireAt } 的短暂会话状态，仅内存 */
+const feishuQrSessions = new Map<string, { isLark: boolean; expireAt: number }>();
+setInterval(() => {
+  const now = Date.now();
+  for (const [k, v] of feishuQrSessions) {
+    if (now > v.expireAt) feishuQrSessions.delete(k);
+  }
+}, 60_000);
+
+/** 获取飞书 QR 码：返回供前端渲染的 verification_uri_complete 与 deviceCode */
+imRouter.post('/api/im/feishu/install/qrcode', async (c) => {
+  const body = await c.req.json<{ isLark?: boolean }>().catch(() => ({}));
+  const isLark = body.isLark === true;
+  try {
+    const { FeishuAuth } = (await import(
+      '@larksuite/openclaw-lark-tools/dist/utils/feishu-auth.js'
+    )) as FeishuAuthModule;
+    const auth = new FeishuAuth();
+    auth.setDomain(isLark);
+    await auth.init();
+    const resp = await auth.begin();
+    const expireIn = resp.expire_in ?? 300;
+    feishuQrSessions.set(resp.device_code, { isLark, expireAt: Date.now() + expireIn * 1000 });
+    return c.json({
+      url: resp.verification_uri_complete,
+      deviceCode: resp.device_code,
+      interval: resp.interval ?? 5,
+      expireIn,
+    });
+  } catch (err: unknown) {
+    return c.json({ detail: String(err) }, 502);
+  }
+});
+
+/** 轮询扫码结果；`done: true` 时返回 appId / appSecret */
+imRouter.post('/api/im/feishu/install/poll', async (c) => {
+  const body = await c.req.json<{ deviceCode: string }>().catch(() => ({ deviceCode: '' }));
+  const { deviceCode } = body;
+  if (!deviceCode) return c.json({ detail: 'deviceCode required' }, 400);
+  const session = feishuQrSessions.get(deviceCode);
+  if (!session) return c.json({ detail: 'session expired or not found' }, 404);
+  try {
+    const { FeishuAuth } = (await import(
+      '@larksuite/openclaw-lark-tools/dist/utils/feishu-auth.js'
+    )) as FeishuAuthModule;
+    const auth = new FeishuAuth();
+    auth.setDomain(session.isLark);
+    const resp = await auth.poll(deviceCode);
+    if (resp.error) {
+      if (resp.error === 'authorization_pending' || resp.error === 'slow_down') {
+        return c.json({ done: false });
+      }
+      feishuQrSessions.delete(deviceCode);
+      return c.json({ done: false, error: resp.error_description ?? resp.error });
+    }
+    if (resp.client_id && resp.client_secret) {
+      const domain = resp.user_info?.tenant_brand === 'lark' ? 'lark' : 'feishu';
+      feishuQrSessions.delete(deviceCode);
+      return c.json({ done: true, appId: resp.client_id, appSecret: resp.client_secret, domain });
+    }
+    return c.json({ done: false });
+  } catch (err: unknown) {
+    return c.json({ detail: String(err) }, 502);
+  }
+});
+
+/** 验证已有 App ID + Secret 是否能正常鉴权（调用 /open-apis/bot/v3/info） */
+imRouter.post('/api/im/feishu/install/verify', async (c) => {
+  const body = await c
+    .req.json<{ appId: string; appSecret: string; domain?: string }>()
+    .catch(() => ({ appId: '', appSecret: '' }));
+  const { appId, appSecret, domain } = body;
+  if (!appId || !appSecret) return c.json({ detail: 'appId and appSecret required' }, 400);
+  try {
+    const Lark = await import('@larksuiteoapi/node-sdk');
+    const larkDomain = domain === 'lark' ? Lark.Domain.Lark : Lark.Domain.Feishu;
+    const client = new Lark.Client({
+      appId,
+      appSecret,
+      appType: Lark.AppType.SelfBuild,
+      domain: larkDomain as unknown as string,
+    });
+    const result = await client.request({ method: 'GET', url: '/open-apis/bot/v3/info' });
+    if (result.code === 0) {
+      const botData = result.data as Record<string, unknown> | undefined;
+      const bot = botData?.bot as Record<string, unknown> | undefined;
+      return c.json({ success: true, botName: bot?.app_name ?? bot?.name });
+    }
+    return c.json({ success: false, error: result.msg ?? 'auth failed' });
+  } catch (err: unknown) {
+    return c.json({ success: false, error: String(err) });
+  }
 });

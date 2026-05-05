@@ -226,6 +226,7 @@ export class ChatService {
     endpoint_name?: string | null;
     attachments?: ChatInputAttachment[];
     disabled_tool_names?: string[];
+    autoApproveTools?: boolean;
   }): Promise<{ session: ChatSession; message: string }> {
     const userMessage = (args.message ?? '').trim();
     const attachments = await this.prepareAttachments(args.attachments ?? []);
@@ -272,6 +273,7 @@ export class ChatService {
       messages: trimMessages(toLLMMessages(this.projectRoot, sessionAfterUser.messages)),
       systemPrompt,
       disabledToolNames: args.disabled_tool_names ?? [],
+      autoApproveTools: args.autoApproveTools,
     });
 
     const appended = this.store.appendAssistantMessageWithMeta({
@@ -538,8 +540,8 @@ export class ChatService {
     signal?: AbortSignal;
     toolInvocationsRef?: ToolExecutionTrace[];
     blocksRef?: MessageBlock[];
-    // 给子会话按需裁剪工具能力，例如禁用 delegate_task 防递归委托。
     disabledToolNames?: string[];
+    autoApproveTools?: boolean;
   }): Promise<{
     content: string;
     usage?: LLMUsage;
@@ -631,7 +633,8 @@ export class ChatService {
             args.onEvent,
             args.sessionId,
             disabledToolNames,
-            args.signal
+            args.signal,
+            args.autoApproveTools,
           );
         } catch (error) {
           if (error instanceof ToolApprovalInterruptedError) {
@@ -679,9 +682,10 @@ export class ChatService {
     toolCall: ToolCall,
     toolInvocations: ToolExecutionTrace[],
     onEvent?: (event: ChatStreamEvent) => void | Promise<void>,
-    sessionId?: string, // 会话 ID，用于记录技能调用日志
+    sessionId?: string,
     disabledToolNames: Set<string> = new Set(),
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    autoApproveTools?: boolean,
   ): Promise<ToolExecutionTrace> {
     const trace: ToolExecutionTrace = {
       id: toolCall.id,
@@ -751,7 +755,10 @@ export class ChatService {
     let approvalRequestId: string | undefined;
 
     if (tool.permission.requiresApproval) {
-      if (!(sessionId && approvalStore.hasSessionGrant(sessionId, toolCall.name))) {
+      const hasGrant =
+        (sessionId && approvalStore.hasSessionGrant(sessionId, toolCall.name)) ||
+        autoApproveTools;
+      if (!hasGrant) {
       const approval = approvalStore.createRequest({
         sessionId: sessionId ?? 'unknown',
         toolName: toolCall.name,

@@ -5,6 +5,7 @@
  * 支持文本与带图消息：图片拉取为 base64 后走多模态聊天；出站优先 Markdown，失败则降级纯文本。
  *
  * 安全模型（`dm_policy`）：
+ * - `open`：任何用户均可直接交互，适合个人自用。
  * - `pairing`（默认）：未认证用户收到配对码提示，管理员通过 API 审批后方可对话。
  *   `allowed_user_ids` 中的用户始终放行，无需配对。
  * - `allowlist`：仅 `allowed_user_ids` 中的用户可交互，完全无配对码流程。
@@ -22,10 +23,11 @@ export interface TelegramConfig {
   bot_token_env: string;
   /**
    * DM 访问策略：
+   * - `open`：任何用户均可直接访问
    * - `pairing`（默认）：未知用户需通过配对码审批
    * - `allowlist`：仅白名单用户可访问
    */
-  dm_policy?: 'pairing' | 'allowlist';
+  dm_policy?: 'open' | 'pairing' | 'allowlist';
   /** 白名单用户 ID；`pairing` 策略下始终放行，`allowlist` 策略下是唯一准入来源 */
   allowed_user_ids?: number[];
 }
@@ -124,6 +126,9 @@ export class TelegramChannel extends ChannelAdapter {
   private async checkAccess(ctx: Context, userId: number): Promise<boolean> {
     const policy = this.cfg.dm_policy ?? 'pairing';
     const whitelist = this.cfg.allowed_user_ids ?? [];
+
+    // open 策略：直接放行所有用户
+    if (policy === 'open') return true;
 
     // 白名单始终放行（两种策略均适用）
     if (whitelist.includes(userId)) return true;

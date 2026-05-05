@@ -126,6 +126,7 @@ export class IMManager {
       const chatArgs: Parameters<ChatService['chat']>[0] = {
         conversation_id: session.id,
         message: msg.text ?? (msg.images?.length ? (msg.caption ?? '请描述这张图片') : ''),
+        autoApproveTools: Boolean(channel.config.auto_approve_tools) || undefined,
       };
 
       if (msg.images?.length) {

@@ -132,16 +132,10 @@ function FeishuQrWizard({ onSuccess, initialBound }: FeishuQrWizardProps) {
   const [errMsg, setErrMsg] = useState('');
   // 扫码成功后保留结果用于在卡片中回显，避免父组件状态变化后值丢失
   const [lastResult, setLastResult] = useState<FeishuBoundInfo | null>(null);
-  // 镜像 initialBound 进 state，让 reset 时能"忘掉"已绑定信息以重新扫码
-  const [boundView, setBoundView] = useState<FeishuBoundInfo | null>(initialBound ?? null);
+  // 用户在编辑面板里点了「重新扫码」时屏蔽 initialBound 卡片，避免被 prop 反复覆盖
+  const [boundDismissed, setBoundDismissed] = useState(false);
   const pollRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  // 父组件切换编辑对象时同步绑定信息
-  useEffect(() => {
-    setBoundView(initialBound ?? null);
-    setIsLark(initialBound?.domain === 'lark');
-  }, [initialBound?.appId, initialBound?.appSecret, initialBound?.domain]);
 
   const clear = () => {
     if (pollRef.current) clearTimeout(pollRef.current);
@@ -214,7 +208,7 @@ function FeishuQrWizard({ onSuccess, initialBound }: FeishuQrWizardProps) {
     setQrUrl('');
     setErrMsg('');
     setLastResult(null);
-    setBoundView(null);
+    setBoundDismissed(true);
   };
 
   // 已绑定卡片：扫码成功后或编辑现有渠道时回显 App ID / App Secret
@@ -257,8 +251,8 @@ function FeishuQrWizard({ onSuccess, initialBound }: FeishuQrWizardProps) {
     return renderBound(lastResult, 'success');
   }
 
-  if (qrState === 'idle' && boundView) {
-    return renderBound(boundView, 'existing');
+  if (qrState === 'idle' && initialBound && !boundDismissed) {
+    return renderBound(initialBound, 'existing');
   }
 
   if (qrState === 'error') {

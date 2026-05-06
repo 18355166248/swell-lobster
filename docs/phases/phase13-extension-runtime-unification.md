@@ -199,6 +199,24 @@ export interface ExtensionDescriptor {
 
 ---
 
+## 当前实现进展（2026-05-06）
+
+已落地后端统一扩展基线：
+
+- `extensions/types.ts`：定义统一 descriptor / manifest / source / health status
+- `extensions/manifest.ts`：为 builtin / skill / mcp server 生成最小 manifest
+- `extensions/lifecycle.ts`：统一 MCP 健康状态映射
+- `extensions/catalog.ts`：聚合 builtin、assistant skill、MCP server，并提供 enable / disable / reload
+- `api/routes/extensions.ts`：提供 `GET /api/extensions`、`GET /api/extensions/:id`、`POST /api/extensions/:id/{enable|disable|reload}`
+- `api/routes/extensions.test.ts`：覆盖 unified catalog、skill 启停、MCP 生命周期动作与 builtin 禁止变更
+
+当前仍未完成：
+
+- 前端统一扩展入口页
+- 审计记录补充扩展来源字段
+
+---
+
 ## 步骤 6：统一审计与权限联动
 
 阶段 11 的审批与审计能力在本阶段需要扩展到“扩展层”：
@@ -224,11 +242,11 @@ export interface ExtensionDescriptor {
 
 ## 完成情况
 
-| 步骤   | 内容                | 状态      |
-| ------ | ------------------- | --------- |
-| 步骤 1 | 统一扩展模型        | ⬜ 待实现 |
-| 步骤 2 | Catalog 聚合层      | ⬜ 待实现 |
-| 步骤 3 | 统一 manifest 约定  | ⬜ 待实现 |
-| 步骤 4 | 生命周期与健康状态  | ⬜ 待实现 |
-| 步骤 5 | 统一 API 与前端入口 | ⬜ 待实现 |
-| 步骤 6 | 审计与权限联动      | ⬜ 待实现 |
+| 步骤   | 内容                | 状态                      |
+| ------ | ------------------- | ------------------------- |
+| 步骤 1 | 统一扩展模型        | ✅ 已完成                 |
+| 步骤 2 | Catalog 聚合层      | ✅ 已完成                 |
+| 步骤 3 | 统一 manifest 约定  | ✅ 已完成                 |
+| 步骤 4 | 生命周期与健康状态  | ✅ 已完成                 |
+| 步骤 5 | 统一 API 与前端入口 | 🟡 后端已完成，前端待接入 |
+| 步骤 6 | 审计与权限联动      | ⬜ 待实现                 |

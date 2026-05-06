@@ -328,4 +328,96 @@ describe('ChatService', () => {
       }
     });
   });
+
+  describe('plan metrics', () => {
+    it('persists execution metrics for completed plan runs', async () => {
+      vi.doMock('./llmClient.js', async () => {
+        const actual = await vi.importActual<typeof import('./llmClient.js')>('./llmClient.js');
+        return {
+          ...actual,
+          requestWithFallback: vi
+            .fn()
+            .mockResolvedValueOnce({
+              content: JSON.stringify({
+                goal: '准备发布说明',
+                steps: [
+                  {
+                    title: '整理变更',
+                    description: '汇总本次发布的主要变更',
+                    mode: 'main_agent',
+                  },
+                  {
+                    title: '撰写发布说明',
+                    description: '输出给用户看的发布说明',
+                    mode: 'delegate_agent',
+                    templateId: 'writing-assistant',
+                  },
+                ],
+              }),
+              usage: {
+                prompt_tokens: 10,
+                completion_tokens: 10,
+                total_tokens: 20,
+              },
+            })
+            .mockResolvedValueOnce({
+              content: '已整理出本次发布的关键改动。',
+              usage: {
+                prompt_tokens: 8,
+                completion_tokens: 12,
+                total_tokens: 20,
+              },
+            })
+            .mockResolvedValueOnce({
+              content: '发布说明初稿已经生成，可直接对外同步。',
+              usage: {
+                prompt_tokens: 9,
+                completion_tokens: 11,
+                total_tokens: 20,
+              },
+            }),
+        };
+      });
+
+      try {
+        const { EndpointStore } = await import('../store/endpointStore.js');
+        new EndpointStore().createEndpoint({
+          name: 'test-plan-endpoint',
+          model: 'test-model',
+          api_type: 'openai',
+          base_url: 'http://127.0.0.1:9999/v1',
+          api_key_env: '',
+          enabled: true,
+          priority: 1,
+        });
+
+        const { ChatService } = await import('./service.js');
+        const { planStore } = await import('../store/planStore.js');
+        const svc = new ChatService(repoRoot);
+        const session = svc.createSession('test-plan-endpoint');
+
+        const result = await svc.chatStream({
+          conversation_id: session.id,
+          message: '/plan 准备这次版本的发布说明',
+        }, async () => {});
+
+        expect(result.message).toContain('计划已完成');
+
+        const plan = planStore.getBySessionId(session.id);
+        expect(plan?.status).toBe('completed');
+        expect(plan?.metrics.planningDurationMs).toBeGreaterThanOrEqual(0);
+        expect(plan?.metrics.executionDurationMs).toBeGreaterThanOrEqual(0);
+        expect(plan?.metrics.totalDurationMs).toBeGreaterThanOrEqual(
+          plan?.metrics.executionDurationMs ?? 0
+        );
+        expect(plan?.metrics.delegateCount).toBe(1);
+        expect(plan?.metrics.approvalWaitCount).toBe(0);
+        expect(plan?.steps).toHaveLength(2);
+        expect(plan?.steps.every((step) => step.status === 'completed')).toBe(true);
+        expect(plan?.steps.every((step) => typeof step.durationMs === 'number')).toBe(true);
+      } finally {
+        vi.doUnmock('./llmClient.js');
+      }
+    });
+  });
 });

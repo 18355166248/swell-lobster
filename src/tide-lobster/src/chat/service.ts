@@ -30,7 +30,14 @@ import { toLLMMessages, type ChatInputAttachment } from './attachments.js';
 import { approvalStore } from '../store/approvalStore.js';
 import { executionAuditService, type AuditDecision } from '../tools/executionAudit.js';
 import { planStore } from '../store/planStore.js';
-import type { ExecutionPlan, ExecutionStep, PlanDraft, PlanEvent } from '../planner/planSchema.js';
+import type {
+  ExecutionPlan,
+  ExecutionStep,
+  PlanDraft,
+  PlanEvent,
+  PlanMetrics,
+} from '../planner/planSchema.js';
+import { writeAppLog } from '../api/routes/logs.js';
 
 /** 单次用户提问内，模型最多可发起多少轮「助手带 tool_calls → 执行工具 → 再请求模型」；防止死循环。 */
 const MAX_TOOL_ROUNDS = 25;
@@ -114,7 +121,11 @@ function summarizeToolArguments(args: Record<string, unknown>): string {
   return '此工具将按当前参数执行副作用操作。';
 }
 
-function buildSkillFallbackResult(skillName: string, skillPath: string, skillContent: string): string {
+function buildSkillFallbackResult(
+  skillName: string,
+  skillPath: string,
+  skillContent: string
+): string {
   return [
     `Auto-routed skill fallback: the model attempted to call skill "${skillName}" as a tool.`,
     `Skills are not callable tools in this runtime. Read and follow the SKILL.md below instead.`,
@@ -122,6 +133,32 @@ function buildSkillFallbackResult(skillName: string, skillPath: string, skillCon
     ``,
     skillContent,
   ].join('\n');
+}
+
+type PlanMetricsCollector = {
+  planningDurationMs: number;
+  executionDurationMs: number;
+  totalDurationMs: number;
+  delegateCount: number;
+  approvalWaitCount: number;
+  approvalWaitDurationMs: number;
+  failedStepId: string | null;
+  failedStepTitle: string | null;
+  failedStepOrder: number | null;
+};
+
+function toPlanMetrics(metrics: PlanMetricsCollector): PlanMetrics {
+  return {
+    planningDurationMs: metrics.planningDurationMs,
+    executionDurationMs: metrics.executionDurationMs,
+    totalDurationMs: metrics.totalDurationMs,
+    delegateCount: metrics.delegateCount,
+    approvalWaitCount: metrics.approvalWaitCount,
+    approvalWaitDurationMs: metrics.approvalWaitDurationMs,
+    failedStepId: metrics.failedStepId,
+    failedStepTitle: metrics.failedStepTitle,
+    failedStepOrder: metrics.failedStepOrder,
+  };
 }
 
 class ToolApprovalInterruptedError extends Error {
@@ -184,7 +221,11 @@ export class ChatService {
     const resolvedPersona = trimmed
       ? trimmed
       : (new IdentityService().getDefaultAssistantPersonaPath() ?? null);
-    const session = this.store.createSession(endpoint?.name ?? endpointName ?? null, resolvedPersona, templateId ?? null);
+    const session = this.store.createSession(
+      endpoint?.name ?? endpointName ?? null,
+      resolvedPersona,
+      templateId ?? null
+    );
 
     // 处理模板 system prompt
     if (templateId) {
@@ -542,6 +583,7 @@ export class ChatService {
     blocksRef?: MessageBlock[];
     disabledToolNames?: string[];
     autoApproveTools?: boolean;
+    planMetrics?: PlanMetricsCollector;
   }): Promise<{
     content: string;
     usage?: LLMUsage;
@@ -620,6 +662,7 @@ export class ChatService {
           role: 'assistant',
           content: result.content || null,
           tool_calls: result.tool_calls,
+          ...(result.reasoning_content ? { reasoning_content: result.reasoning_content } : {}),
         },
       ];
       lastContent = result.content || lastContent;
@@ -635,6 +678,7 @@ export class ChatService {
             disabledToolNames,
             args.signal,
             args.autoApproveTools,
+            args.planMetrics
           );
         } catch (error) {
           if (error instanceof ToolApprovalInterruptedError) {
@@ -686,6 +730,7 @@ export class ChatService {
     disabledToolNames: Set<string> = new Set(),
     signal?: AbortSignal,
     autoApproveTools?: boolean,
+    planMetrics?: PlanMetricsCollector
   ): Promise<ToolExecutionTrace> {
     const trace: ToolExecutionTrace = {
       id: toolCall.id,
@@ -720,16 +765,9 @@ export class ChatService {
       if (skill?.enabled) {
         const readSkill = globalToolRegistry.get('read_skill');
         if (readSkill) {
-          const skillContent = await readSkill.execute(
-            { path: skill.file_path },
-            { sessionId }
-          );
+          const skillContent = await readSkill.execute({ path: skill.file_path }, { sessionId });
           trace.status = 'completed';
-          trace.result = buildSkillFallbackResult(
-            skill.name,
-            skill.file_path,
-            skillContent
-          );
+          trace.result = buildSkillFallbackResult(skill.name, skill.file_path, skillContent);
           await onEvent?.({
             type: 'tool_result',
             name: toolCall.name,
@@ -756,77 +794,81 @@ export class ChatService {
 
     if (tool.permission.requiresApproval) {
       const hasGrant =
-        (sessionId && approvalStore.hasSessionGrant(sessionId, toolCall.name)) ||
-        autoApproveTools;
+        (sessionId && approvalStore.hasSessionGrant(sessionId, toolCall.name)) || autoApproveTools;
       if (!hasGrant) {
-      const approval = approvalStore.createRequest({
-        sessionId: sessionId ?? 'unknown',
-        toolName: toolCall.name,
-        riskLevel: tool.permission.riskLevel,
-        arguments: toolCall.arguments,
-        summary: `${tool.permission.sideEffectSummary} ${summarizeToolArguments(toolCall.arguments)}`,
-      });
-      trace.approval_request_id = approval.id;
-      approvalRequestId = approval.id;
-      await onEvent?.({
-        type: 'tool_approval_required',
-        requestId: approval.id,
-        toolName: toolCall.name,
-        riskLevel: tool.permission.riskLevel,
-        summary: approval.summary,
-        arguments: toolCall.arguments,
-        pathScopes: tool.permission.pathScopes,
-        networkScopes: tool.permission.networkScopes,
-      });
-
-      const resolved = await approvalStore.waitForDecision(approval.id, {
-        signal,
-        timeoutMs: 60_000,
-      });
-      const decision =
-        resolved.status === 'approved'
-          ? 'approved'
-          : resolved.status === 'denied'
-            ? 'denied'
-            : 'expired';
-      auditDecision = decision;
-      await onEvent?.({
-        type: 'tool_approval_resolved',
-        requestId: approval.id,
-        toolName: toolCall.name,
-        decision,
-      });
-
-      if (resolved.status !== 'approved') {
-        trace.status = 'failed';
-        trace.result =
-          resolved.status === 'denied'
-            ? `工具 ${toolCall.name} 的执行请求已被拒绝`
-            : `工具 ${toolCall.name} 的执行请求等待审批超时`;
-        await onEvent?.({
-          type: 'tool_result',
-          name: toolCall.name,
-          status: 'failed',
-          content: trace.result,
-        });
-        executionAuditService.record({
+        const approvalStartedAt = Date.now();
+        const approval = approvalStore.createRequest({
           sessionId: sessionId ?? 'unknown',
           toolName: toolCall.name,
-          approvalRequestId,
           riskLevel: tool.permission.riskLevel,
-          decision: auditDecision,
-          durationMs: 0,
-          status: 'failed',
-          outputSummary: trace.result,
+          arguments: toolCall.arguments,
+          summary: `${tool.permission.sideEffectSummary} ${summarizeToolArguments(toolCall.arguments)}`,
         });
-        throw new ToolApprovalInterruptedError(
-          trace.result,
-          resolved.status === 'denied'
-            ? `已拒绝工具 ${toolCall.name}，本轮工具执行已停止。`
-            : `工具 ${toolCall.name} 审批超时，本轮工具执行已停止。`,
-          trace
-        );
-      }
+        trace.approval_request_id = approval.id;
+        approvalRequestId = approval.id;
+        await onEvent?.({
+          type: 'tool_approval_required',
+          requestId: approval.id,
+          toolName: toolCall.name,
+          riskLevel: tool.permission.riskLevel,
+          summary: approval.summary,
+          arguments: toolCall.arguments,
+          pathScopes: tool.permission.pathScopes,
+          networkScopes: tool.permission.networkScopes,
+        });
+
+        const resolved = await approvalStore.waitForDecision(approval.id, {
+          signal,
+          timeoutMs: 60_000,
+        });
+        if (planMetrics) {
+          planMetrics.approvalWaitCount += 1;
+          planMetrics.approvalWaitDurationMs += Date.now() - approvalStartedAt;
+        }
+        const decision =
+          resolved.status === 'approved'
+            ? 'approved'
+            : resolved.status === 'denied'
+              ? 'denied'
+              : 'expired';
+        auditDecision = decision;
+        await onEvent?.({
+          type: 'tool_approval_resolved',
+          requestId: approval.id,
+          toolName: toolCall.name,
+          decision,
+        });
+
+        if (resolved.status !== 'approved') {
+          trace.status = 'failed';
+          trace.result =
+            resolved.status === 'denied'
+              ? `工具 ${toolCall.name} 的执行请求已被拒绝`
+              : `工具 ${toolCall.name} 的执行请求等待审批超时`;
+          await onEvent?.({
+            type: 'tool_result',
+            name: toolCall.name,
+            status: 'failed',
+            content: trace.result,
+          });
+          executionAuditService.record({
+            sessionId: sessionId ?? 'unknown',
+            toolName: toolCall.name,
+            approvalRequestId,
+            riskLevel: tool.permission.riskLevel,
+            decision: auditDecision,
+            durationMs: 0,
+            status: 'failed',
+            outputSummary: trace.result,
+          });
+          throw new ToolApprovalInterruptedError(
+            trace.result,
+            resolved.status === 'denied'
+              ? `已拒绝工具 ${toolCall.name}，本轮工具执行已停止。`
+              : `工具 ${toolCall.name} 审批超时，本轮工具执行已停止。`,
+            trace
+          );
+        }
       } else {
         auditDecision = 'approved';
       }
@@ -1034,12 +1076,14 @@ export class ChatService {
   }
 
   private extractGoalFromMessage(message: string): string {
-    return message
-      .replace(/^\/plan\s+/i, '')
-      .replace(/^\/计划\s+/, '')
-      .replace(/请分步执行\s*/, '')
-      .replace(/制定执行计划[：:]\s*/, '')
-      .trim() || message;
+    return (
+      message
+        .replace(/^\/plan\s+/i, '')
+        .replace(/^\/计划\s+/, '')
+        .replace(/请分步执行\s*/, '')
+        .replace(/制定执行计划[：:]\s*/, '')
+        .trim() || message
+    );
   }
 
   /** 用一次无工具 LLM 调用生成结构化计划，返回解析后的 PlanDraft 或 null。 */
@@ -1101,6 +1145,7 @@ delegate_agent 仅用于需要专门子 Agent 执行的步骤（如代码生成�
       onEvent?: (event: ChatStreamEvent) => void | Promise<void>;
       signal?: AbortSignal;
       disabledToolNames?: string[];
+      planMetrics?: PlanMetricsCollector;
     }
   ): Promise<{ summary: string; success: boolean }> {
     const contextHeader = context.previousSummaries
@@ -1111,7 +1156,11 @@ delegate_agent 仅用于需要专门子 Agent 执行的步骤（如代码生成�
 
     const messages: LLMRequestMessage[] = [{ role: 'user', content: stepPrompt }];
 
+    const stepStartedAt = Date.now();
     try {
+      if (step.mode === 'delegate_agent' && context.planMetrics) {
+        context.planMetrics.delegateCount += 1;
+      }
       const result = await this.runCompletion({
         endpoint: context.endpoint,
         apiKey: context.apiKey,
@@ -1120,15 +1169,20 @@ delegate_agent 仅用于需要专门子 Agent 执行的步骤（如代码生成�
         onEvent: context.onEvent,
         signal: context.signal,
         disabledToolNames: context.disabledToolNames ?? [],
+        planMetrics: context.planMetrics,
       });
 
       const summary =
-        result.content.length > 500
-          ? result.content.slice(0, 500) + '...'
-          : result.content;
+        result.content.length > 500 ? result.content.slice(0, 500) + '...' : result.content;
 
+      if (context.planMetrics) {
+        context.planMetrics.executionDurationMs += Date.now() - stepStartedAt;
+      }
       return { summary, success: true };
     } catch {
+      if (context.planMetrics) {
+        context.planMetrics.executionDurationMs += Date.now() - stepStartedAt;
+      }
       return { summary: '步骤执行失败', success: false };
     }
   }
@@ -1148,14 +1202,23 @@ delegate_agent 仅用于需要专门子 Agent 执行的步骤（如代码生成�
     disabledToolNames: string[];
   }): Promise<{ session: ChatSession; message: string }> {
     const goal = this.extractGoalFromMessage(args.userMessage);
+    const planStartedAt = Date.now();
+    const metrics: PlanMetricsCollector = {
+      planningDurationMs: 0,
+      executionDurationMs: 0,
+      totalDurationMs: 0,
+      delegateCount: 0,
+      approvalWaitCount: 0,
+      approvalWaitDurationMs: 0,
+      failedStepId: null,
+      failedStepTitle: null,
+      failedStepOrder: null,
+    };
 
     // 1. 生成计划
-    const draft = await this.generatePlanDraft(
-      goal,
-      args.endpoint,
-      args.apiKey,
-      args.signal
-    );
+    const planningStartedAt = Date.now();
+    const draft = await this.generatePlanDraft(goal, args.endpoint, args.apiKey, args.signal);
+    metrics.planningDurationMs = Date.now() - planningStartedAt;
 
     if (!draft) {
       // 计划生成失败，回退到普通模式
@@ -1195,8 +1258,16 @@ delegate_agent 仅用于需要专门子 Agent 执行的步骤（如代码生成�
       steps: draft.steps,
     });
     planStore.setPlanStatus(plan.id, 'running');
+    planStore.setPlanMetrics(plan.id, toPlanMetrics(metrics));
 
     await args.onEvent({ type: 'plan_created', plan: planStore.getById(plan.id)! });
+    writeAppLog('info', 'backend', 'plan created', {
+      planId: plan.id,
+      sessionId: args.session.id,
+      goal: draft.goal || goal,
+      planningDurationMs: metrics.planningDurationMs,
+      stepCount: plan.steps.length,
+    });
 
     // 3. 逐步执行
     const stepSummaries: string[] = [];
@@ -1213,9 +1284,7 @@ delegate_agent 仅用于需要专门子 Agent 执行的步骤（如代码生成�
         await args.onEvent({ type: 'plan_step_started', planId: plan.id, step: updatedStep });
       }
 
-      const previousSummaries = stepSummaries
-        .map((s, i) => `步骤 ${i + 1}：${s}`)
-        .join('\n');
+      const previousSummaries = stepSummaries.map((s, i) => `步骤 ${i + 1}：${s}`).join('\n');
 
       const { summary, success } = await this.executeStep(step, {
         endpoint: args.endpoint,
@@ -1225,6 +1294,7 @@ delegate_agent 仅用于需要专门子 Agent 执行的步骤（如代码生成�
         onEvent: args.onEvent,
         signal: args.signal,
         disabledToolNames: args.disabledToolNames,
+        planMetrics: metrics,
       });
 
       if (success) {
@@ -1236,6 +1306,9 @@ delegate_agent 仅用于需要专门子 Agent 执行的步骤（如代码生成�
       } else {
         const failed = planStore.setStepStatus(step.id, 'failed', { errorMessage: summary });
         planFailed = true;
+        metrics.failedStepId = step.id;
+        metrics.failedStepTitle = step.title;
+        metrics.failedStepOrder = step.stepOrder;
         if (failed) {
           await args.onEvent({ type: 'plan_step_failed', planId: plan.id, step: failed });
         }
@@ -1245,7 +1318,9 @@ delegate_agent 仅用于需要专门子 Agent 执行的步骤（如代码生成�
 
     // 4. 生成最终汇总回复
     const finalStatus = planFailed ? 'failed' : 'completed';
+    metrics.totalDurationMs = Date.now() - planStartedAt;
     planStore.setPlanStatus(plan.id, finalStatus);
+    planStore.setPlanMetrics(plan.id, toPlanMetrics(metrics));
 
     const finalPlan = planStore.getById(plan.id)!;
     await args.onEvent(
@@ -1257,6 +1332,15 @@ delegate_agent 仅用于需要专门子 Agent 执行的步骤（如代码生成�
     const summaryContent = planFailed
       ? `计划执行遇到问题，已完成 ${stepSummaries.length}/${plan.steps.length} 个步骤。\n\n${stepSummaries.map((s, i) => `**步骤 ${i + 1}**：${s}`).join('\n\n')}`
       : `计划已完成，共执行 ${plan.steps.length} 个步骤。\n\n${stepSummaries.map((s, i) => `**步骤 ${i + 1} - ${plan.steps[i]?.title ?? ''}**：${s}`).join('\n\n')}`;
+
+    writeAppLog(planFailed ? 'warn' : 'info', 'backend', `plan ${finalStatus}`, {
+      planId: plan.id,
+      sessionId: args.session.id,
+      status: finalStatus,
+      metrics: finalPlan.metrics,
+      failedStepId: metrics.failedStepId,
+      failedStepTitle: metrics.failedStepTitle,
+    });
 
     // 通过 delta 事件推送摘要
     await emitTextAsChunks(summaryContent, async (delta) => {

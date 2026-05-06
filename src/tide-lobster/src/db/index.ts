@@ -572,6 +572,39 @@ const migrations: Array<{ version: number; up: (db: Database.Database) => void }
       `);
     },
   },
+  {
+    version: 26,
+    up: (db) => {
+      const execSafe = (sql: string) => {
+        try {
+          db.exec(sql);
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          if (!message.includes('duplicate column name')) throw error;
+        }
+      };
+
+      execSafe(
+        `ALTER TABLE execution_plans ADD COLUMN planning_duration_ms INTEGER NOT NULL DEFAULT 0`
+      );
+      execSafe(
+        `ALTER TABLE execution_plans ADD COLUMN execution_duration_ms INTEGER NOT NULL DEFAULT 0`
+      );
+      execSafe(
+        `ALTER TABLE execution_plans ADD COLUMN total_duration_ms INTEGER NOT NULL DEFAULT 0`
+      );
+      execSafe(`ALTER TABLE execution_plans ADD COLUMN delegate_count INTEGER NOT NULL DEFAULT 0`);
+      execSafe(
+        `ALTER TABLE execution_plans ADD COLUMN approval_wait_count INTEGER NOT NULL DEFAULT 0`
+      );
+      execSafe(
+        `ALTER TABLE execution_plans ADD COLUMN approval_wait_duration_ms INTEGER NOT NULL DEFAULT 0`
+      );
+      execSafe(`ALTER TABLE execution_plans ADD COLUMN failed_step_id TEXT`);
+      execSafe(`ALTER TABLE execution_plans ADD COLUMN failed_step_title TEXT`);
+      execSafe(`ALTER TABLE execution_plans ADD COLUMN failed_step_order INTEGER`);
+    },
+  },
 ];
 
 function runMigrations(db: Database.Database): void {

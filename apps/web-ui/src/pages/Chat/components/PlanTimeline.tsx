@@ -4,6 +4,10 @@ import {
   CloseCircleOutlined,
   LoadingOutlined,
   BulbOutlined,
+  FieldTimeOutlined,
+  RobotOutlined,
+  SafetyCertificateOutlined,
+  WarningOutlined,
 } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
 import type { PlanState } from '../types';
@@ -48,6 +52,42 @@ export function PlanTimeline({ plan }: PlanTimelineProps) {
 
   const runningCount = plan.steps.filter((s) => s.status === 'running').length;
   const completedCount = plan.steps.filter((s) => s.status === 'completed').length;
+  const formatMs = (value: number) => `${(value / 1000).toFixed(value >= 10_000 ? 0 : 1)}s`;
+  const metricItems = [
+    {
+      key: 'planning',
+      label: t('plan.metricsPlanning'),
+      value: formatMs(plan.metrics.planningDurationMs),
+      icon: <FieldTimeOutlined style={{ color: '#1677ff' }} />,
+    },
+    {
+      key: 'execution',
+      label: t('plan.metricsExecution'),
+      value: formatMs(plan.metrics.executionDurationMs),
+      icon: <LoadingOutlined style={{ color: '#13a8a8' }} />,
+    },
+    {
+      key: 'total',
+      label: t('plan.metricsTotal'),
+      value: formatMs(plan.metrics.totalDurationMs),
+      icon: <CheckCircleOutlined style={{ color: '#52c41a' }} />,
+    },
+    {
+      key: 'delegates',
+      label: t('plan.metricsDelegates'),
+      value: String(plan.metrics.delegateCount),
+      icon: <RobotOutlined style={{ color: '#722ed1' }} />,
+    },
+    {
+      key: 'approvals',
+      label: t('plan.metricsApprovals'),
+      value:
+        plan.metrics.approvalWaitCount > 0
+          ? `${plan.metrics.approvalWaitCount} · ${formatMs(plan.metrics.approvalWaitDurationMs)}`
+          : '0',
+      icon: <SafetyCertificateOutlined style={{ color: '#fa8c16' }} />,
+    },
+  ];
 
   return (
     <div className="border border-border rounded-lg p-4 my-2 bg-bg-subtle">
@@ -72,6 +112,43 @@ export function PlanTimeline({ plan }: PlanTimelineProps) {
             {runningCount > 0 && ` · 执行中：${runningCount}`}
           </Text>
         </div>
+      </div>
+
+      <div className="rounded-lg border border-slate-200/80 bg-white/85 px-3 py-3 mb-3">
+        <div className="flex items-center gap-2 mb-3">
+          <FieldTimeOutlined style={{ color: '#1677ff' }} />
+          <Text strong className="text-sm">
+            {t('plan.metricsTitle')}
+          </Text>
+        </div>
+        <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
+          {metricItems.map((item) => (
+            <div
+              key={item.key}
+              className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2"
+            >
+              <div className="flex items-center gap-2 text-xs text-slate-500">
+                {item.icon}
+                <span>{item.label}</span>
+              </div>
+              <div className="mt-1 text-sm font-semibold text-slate-800">{item.value}</div>
+            </div>
+          ))}
+        </div>
+        {plan.metrics.failedStepTitle && (
+          <div className="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+            <div className="flex items-center gap-2 font-medium">
+              <WarningOutlined />
+              <span>{t('plan.metricsFailedStep')}</span>
+            </div>
+            <div className="mt-1">
+              {plan.metrics.failedStepOrder !== null && plan.metrics.failedStepOrder !== undefined
+                ? `${plan.metrics.failedStepOrder + 1}. `
+                : ''}
+              {plan.metrics.failedStepTitle}
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="space-y-1">

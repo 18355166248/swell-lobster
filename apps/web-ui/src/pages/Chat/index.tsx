@@ -227,6 +227,7 @@ function applyStreamEvent(messages: ChatMessage[], event: ChatStreamEvent): Chat
       id: event.plan.id,
       goal: event.plan.goal,
       status: event.plan.status,
+      metrics: event.plan.metrics,
       steps: event.plan.steps.map((s) => ({
         id: s.id,
         stepOrder: s.stepOrder,
@@ -236,6 +237,7 @@ function applyStreamEvent(messages: ChatMessage[], event: ChatStreamEvent): Chat
         status: s.status,
         outputSummary: s.outputSummary,
         errorMessage: s.errorMessage,
+        durationMs: s.durationMs,
       })),
     };
     return updateLastAssistantMessage(messages, (msg) => ({
@@ -259,6 +261,7 @@ function applyStreamEvent(messages: ChatMessage[], event: ChatStreamEvent): Chat
               status: event.step.status,
               outputSummary: event.step.outputSummary,
               errorMessage: event.step.errorMessage,
+              durationMs: event.step.durationMs,
             }
           : s
       );
@@ -269,7 +272,10 @@ function applyStreamEvent(messages: ChatMessage[], event: ChatStreamEvent): Chat
   if (event.type === 'plan_completed' || event.type === 'plan_failed') {
     return updateLastAssistantMessage(messages, (msg) => {
       if (!msg.plan || msg.plan.id !== event.plan.id) return msg;
-      return { ...msg, plan: { ...msg.plan, status: event.plan.status } };
+      return {
+        ...msg,
+        plan: { ...msg.plan, status: event.plan.status, metrics: event.plan.metrics },
+      };
     });
   }
 

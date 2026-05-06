@@ -385,6 +385,7 @@ const zh = {
     feishuQrFailed: '获取二维码失败',
     feishuQrRetry: '重试',
     feishuQrOrManual: '或手动填写',
+    feishuQrBound: '已绑定的飞书应用',
   },
 
   // MCP
@@ -807,6 +808,14 @@ const zh = {
     retryFailed: '重试失败',
     cancel: '取消计划',
     cancelFailed: '取消失败',
+    metricsPlanning: '规划耗时',
+    metricsExecution: '执行耗时',
+    metricsTotal: '总耗时',
+    metricsTitle: '执行指标',
+    metricsDelegates: '委托次数',
+    metricsApprovals: '审批等待次数',
+    metricsFailedStep: '失败步骤',
+    stepDuration: '步骤耗时',
   },
 } as const;
 

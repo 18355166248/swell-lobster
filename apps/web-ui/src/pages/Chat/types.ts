@@ -58,12 +58,26 @@ export type PlanStepState = {
   status: 'pending' | 'running' | 'completed' | 'failed' | 'skipped';
   outputSummary?: string | null;
   errorMessage?: string | null;
+  durationMs?: number | null;
+};
+
+export type PlanMetricsState = {
+  planningDurationMs: number;
+  executionDurationMs: number;
+  totalDurationMs: number;
+  delegateCount: number;
+  approvalWaitCount: number;
+  approvalWaitDurationMs: number;
+  failedStepId?: string | null;
+  failedStepTitle?: string | null;
+  failedStepOrder?: number | null;
 };
 
 export type PlanState = {
   id: string;
   goal: string;
   status: 'draft' | 'running' | 'completed' | 'failed' | 'cancelled';
+  metrics: PlanMetricsState;
   steps: PlanStepState[];
 };
 

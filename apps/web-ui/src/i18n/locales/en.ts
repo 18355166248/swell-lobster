@@ -377,6 +377,7 @@ const en = {
     feishuQrFailed: 'Failed to get QR code',
     feishuQrRetry: 'Retry',
     feishuQrOrManual: 'or fill in manually',
+    feishuQrBound: 'Bound Feishu App',
   },
 
   mcp: {
@@ -797,6 +798,14 @@ const en = {
     retryFailed: 'Retry failed',
     cancel: 'Cancel Plan',
     cancelFailed: 'Cancel failed',
+    metricsPlanning: 'Planning',
+    metricsExecution: 'Execution',
+    metricsTotal: 'Total',
+    metricsTitle: 'Execution Metrics',
+    metricsDelegates: 'Delegates',
+    metricsApprovals: 'Approval waits',
+    metricsFailedStep: 'Failed step',
+    stepDuration: 'Step duration',
   },
 };
 

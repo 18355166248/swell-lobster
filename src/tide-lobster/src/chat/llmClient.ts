@@ -18,13 +18,22 @@ export type ContentPart = TextPart | ImagePart;
 export type LLMRequestMessage =
   | { role: 'user'; content: string | ContentPart[] }
   | { role: 'assistant'; content: string }
-  | { role: 'assistant'; content: string | null; tool_calls: ToolCall[] }
+  | {
+      role: 'assistant';
+      content: string | null;
+      tool_calls: ToolCall[];
+      // 部分 thinking 模型（DeepSeek-R1、Qwen-thinking 等）要求多轮工具调用时把上一轮的
+      // reasoning_content 原样带回，否则会返回 400 invalid_request_error
+      reasoning_content?: string;
+    }
   | { role: 'tool'; content: string; tool_call_id: string; name?: string };
 
 export interface ChatCompletionResult {
   content: string;
   tool_calls?: ToolCall[];
   usage?: LLMUsage;
+  // 仅 OpenAI 兼容的 thinking 模式（DeepSeek-R1、Qwen-thinking 等）会返回
+  reasoning_content?: string;
 }
 
 // Token：优先解析厂商 usage；缺失时用下方 estimateTokens/estimateUsage 粗估（展示量级，非计费精度）。
@@ -227,7 +236,14 @@ export async function requestChatCompletion(args: {
       signal
     );
   }
-  return requestOpenAI(endpoint, apiKey, messages, systemPrompt, tools as OpenAITool[] | undefined, signal);
+  return requestOpenAI(
+    endpoint,
+    apiKey,
+    messages,
+    systemPrompt,
+    tools as OpenAITool[] | undefined,
+    signal
+  );
 }
 
 /**
@@ -317,6 +333,7 @@ function normalizeOpenAIMessages(
                 arguments: JSON.stringify(toolCall.arguments),
               },
             })),
+            ...(message.reasoning_content ? { reasoning_content: message.reasoning_content } : {}),
           }
         : {}),
     };
@@ -425,12 +442,17 @@ async function requestOpenAI(
   const message = (first.message ?? {}) as Record<string, unknown>;
   const toolCalls = openAIToolCallsFromMessage(message);
   const content = message.content;
+  const reasoningContent =
+    typeof message.reasoning_content === 'string' && message.reasoning_content
+      ? message.reasoning_content
+      : undefined;
 
   if (typeof content === 'string') {
     const trimmed = content.trim();
     return {
       content: trimmed,
       ...(toolCalls.length > 0 ? { tool_calls: toolCalls } : {}),
+      ...(reasoningContent ? { reasoning_content: reasoningContent } : {}),
       usage:
         parseOpenAIUsage(data.usage) ?? estimateUsage({ messages, content: trimmed, systemPrompt }),
     };
@@ -450,6 +472,7 @@ async function requestOpenAI(
       return {
         content: joined,
         ...(toolCalls.length > 0 ? { tool_calls: toolCalls } : {}),
+        ...(reasoningContent ? { reasoning_content: reasoningContent } : {}),
         usage:
           parseOpenAIUsage(data.usage) ??
           estimateUsage({ messages, content: joined, systemPrompt }),
@@ -461,6 +484,7 @@ async function requestOpenAI(
     return {
       content: '',
       tool_calls: toolCalls,
+      ...(reasoningContent ? { reasoning_content: reasoningContent } : {}),
       usage: parseOpenAIUsage(data.usage) ?? estimateUsage({ messages, content: '', systemPrompt }),
     };
   }

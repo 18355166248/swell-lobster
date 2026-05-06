@@ -116,19 +116,32 @@ function formValuesToConfig(
 
 type QrState = 'idle' | 'loading' | 'showing' | 'success' | 'error';
 
+type FeishuBoundInfo = { appId: string; appSecret: string; domain: 'feishu' | 'lark' };
+
 interface FeishuQrWizardProps {
   onSuccess: (appId: string, appSecret: string, domain: 'feishu' | 'lark') => void;
+  initialBound?: FeishuBoundInfo | null;
 }
 
-function FeishuQrWizard({ onSuccess }: FeishuQrWizardProps) {
+function FeishuQrWizard({ onSuccess, initialBound }: FeishuQrWizardProps) {
   const { t } = useTranslation();
   const [qrState, setQrState] = useState<QrState>('idle');
-  const [isLark, setIsLark] = useState(false);
+  const [isLark, setIsLark] = useState(initialBound?.domain === 'lark');
   const [qrUrl, setQrUrl] = useState('');
   const [countdown, setCountdown] = useState(0);
   const [errMsg, setErrMsg] = useState('');
+  // 扫码成功后保留结果用于在卡片中回显，避免父组件状态变化后值丢失
+  const [lastResult, setLastResult] = useState<FeishuBoundInfo | null>(null);
+  // 镜像 initialBound 进 state，让 reset 时能"忘掉"已绑定信息以重新扫码
+  const [boundView, setBoundView] = useState<FeishuBoundInfo | null>(initialBound ?? null);
   const pollRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // 父组件切换编辑对象时同步绑定信息
+  useEffect(() => {
+    setBoundView(initialBound ?? null);
+    setIsLark(initialBound?.domain === 'lark');
+  }, [initialBound?.appId, initialBound?.appSecret, initialBound?.domain]);
 
   const clear = () => {
     if (pollRef.current) clearTimeout(pollRef.current);
@@ -173,8 +186,10 @@ function FeishuQrWizard({ onSuccess }: FeishuQrWizardProps) {
           }>('/api/im/feishu/install/poll', { deviceCode: res.deviceCode });
           if (r.done && r.appId && r.appSecret) {
             clear();
+            const domain = (r.domain as 'feishu' | 'lark') ?? 'feishu';
+            setLastResult({ appId: r.appId, appSecret: r.appSecret, domain });
             setQrState('success');
-            onSuccess(r.appId, r.appSecret, (r.domain as 'feishu' | 'lark') ?? 'feishu');
+            onSuccess(r.appId, r.appSecret, domain);
           } else if (r.error) {
             clear();
             setErrMsg(r.error);
@@ -198,14 +213,52 @@ function FeishuQrWizard({ onSuccess }: FeishuQrWizardProps) {
     setQrState('idle');
     setQrUrl('');
     setErrMsg('');
+    setLastResult(null);
+    setBoundView(null);
   };
 
-  if (qrState === 'success') {
+  // 已绑定卡片：扫码成功后或编辑现有渠道时回显 App ID / App Secret
+  const renderBound = (info: FeishuBoundInfo, mode: 'success' | 'existing') => {
+    const domainLabel = info.domain === 'lark' ? 'Lark（国际版）' : '飞书（国内）';
+    const cardClass =
+      mode === 'success'
+        ? 'mb-4 rounded-lg border border-green-300 bg-green-50 p-3'
+        : 'mb-4 rounded-lg border border-border bg-accent/20 p-3';
+    const titleClass =
+      mode === 'success'
+        ? 'text-sm font-medium text-green-700'
+        : 'text-sm font-medium text-foreground';
     return (
-      <div className="mb-4 rounded-lg border border-green-300 bg-green-50 p-3 text-center text-sm text-green-700">
-        {t('im.feishuQrSuccess')}
+      <div className={cardClass}>
+        <div className={titleClass}>
+          {mode === 'success' ? t('im.feishuQrSuccess') : t('im.feishuQrBound')}
+        </div>
+        <div className="mt-3 space-y-2">
+          <div>
+            <div className="text-xs text-muted-foreground mb-1">App ID</div>
+            <Input value={info.appId} readOnly />
+          </div>
+          <div>
+            <div className="text-xs text-muted-foreground mb-1">App Secret</div>
+            <Input.Password value={info.appSecret} readOnly visibilityToggle />
+          </div>
+          <div className="text-xs text-muted-foreground">
+            {t('im.feishuQrDomain')}：{domainLabel}
+          </div>
+        </div>
+        <Button size="small" className="mt-3" onClick={reset}>
+          {t('im.feishuQrRescan')}
+        </Button>
       </div>
     );
+  };
+
+  if (qrState === 'success' && lastResult) {
+    return renderBound(lastResult, 'success');
+  }
+
+  if (qrState === 'idle' && boundView) {
+    return renderBound(boundView, 'existing');
   }
 
   if (qrState === 'error') {
@@ -447,7 +500,24 @@ export function IMPage() {
       channel_name: channel.name,
       ...configToFormValues(typeDef.fields, channel.config),
     });
-    setFeishuEditQrResult(null);
+    // 已扫码安装的飞书渠道：config 内含 app_id/app_secret 直接值，预填扫码结果，
+    // 既可在 wizard 中回显，也避免 app_id_env/app_secret_env 必填校验在编辑时误报
+    if (
+      channel.channel_type === 'feishu' &&
+      typeof channel.config.app_id === 'string' &&
+      channel.config.app_id &&
+      typeof channel.config.app_secret === 'string' &&
+      channel.config.app_secret
+    ) {
+      const domain = channel.config.domain === 'lark' ? 'lark' : 'feishu';
+      setFeishuEditQrResult({
+        appId: channel.config.app_id,
+        appSecret: channel.config.app_secret,
+        domain,
+      });
+    } else {
+      setFeishuEditQrResult(null);
+    }
     setEditChannel(channel);
   };
 
@@ -835,19 +905,11 @@ export function IMPage() {
                   {t('im.feishuQrRescan')}
                 </div>
                 <FeishuQrWizard
+                  initialBound={feishuEditQrResult}
                   onSuccess={(appId, appSecret, domain) => {
                     setFeishuEditQrResult({ appId, appSecret, domain });
                   }}
                 />
-                {feishuEditQrResult && (
-                  <div className="mb-3 flex items-center gap-2">
-                    <div className="h-px flex-1 bg-border" />
-                    <span className="text-xs text-muted-foreground">
-                      {t('im.feishuQrOrManual')}
-                    </span>
-                    <div className="h-px flex-1 bg-border" />
-                  </div>
-                )}
               </>
             )}
 

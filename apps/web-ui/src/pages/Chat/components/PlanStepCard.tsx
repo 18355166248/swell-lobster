@@ -60,37 +60,58 @@ export function PlanStepCard({ step, index }: PlanStepCardProps) {
   );
 
   return (
-    <Collapse
-      size="small"
-      ghost
-      items={[
-        {
-          key: step.id,
-          label: header,
-          children: (
-            <div className="pl-6 space-y-2">
-              <Paragraph type="secondary" className="mb-1 text-sm">
-                {step.description}
-              </Paragraph>
-              {step.outputSummary && (
-                <div>
-                  <Text type="secondary" className="text-xs">
-                    输出：
-                  </Text>
-                  <Paragraph className="text-sm mt-1 bg-gray-50 dark:bg-gray-800 rounded p-2 mb-0">
-                    {step.outputSummary}
-                  </Paragraph>
-                </div>
-              )}
-              {step.errorMessage && (
-                <Paragraph type="danger" className="text-sm mb-0">
-                  错误：{step.errorMessage}
+    <div
+      className={
+        step.status === 'failed'
+          ? 'rounded-lg border border-red-200 bg-red-50/70'
+          : 'rounded-lg border border-transparent'
+      }
+    >
+      <Collapse
+        size="small"
+        ghost
+        items={[
+          {
+            key: step.id,
+            label: header,
+            children: (
+              <div className="pl-6 space-y-2">
+                <Paragraph type="secondary" className="mb-1 text-sm">
+                  {step.description}
                 </Paragraph>
-              )}
-            </div>
-          ),
-        },
-      ]}
-    />
+                <div className="flex items-center gap-2 flex-wrap">
+                  {typeof step.durationMs === 'number' && (
+                    <Tag color="blue">
+                      {t('plan.stepDuration')}:{' '}
+                      {(step.durationMs / 1000).toFixed(step.durationMs >= 10_000 ? 0 : 1)}s
+                    </Tag>
+                  )}
+                  {step.mode === 'delegate_agent' && (
+                    <Tag icon={<RobotOutlined />} color="purple">
+                      {t('plan.modeDelegateAgent')}
+                    </Tag>
+                  )}
+                </div>
+                {step.outputSummary && (
+                  <div>
+                    <Text type="secondary" className="text-xs">
+                      输出：
+                    </Text>
+                    <Paragraph className="text-sm mt-1 bg-gray-50 dark:bg-gray-800 rounded p-2 mb-0">
+                      {step.outputSummary}
+                    </Paragraph>
+                  </div>
+                )}
+                {step.errorMessage && (
+                  <Paragraph type="danger" className="text-sm mb-0">
+                    错误：{step.errorMessage}
+                  </Paragraph>
+                )}
+              </div>
+            ),
+          },
+        ]}
+      />
+    </div>
   );
 }

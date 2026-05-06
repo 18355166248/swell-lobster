@@ -2,13 +2,37 @@ import { randomUUID } from 'node:crypto';
 import { getDb } from '../db/index.js';
 import type {
   ExecutionPlan,
+  PlanMetrics,
   ExecutionStep,
   PlanStatus,
   StepMode,
   StepStatus,
 } from '../planner/planSchema.js';
 
+function normalizePlanMetrics(row: Record<string, unknown>): PlanMetrics {
+  return {
+    planningDurationMs: Number(row.planning_duration_ms ?? 0),
+    executionDurationMs: Number(row.execution_duration_ms ?? 0),
+    totalDurationMs: Number(row.total_duration_ms ?? 0),
+    delegateCount: Number(row.delegate_count ?? 0),
+    approvalWaitCount: Number(row.approval_wait_count ?? 0),
+    approvalWaitDurationMs: Number(row.approval_wait_duration_ms ?? 0),
+    failedStepId: row.failed_step_id ? String(row.failed_step_id) : null,
+    failedStepTitle: row.failed_step_title ? String(row.failed_step_title) : null,
+    failedStepOrder:
+      row.failed_step_order === null || row.failed_step_order === undefined
+        ? null
+        : Number(row.failed_step_order),
+  };
+}
+
 function normalizeStepRow(row: Record<string, unknown>): ExecutionStep {
+  const startedAt = row.started_at ? String(row.started_at) : null;
+  const completedAt = row.completed_at ? String(row.completed_at) : null;
+  const durationMs =
+    startedAt && completedAt
+      ? Math.max(0, new Date(completedAt).getTime() - new Date(startedAt).getTime())
+      : null;
   return {
     id: String(row.id ?? ''),
     planId: String(row.plan_id ?? ''),
@@ -21,8 +45,9 @@ function normalizeStepRow(row: Record<string, unknown>): ExecutionStep {
     dependsOn: row.depends_on_json ? (JSON.parse(String(row.depends_on_json)) as string[]) : [],
     outputSummary: row.output_summary ? String(row.output_summary) : null,
     errorMessage: row.error_message ? String(row.error_message) : null,
-    startedAt: row.started_at ? String(row.started_at) : null,
-    completedAt: row.completed_at ? String(row.completed_at) : null,
+    startedAt,
+    completedAt,
+    durationMs,
   };
 }
 
@@ -32,6 +57,7 @@ function normalizePlanRow(row: Record<string, unknown>, steps: ExecutionStep[]):
     sessionId: String(row.session_id ?? ''),
     goal: String(row.goal ?? ''),
     status: String(row.status ?? 'draft') as PlanStatus,
+    metrics: normalizePlanMetrics(row),
     steps,
     createdAt: String(row.created_at ?? ''),
     updatedAt: String(row.updated_at ?? ''),
@@ -110,6 +136,37 @@ class PlanStore {
     this.db
       .prepare(`UPDATE execution_plans SET status = ?, updated_at = ? WHERE id = ?`)
       .run(status, new Date().toISOString(), id);
+  }
+
+  setPlanMetrics(id: string, metrics: Partial<PlanMetrics>): void {
+    const updates: string[] = [];
+    const values: Array<number | string | null> = [];
+
+    const mapping: Array<[keyof PlanMetrics, string]> = [
+      ['planningDurationMs', 'planning_duration_ms'],
+      ['executionDurationMs', 'execution_duration_ms'],
+      ['totalDurationMs', 'total_duration_ms'],
+      ['delegateCount', 'delegate_count'],
+      ['approvalWaitCount', 'approval_wait_count'],
+      ['approvalWaitDurationMs', 'approval_wait_duration_ms'],
+      ['failedStepId', 'failed_step_id'],
+      ['failedStepTitle', 'failed_step_title'],
+      ['failedStepOrder', 'failed_step_order'],
+    ];
+
+    for (const [key, column] of mapping) {
+      if (!(key in metrics)) continue;
+      updates.push(`${column} = ?`);
+      values.push(metrics[key] ?? null);
+    }
+
+    if (updates.length === 0) return;
+
+    this.db
+      .prepare(
+        `UPDATE execution_plans SET ${updates.join(', ')}, updated_at = ? WHERE id = ?`
+      )
+      .run(...values, new Date().toISOString(), id);
   }
 
   setStepStatus(

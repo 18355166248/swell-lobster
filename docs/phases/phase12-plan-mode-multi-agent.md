@@ -3,7 +3,7 @@
 > **目标**：在现有单会话工具调用基础上，补齐”任务拆解 -> 分步执行 -> 子 Agent 委托 -> 结果汇总”的最小多 Agent 协作闭环。
 > **预估工作量**：2.5 周
 > **前置条件**：阶段 11 已完成（工具审批、执行审计、安全边界已具备）
-> **状态**：🟡 **主体已完成**（步骤1-6已完成，步骤7可观测性待实现）
+> **状态**：✅ **已完成**（步骤1-7已完成）
 
 ---
 
@@ -269,12 +269,12 @@ execution_plan_steps (
 
 ## 完成情况
 
-| 步骤   | 内容                   | 状态                                                         |
-| ------ | ---------------------- | ------------------------------------------------------------ |
-| 步骤 1 | 计划数据结构           | ✅ 已完成（planSchema.ts）                                   |
-| 步骤 2 | Planner 生成与触发条件 | ✅ 已完成（ChatService.generatePlanDraft，关键词触发）       |
-| 步骤 3 | 步骤执行引擎           | ✅ 已完成（ChatService.executeStep + chatStreamPlan）        |
-| 步骤 4 | 子 Agent 委托协调层    | ✅ 已完成（delegate_agent 步骤通过工具调用链执行）           |
-| 步骤 5 | 计划持久化与 API       | ✅ 已完成（planStore.ts、DB migration 25、/api/plans/\*）    |
-| 步骤 6 | 前端计划模式 UI        | ✅ 已完成（PlanTimeline.tsx、PlanStepCard.tsx、Chat 页集成） |
-| 步骤 7 | 可观测性与验证         | ⬜ 待实现                                                    |
+| 步骤   | 内容                   | 状态                                                                        |
+| ------ | ---------------------- | --------------------------------------------------------------------------- |
+| 步骤 1 | 计划数据结构           | ✅ 已完成（planSchema.ts）                                                  |
+| 步骤 2 | Planner 生成与触发条件 | ✅ 已完成（ChatService.generatePlanDraft，关键词触发）                      |
+| 步骤 3 | 步骤执行引擎           | ✅ 已完成（ChatService.executeStep + chatStreamPlan）                       |
+| 步骤 4 | 子 Agent 委托协调层    | ✅ 已完成（delegate_agent 步骤通过工具调用链执行）                          |
+| 步骤 5 | 计划持久化与 API       | ✅ 已完成（planStore.ts、DB migration 25、/api/plans/\*）                   |
+| 步骤 6 | 前端计划模式 UI        | ✅ 已完成（PlanTimeline.tsx、PlanStepCard.tsx、Chat 页集成）                |
+| 步骤 7 | 可观测性与验证         | ✅ 已完成（plan metrics、步骤耗时、审批等待与失败位置已落库并随 plan 返回） |

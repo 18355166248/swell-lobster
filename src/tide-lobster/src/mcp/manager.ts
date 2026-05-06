@@ -8,6 +8,7 @@ import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
+import { AppError, ErrorCode } from '../types/errors.js';
 import { basename } from 'node:path';
 import { mcpStore } from './store.js';
 import { mcpToolBridge } from './toolBridge.js';
@@ -206,7 +207,7 @@ export class MCPManager {
             )
           : String(error);
       mcpStore.setStatus(config.id, 'error', message);
-      throw new Error(message);
+      throw new AppError(message, ErrorCode.MCP_SERVER_UNAVAILABLE, 503);
     }
   }
 

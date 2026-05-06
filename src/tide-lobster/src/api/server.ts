@@ -33,7 +33,10 @@ import { plansRouter } from './routes/plans.js';
 import { cacheRouter } from './routes/cache.js';
 import { notifyRouter } from './routes/notify.js';
 import { extensionsRouter } from './routes/extensions.js';
+import { observabilityRouter } from './routes/observability.js';
+import { backupRouter } from './routes/backup.js';
 import { resolveAppEnvPath, settings } from '../config.js';
+import { AppError } from '../types/errors.js';
 
 export function createApp(): Hono {
   const app = new Hono();
@@ -47,6 +50,16 @@ export function createApp(): Hono {
       allowHeaders: ['Content-Type', 'Authorization'],
     })
   );
+
+  // 全局错误处理：AppError 序列化为 { detail, code }，其余 fallback 为 { detail }
+  app.onError((err, c) => {
+    if (err instanceof AppError) {
+      const status = err.httpStatus as 400 | 401 | 403 | 404 | 500 | 502 | 503 | 504;
+      return c.json({ detail: err.detail, code: err.code }, status);
+    }
+    const msg = err instanceof Error ? err.message : String(err);
+    return c.json({ detail: msg }, 500);
+  });
 
   // 健康检查
   app.get('/api/health', (c) =>
@@ -96,6 +109,8 @@ export function createApp(): Hono {
   app.route('/', cacheRouter); // /api/cache/* — 缓存管理
   app.route('/', notifyRouter); // /api/notify/* — 实时通知（SSE）
   app.route('/', extensionsRouter); // /api/extensions/* — 统一扩展目录与生命周期
+  app.route('/', observabilityRouter); // /api/observability/* — 观测事件与指标
+  app.route('/', backupRouter); // /api/backup/* — 备份与恢复
 
   return app;
 }

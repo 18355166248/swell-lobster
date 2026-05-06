@@ -4,6 +4,7 @@ import { streamSSE } from 'hono/streaming';
 import { settings } from '../../config.js';
 import { ChatService } from '../../chat/service.js';
 import { getDb } from '../../db/index.js';
+import { recordEvent } from '../../observability/traceStore.js';
 
 export const chatRouter = new Hono();
 const service = new ChatService(settings.projectRoot);
@@ -35,6 +36,7 @@ function isAbortError(error: unknown): boolean {
 }
 
 chatRouter.post('/api/chat', async (c) => {
+  const startMs = Date.now();
   try {
     const body = await c.req.json<{
       conversation_id?: string;
@@ -57,6 +59,13 @@ chatRouter.post('/api/chat', async (c) => {
       disabled_tool_names: body.disabled_tool_names,
     });
 
+    recordEvent({
+      category: 'chat.response',
+      status: 'ok',
+      sessionId: result.session.id,
+      durationMs: Date.now() - startMs,
+    });
+
     return c.json({
       message: result.message,
       conversation_id: result.session.id,
@@ -65,6 +74,12 @@ chatRouter.post('/api/chat', async (c) => {
     });
   } catch (e) {
     const msg = String((e as Error)?.message || e || 'chat failed');
+    recordEvent({
+      category: 'chat.response',
+      status: 'error',
+      durationMs: Date.now() - startMs,
+      meta: { error: msg },
+    });
     const isBadRequest =
       msg.includes('not found') ||
       msg.includes('empty') ||
@@ -75,6 +90,7 @@ chatRouter.post('/api/chat', async (c) => {
 });
 
 chatRouter.post('/api/chat/stream', async (c) => {
+  const startMs = Date.now();
   const body = await c.req.json<{
     conversation_id?: string;
     message?: string;
@@ -111,6 +127,13 @@ chatRouter.post('/api/chat/stream', async (c) => {
         return;
       }
 
+      recordEvent({
+        category: 'chat.response',
+        status: 'ok',
+        sessionId: result.session.id,
+        durationMs: Date.now() - startMs,
+      });
+
       await stream.writeSSE({
         data: JSON.stringify({
           done: true,
@@ -124,6 +147,12 @@ chatRouter.post('/api/chat/stream', async (c) => {
       }
 
       const msg = String((e as Error)?.message || e || 'chat failed');
+      recordEvent({
+        category: 'chat.response',
+        status: 'error',
+        durationMs: Date.now() - startMs,
+        meta: { error: msg },
+      });
       await stream.writeSSE({ data: JSON.stringify({ error: msg }) });
     }
   });

@@ -1,5 +1,6 @@
 import { chatService } from '../chat/index.js';
 import type { ChatSession } from '../chat/models.js';
+import { AppError, ErrorCode } from '../types/errors.js';
 
 type DelegateTaskInput = {
   task: string;
@@ -70,7 +71,7 @@ export async function delegateTask(input: DelegateTaskInput): Promise<DelegateTa
     };
   } catch (error) {
     if (error instanceof DOMException && error.name === 'AbortError') {
-      throw new Error(`delegate task timed out after ${timeoutMs / 1000}s`);
+      throw new AppError(`delegate task timed out after ${timeoutMs / 1000}s`, ErrorCode.DELEGATE_TIMEOUT, 504);
     }
     throw error;
   } finally {

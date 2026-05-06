@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { planStore } from '../../store/planStore.js';
+import { recordEvent } from '../../observability/traceStore.js';
 
 export const plansRouter = new Hono();
 
@@ -22,6 +23,12 @@ plansRouter.post('/api/plans/:id/cancel', (c) => {
     return c.json({ detail: 'plan is not cancellable' }, 400);
   }
   planStore.setPlanStatus(plan.id, 'cancelled');
+  recordEvent({
+    category: 'plan.created',
+    status: 'error',
+    sessionId: plan.session_id,
+    meta: { planId: plan.id, action: 'cancelled', stepCount: plan.steps.length },
+  });
   return c.json(planStore.getById(plan.id));
 });
 

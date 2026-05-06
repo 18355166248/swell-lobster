@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { approvalStore, type ApprovalGrantScope } from '../../store/approvalStore.js';
 import { ExtensionSource } from '../../extensions/types.js';
 import { executionAuditService } from '../../tools/executionAudit.js';
+import { recordEvent } from '../../observability/traceStore.js';
 
 export const approvalsRouter = new Hono();
 
@@ -36,6 +37,12 @@ approvalsRouter.post('/api/approvals/:id/approve', async (c) => {
     body.grant_scope === 'session'
       ? approvalStore.grantSessionApproval(request.session_id, request.tool_name, body.resolved_by)
       : undefined;
+  recordEvent({
+    category: 'tool.approval',
+    status: 'ok',
+    sessionId: request.session_id,
+    meta: { toolName: request.tool_name, decision: 'approved', grantScope: body.grant_scope },
+  });
   return c.json({ request, grant });
 });
 
@@ -43,6 +50,12 @@ approvalsRouter.post('/api/approvals/:id/deny', async (c) => {
   const body: ApprovalResolutionBody = await c.req.json<ApprovalResolutionBody>().catch(() => ({}));
   const request = approvalStore.deny(c.req.param('id'), body.resolved_by, body.resolution_note);
   if (!request) return c.json({ detail: 'approval request not found' }, 404);
+  recordEvent({
+    category: 'tool.approval',
+    status: 'error',
+    sessionId: request.session_id,
+    meta: { toolName: request.tool_name, decision: 'denied' },
+  });
   return c.json({ request });
 });
 

@@ -627,6 +627,32 @@ const migrations: Array<{ version: number; up: (db: Database.Database) => void }
       `);
     },
   },
+  {
+    version: 28,
+    up: (db) => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS observability_events (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          timestamp TEXT NOT NULL,
+          category TEXT NOT NULL,
+          status TEXT NOT NULL,
+          session_id TEXT,
+          duration_ms INTEGER,
+          meta TEXT,
+          created_at TEXT DEFAULT (datetime('now'))
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_observability_events_category
+          ON observability_events(category, created_at DESC);
+
+        CREATE INDEX IF NOT EXISTS idx_observability_events_status
+          ON observability_events(status, created_at DESC);
+
+        CREATE INDEX IF NOT EXISTS idx_observability_events_session
+          ON observability_events(session_id, created_at DESC);
+      `);
+    },
+  },
 ];
 
 function runMigrations(db: Database.Database): void {
@@ -641,6 +667,10 @@ function runMigrations(db: Database.Database): void {
       db.prepare(`INSERT INTO schema_version (version) VALUES (?)`).run(m.version);
     }
   }
+  const finalRow = db.prepare(`SELECT MAX(version) as v FROM schema_version`).get() as {
+    v: number | null;
+  };
+  console.log('[db] schema version:', finalRow?.v ?? 0);
 }
 
 runMigrations(db);

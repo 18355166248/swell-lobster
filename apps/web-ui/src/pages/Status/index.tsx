@@ -10,6 +10,10 @@ import {
   Descriptions,
   Table,
   Tag,
+  Statistic,
+  Row,
+  Col,
+  Card,
 } from 'antd';
 import { FileTextOutlined, ReloadOutlined, DeleteOutlined } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
@@ -39,6 +43,38 @@ interface AuditRecord {
   created_at: string;
 }
 
+interface ObsEvent {
+  id: number;
+  timestamp: string;
+  category: string;
+  status: string;
+  sessionId?: string;
+  durationMs?: number;
+}
+
+interface ObsMetrics {
+  byCategory: Array<{
+    category: string;
+    total: number;
+    ok: number;
+    error: number;
+    successRate: number;
+    avgDurationMs: number | null;
+  }>;
+  summary: {
+    totalLast24h: number;
+    errorRateLast24h: number;
+    totalLast7d: number;
+  };
+}
+
+interface BackupEntry {
+  name: string;
+  path: string;
+  createdAt: string;
+  sizeBytes: number;
+}
+
 export function StatusPage() {
   const { t } = useTranslation();
   const [health, setHealth] = useState<{
@@ -62,6 +98,12 @@ export function StatusPage() {
   } | null>(null);
   const [clearingTmp, setClearingTmp] = useState(false);
   const [clearingOutputs, setClearingOutputs] = useState(false);
+  const [obsMetrics, setObsMetrics] = useState<ObsMetrics | null>(null);
+  const [obsFailures, setObsFailures] = useState<ObsEvent[]>([]);
+  const [obsSlowCalls, setObsSlowCalls] = useState<ObsEvent[]>([]);
+  const [backups, setBackups] = useState<BackupEntry[]>([]);
+  const [creatingBackup, setCreatingBackup] = useState(false);
+  const [restoringBackup, setRestoringBackup] = useState<string | null>(null);
 
   const loadHealth = useCallback(() => {
     setLoading(true);
@@ -95,6 +137,51 @@ export function StatusPage() {
       .catch(() => {});
   }, []);
 
+  const loadObservability = useCallback(() => {
+    apiGet<ObsMetrics>('/api/observability/metrics')
+      .then(setObsMetrics)
+      .catch(() => {});
+    apiGet<{ events: ObsEvent[] }>('/api/observability/failures?limit=10')
+      .then((d) => setObsFailures(d.events))
+      .catch(() => {});
+    apiGet<{ events: ObsEvent[] }>('/api/observability/slow?limit=10')
+      .then((d) => setObsSlowCalls(d.events))
+      .catch(() => {});
+  }, []);
+
+  const loadBackups = useCallback(() => {
+    apiGet<{ backups: BackupEntry[] }>('/api/backup/list')
+      .then((d) => setBackups(d.backups))
+      .catch(() => {});
+  }, []);
+
+  const handleCreateBackup = async () => {
+    setCreatingBackup(true);
+    try {
+      await apiPost('/api/backup/create', {});
+      message.success(t('status.backupCreateSuccess', '备份创建成功'));
+      loadBackups();
+    } catch {
+      message.error(t('status.backupCreateFailed', '备份创建失败'));
+    } finally {
+      setCreatingBackup(false);
+    }
+  };
+
+  const handleRestoreBackup = async (name: string) => {
+    setRestoringBackup(name);
+    try {
+      await apiPost('/api/backup/restore', { name });
+      message.success(t('status.backupRestoreSuccess', '备份恢复成功，请重启服务'));
+    } catch (e) {
+      message.error(
+        e instanceof Error ? e.message : t('status.backupRestoreFailed', '备份恢复失败')
+      );
+    } finally {
+      setRestoringBackup(null);
+    }
+  };
+
   const handleClearCache = async (target: 'tmp' | 'outputs') => {
     const setSaving = target === 'tmp' ? setClearingTmp : setClearingOutputs;
     setSaving(true);
@@ -113,7 +200,9 @@ export function StatusPage() {
     loadHealth();
     loadAudit();
     loadCacheInfo();
-  }, [loadAudit, loadCacheInfo, loadHealth]);
+    loadObservability();
+    loadBackups();
+  }, [loadAudit, loadCacheInfo, loadHealth, loadObservability, loadBackups]);
 
   const handleViewLog = async () => {
     setOpeningLog(true);
@@ -358,6 +447,217 @@ export function StatusPage() {
             },
           ]}
         />
+      </div>
+
+      <div className="mt-8">
+        <div className="flex items-center justify-between mb-3">
+          <Title level={5} style={{ margin: 0 }}>
+            {t('status.obsTitle', '观测指标')}
+          </Title>
+          <Button size="small" icon={<ReloadOutlined />} onClick={loadObservability}>
+            {t('common.refresh')}
+          </Button>
+        </div>
+        {obsMetrics && (
+          <Row gutter={[16, 16]} className="mb-4">
+            <Col span={8}>
+              <Card size="small">
+                <Statistic
+                  title={t('status.obsLast24h', '近24小时请求')}
+                  value={obsMetrics.summary.totalLast24h}
+                />
+              </Card>
+            </Col>
+            <Col span={8}>
+              <Card size="small">
+                <Statistic
+                  title={t('status.obsErrorRate', '近24小时错误率')}
+                  value={obsMetrics.summary.errorRateLast24h}
+                  suffix="%"
+                  valueStyle={{
+                    color: obsMetrics.summary.errorRateLast24h > 10 ? '#cf1322' : '#3f8600',
+                  }}
+                />
+              </Card>
+            </Col>
+            <Col span={8}>
+              <Card size="small">
+                <Statistic
+                  title={t('status.obsLast7d', '近7天总请求')}
+                  value={obsMetrics.summary.totalLast7d}
+                />
+              </Card>
+            </Col>
+          </Row>
+        )}
+        {obsMetrics && obsMetrics.byCategory.length > 0 && (
+          <Table<(typeof obsMetrics.byCategory)[number]>
+            dataSource={obsMetrics.byCategory}
+            rowKey="category"
+            size="small"
+            pagination={false}
+            className="mb-4"
+            columns={[
+              {
+                title: t('status.obsCategory', '类别'),
+                dataIndex: 'category',
+                key: 'category',
+                render: (v: string) => <Text code>{v}</Text>,
+              },
+              { title: t('status.obsTotal', '总数'), dataIndex: 'total', key: 'total' },
+              {
+                title: t('status.obsSuccessRate', '成功率'),
+                dataIndex: 'successRate',
+                key: 'successRate',
+                render: (v: number) => (
+                  <Tag color={v >= 90 ? 'success' : v >= 70 ? 'warning' : 'error'}>{v}%</Tag>
+                ),
+              },
+              {
+                title: t('status.obsAvgDuration', '平均耗时'),
+                dataIndex: 'avgDurationMs',
+                key: 'avgDurationMs',
+                render: (v: number | null) => (v != null ? `${v}ms` : '-'),
+              },
+            ]}
+          />
+        )}
+        {obsFailures.length > 0 && (
+          <div className="mb-4">
+            <Text type="secondary" className="text-sm">
+              {t('status.obsRecentFailures', '最近失败事件')}
+            </Text>
+            <Table<ObsEvent>
+              dataSource={obsFailures}
+              rowKey="id"
+              size="small"
+              pagination={false}
+              className="mt-2"
+              columns={[
+                {
+                  title: t('status.obsCategory', '类别'),
+                  dataIndex: 'category',
+                  key: 'category',
+                  render: (v: string) => <Text code>{v}</Text>,
+                },
+                {
+                  title: t('status.obsTime', '时间'),
+                  dataIndex: 'timestamp',
+                  key: 'timestamp',
+                  render: (v: string) => new Date(v).toLocaleString(),
+                },
+                {
+                  title: t('status.obsDuration', '耗时'),
+                  dataIndex: 'durationMs',
+                  key: 'durationMs',
+                  render: (v?: number) => (v != null ? `${v}ms` : '-'),
+                },
+              ]}
+            />
+          </div>
+        )}
+        {obsSlowCalls.length > 0 && (
+          <div>
+            <Text type="secondary" className="text-sm">
+              {t('status.obsSlowCalls', '最近慢调用（>5s）')}
+            </Text>
+            <Table<ObsEvent>
+              dataSource={obsSlowCalls}
+              rowKey="id"
+              size="small"
+              pagination={false}
+              className="mt-2"
+              columns={[
+                {
+                  title: t('status.obsCategory', '类别'),
+                  dataIndex: 'category',
+                  key: 'category',
+                  render: (v: string) => <Text code>{v}</Text>,
+                },
+                {
+                  title: t('status.obsDuration', '耗时'),
+                  dataIndex: 'durationMs',
+                  key: 'durationMs',
+                  render: (v?: number) => (v != null ? `${v}ms` : '-'),
+                },
+                {
+                  title: t('status.obsTime', '时间'),
+                  dataIndex: 'timestamp',
+                  key: 'timestamp',
+                  render: (v: string) => new Date(v).toLocaleString(),
+                },
+              ]}
+            />
+          </div>
+        )}
+      </div>
+
+      <div className="mt-8">
+        <div className="flex items-center justify-between mb-3">
+          <Title level={5} style={{ margin: 0 }}>
+            {t('status.backupTitle', '数据备份')}
+          </Title>
+          <Space>
+            <Button size="small" icon={<ReloadOutlined />} onClick={loadBackups}>
+              {t('common.refresh')}
+            </Button>
+            <Button
+              size="small"
+              type="primary"
+              loading={creatingBackup}
+              onClick={handleCreateBackup}
+            >
+              {t('status.backupCreate', '创建备份')}
+            </Button>
+          </Space>
+        </div>
+        {backups.length === 0 ? (
+          <Text type="secondary">{t('status.backupEmpty', '暂无备份')}</Text>
+        ) : (
+          <Table<BackupEntry>
+            dataSource={backups}
+            rowKey="name"
+            size="small"
+            pagination={false}
+            columns={[
+              {
+                title: t('status.backupName', '备份名称'),
+                dataIndex: 'name',
+                key: 'name',
+                render: (v: string) => <Text code>{v}</Text>,
+              },
+              {
+                title: t('status.backupSize', '大小'),
+                dataIndex: 'sizeBytes',
+                key: 'sizeBytes',
+                render: (v: number) =>
+                  v > 1024 * 1024
+                    ? `${(v / 1024 / 1024).toFixed(1)} MB`
+                    : `${(v / 1024).toFixed(1)} KB`,
+              },
+              {
+                title: t('status.backupCreatedAt', '创建时间'),
+                dataIndex: 'createdAt',
+                key: 'createdAt',
+                render: (v: string) => new Date(v).toLocaleString(),
+              },
+              {
+                title: t('common.actions', '操作'),
+                key: 'actions',
+                render: (_: unknown, record: BackupEntry) => (
+                  <Button
+                    size="small"
+                    danger
+                    loading={restoringBackup === record.name}
+                    onClick={() => handleRestoreBackup(record.name)}
+                  >
+                    {t('status.backupRestore', '恢复')}
+                  </Button>
+                ),
+              },
+            ]}
+          />
+        )}
       </div>
     </div>
   );

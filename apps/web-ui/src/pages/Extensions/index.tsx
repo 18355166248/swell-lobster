@@ -60,6 +60,9 @@ export function ExtensionsPage() {
   const [busyIds, setBusyIds] = useState<Set<string>>(new Set());
   const [drawer, setDrawer] = useState<ExtensionDescriptor | null>(null);
   const [messageApi, contextHolder] = message.useMessage();
+  // 受控分页：避免过滤后 dataSource 缩短、antd 内部 currentPage 滞留旧值导致空白页
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -140,6 +143,17 @@ export function ExtensionsPage() {
       );
     });
   }, [extensions, sourceFilter, healthFilter, keyword]);
+
+  // 过滤条件变化或数据缩短时把页码夹回有效范围，避免渲染空页
+  useEffect(() => {
+    const maxPage = Math.max(1, Math.ceil(filtered.length / pageSize));
+    if (page > maxPage) setPage(maxPage);
+  }, [filtered.length, page, pageSize]);
+
+  // 三个过滤条件改变时直接回到第 1 页，避免用户在第 N 页过滤后看到「空白」
+  useEffect(() => {
+    setPage(1);
+  }, [sourceFilter, healthFilter, keyword]);
 
   const columns: ColumnsType<ExtensionDescriptor> = [
     {
@@ -298,9 +312,6 @@ export function ExtensionsPage() {
           onChange={(e) => setKeyword(e.target.value)}
           style={{ width: 240 }}
         />
-        <Text type="secondary" className="ml-auto text-xs">
-          {t('extensions.totalSummary', { filtered: filtered.length, total: extensions.length })}
-        </Text>
       </div>
 
       <div className="rounded border border-border bg-background">
@@ -313,7 +324,20 @@ export function ExtensionsPage() {
             rowKey="id"
             columns={columns}
             dataSource={filtered}
-            pagination={{ pageSize: 20, hideOnSinglePage: true }}
+            pagination={{
+              current: page,
+              pageSize,
+              total: filtered.length,
+              showSizeChanger: true,
+              showTotal: (total) =>
+                t('extensions.totalSummary', { filtered: total, total: extensions.length }),
+              pageSizeOptions: ['10', '20', '50', '100'],
+              onChange: (next, nextSize) => {
+                setPage(next);
+                setPageSize(nextSize);
+              },
+              hideOnSinglePage: false,
+            }}
             locale={{ emptyText: <Empty description={t('extensions.empty')} /> }}
             size="middle"
             onRow={(record) => ({

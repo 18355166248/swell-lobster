@@ -63,8 +63,9 @@ function resolveReceiveIdType(target: string): string {
 
 /** 将非 ASCII 字符转为 \uXXXX，避免飞书 API 对编码的潜在问题（参考 LobsterAI stringifyAsciiJson） */
 function asciiJson(value: unknown): string {
-  return JSON.stringify(value).replace(/[^\x00-\x7F]/g, (c) =>
-    `\\u${c.charCodeAt(0).toString(16).padStart(4, '0')}`
+  return JSON.stringify(value).replace(
+    /[^\x00-\x7F]/g,
+    (c) => `\\u${c.charCodeAt(0).toString(16).padStart(4, '0')}`
   );
 }
 
@@ -145,25 +146,22 @@ export class FeishuChannel extends ChannelAdapter {
     const Lark: LarkModule = await import('@larksuiteoapi/node-sdk');
     const appId = this.appId;
     const appSecret = this.appSecret;
-    const domain = this.cfg.domain === 'lark' ? Lark.Domain.Lark : Lark.Domain.Feishu;
+    const preferredDomain = (this.cfg.domain === 'lark'
+      ? Lark.Domain.Lark
+      : Lark.Domain.Feishu) as unknown as number;
 
-    const restClient = new Lark.Client({
+    // 凭证 / 域名探针：失败时把飞书返回的 code+msg 暴露出来；
+    // 若域名错配（feishu vs lark）首次会拿到 99991663 之类的鉴权错误，
+    // 再用另一个域名重试一次，避免用户在扫码时选错版本就直接卡住。
+    const probe = await this.probeBotIdentity(Lark, appId, appSecret, preferredDomain);
+    const restClient = probe.client;
+    this.botOpenId = probe.openId;
+
+    const wsClient = new Lark.WSClient({
       appId,
       appSecret,
-      appType: Lark.AppType.SelfBuild,
-      domain,
+      domain: probe.domain as unknown as ConstructorParameters<LarkModule['WSClient']>[0]['domain'],
     });
-
-    const botProbe = await restClient.request({ method: 'GET', url: '/open-apis/bot/v3/info' });
-    if (botProbe.code !== 0) {
-      throw new Error(`飞书凭证验证失败: ${botProbe.msg ?? botProbe.code}`);
-    }
-    this.botOpenId =
-      (botProbe.data?.open_id as string | undefined) ??
-      ((botProbe.data?.bot as Record<string, unknown> | undefined)?.open_id as string | undefined) ??
-      null;
-
-    const wsClient = new Lark.WSClient({ appId, appSecret, domain });
     const eventDispatcher = new Lark.EventDispatcher({});
 
     eventDispatcher.register({
@@ -189,6 +187,98 @@ export class FeishuChannel extends ChannelAdapter {
     this.restClient = null;
     this.botOpenId = null;
     this._status = 'stopped';
+  }
+
+  /**
+   * 启动前的凭证 + 域名探针。
+   * 1. 用首选 domain 调 `/open-apis/bot/v3/info`；
+   * 2. 拿到非 0 业务码或 axios 异常时，抓取响应体中的 code/msg，转成中文错误；
+   * 3. 鉴权类失败再用另一个 domain（feishu↔lark）重试一次，避开扫码版本选错的常见坑；
+   * 4. 两种 domain 都失败时抛出最后一次的详细错误，便于用户判断到底是密钥错还是版本错。
+   *
+   * 注意：SDK 的 `Domain` 是数字枚举（Feishu=0 / Lark=1），SDK 内部依据数值映射到
+   * 真正的 base URL（feishu.cn / larksuite.com）。这里全程保持原始枚举数值，
+   * 不要 `String()` 化——一旦字符串化，axios 会把 "0" / "1" 当成 base URL，
+   * 拼出 `0/open-apis/...` 之类的非法 URL。
+   */
+  private async probeBotIdentity(
+    Lark: LarkModule,
+    appId: string,
+    appSecret: string,
+    preferredDomain: number
+  ): Promise<{
+    client: InstanceType<LarkModule['Client']>;
+    domain: number;
+    openId: string | null;
+  }> {
+    const larkDomain = Lark.Domain.Lark as unknown as number;
+    const feishuDomain = Lark.Domain.Feishu as unknown as number;
+    const altDomain = preferredDomain === larkDomain ? feishuDomain : larkDomain;
+    const tries: number[] = [preferredDomain, altDomain];
+    let lastError: Error | null = null;
+
+    for (const domain of tries) {
+      const client = new Lark.Client({
+        appId,
+        appSecret,
+        appType: Lark.AppType.SelfBuild,
+        domain: domain as unknown as LarkModule['Domain'][keyof LarkModule['Domain']],
+      });
+      try {
+        const r = (await client.request({
+          method: 'GET',
+          url: '/open-apis/bot/v3/info',
+        })) as {
+          code?: number;
+          msg?: string;
+          data?: Record<string, unknown>;
+          bot?: Record<string, unknown>;
+        };
+        if (r?.code === 0) {
+          const openId =
+            (r.data?.open_id as string | undefined) ??
+            ((r.data?.bot as Record<string, unknown> | undefined)?.open_id as string | undefined) ??
+            ((r.bot as Record<string, unknown> | undefined)?.open_id as string | undefined) ??
+            null;
+          return { client, domain, openId };
+        }
+        lastError = new Error(
+          `飞书凭证验证失败（${this.domainLabel(domain, Lark)}）：code=${r?.code ?? '?'} msg=${r?.msg ?? '未知'}`
+        );
+      } catch (err: unknown) {
+        lastError = this.formatProbeError(err, domain, Lark);
+      }
+    }
+
+    throw lastError ?? new Error('飞书凭证验证失败');
+  }
+
+  private formatProbeError(err: unknown, domain: number, Lark: LarkModule): Error {
+    if (err && typeof err === 'object' && 'isAxiosError' in err) {
+      const axErr = err as {
+        response?: { status?: number; data?: { code?: number; msg?: string } };
+      };
+      const status = axErr.response?.status;
+      const body = axErr.response?.data;
+      if (body && typeof body === 'object' && (body.code !== undefined || body.msg)) {
+        return new Error(
+          `飞书凭证验证失败（${this.domainLabel(domain, Lark)}）：HTTP ${status ?? '?'} code=${body.code ?? '?'} msg=${body.msg ?? '未知'}`
+        );
+      }
+      return new Error(
+        `飞书凭证验证失败（${this.domainLabel(domain, Lark)}）：HTTP ${status ?? '?'}`
+      );
+    }
+    if (err instanceof Error) {
+      return new Error(`飞书凭证验证失败（${this.domainLabel(domain, Lark)}）：${err.message}`);
+    }
+    return new Error(`飞书凭证验证失败（${this.domainLabel(domain, Lark)}）：${String(err)}`);
+  }
+
+  private domainLabel(domain: number, Lark: LarkModule): string {
+    if (domain === (Lark.Domain.Lark as unknown as number)) return 'Lark 国际版';
+    if (domain === (Lark.Domain.Feishu as unknown as number)) return '飞书国内版';
+    return String(domain);
   }
 
   getStatus(): ChannelStatus {
@@ -324,7 +414,12 @@ export class FeishuChannel extends ChannelAdapter {
     return this.buildMsg(chatId, userId, messageId, `[当前暂不支持处理飞书 ${messageType} 消息]`);
   }
 
-  private buildMsg(chatId: string, userId: string, messageId: string, text: string): UnifiedMessage {
+  private buildMsg(
+    chatId: string,
+    userId: string,
+    messageId: string,
+    text: string
+  ): UnifiedMessage {
     return {
       channel_type: 'feishu',
       channel_id: this.channelId,

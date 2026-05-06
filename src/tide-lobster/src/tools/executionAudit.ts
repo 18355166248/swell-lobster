@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { getDb } from '../db/index.js';
+import { ExtensionSource } from '../extensions/types.js';
 import type { ToolRiskLevel } from './types.js';
 
 export type AuditDecision = 'approved' | 'denied' | 'expired' | 'skipped';
@@ -15,10 +16,24 @@ export interface ToolExecutionAuditRecord {
   duration_ms: number;
   status: AuditStatus;
   output_summary: string;
+  // 阶段 13：审计补来源字段，旧记录可能为 null
+  extension_source: ExtensionSource | null;
+  extension_id: string | null;
   created_at: string;
 }
 
 const MAX_SUMMARY_CHARS = 500;
+
+const VALID_EXTENSION_SOURCES: ReadonlySet<string> = new Set<ExtensionSource>([
+  ExtensionSource.builtin,
+  ExtensionSource.skill,
+  ExtensionSource.mcp,
+]);
+
+function normalizeExtensionSource(raw: unknown): ExtensionSource | null {
+  if (typeof raw !== 'string' || !VALID_EXTENSION_SOURCES.has(raw)) return null;
+  return raw as ExtensionSource;
+}
 
 function normalizeRow(row: Record<string, unknown>): ToolExecutionAuditRecord {
   return {
@@ -31,6 +46,8 @@ function normalizeRow(row: Record<string, unknown>): ToolExecutionAuditRecord {
     duration_ms: Number(row.duration_ms ?? 0),
     status: String(row.status ?? 'success') as AuditStatus,
     output_summary: String(row.output_summary ?? ''),
+    extension_source: normalizeExtensionSource(row.extension_source),
+    extension_id: row.extension_id ? String(row.extension_id) : null,
     created_at: String(row.created_at ?? ''),
   };
 }
@@ -47,6 +64,8 @@ class ExecutionAuditService {
     durationMs: number;
     status: AuditStatus;
     outputSummary: string;
+    extensionSource?: ExtensionSource | null;
+    extensionId?: string | null;
   }): void {
     const summary =
       input.outputSummary.length > MAX_SUMMARY_CHARS
@@ -57,8 +76,9 @@ class ExecutionAuditService {
       .prepare(
         `INSERT INTO tool_execution_audit (
           id, session_id, tool_name, approval_request_id,
-          risk_level, decision, duration_ms, status, output_summary, created_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          risk_level, decision, duration_ms, status, output_summary,
+          extension_source, extension_id, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         randomUUID(),
@@ -70,26 +90,31 @@ class ExecutionAuditService {
         input.durationMs,
         input.status,
         summary,
+        input.extensionSource ?? null,
+        input.extensionId ?? null,
         new Date().toISOString()
       );
   }
 
-  listRecent(options?: { sessionId?: string; limit?: number }): ToolExecutionAuditRecord[] {
+  listRecent(options?: {
+    sessionId?: string;
+    limit?: number;
+    source?: ExtensionSource;
+  }): ToolExecutionAuditRecord[] {
     const limit = Math.min(Math.max(Math.floor(options?.limit ?? 50), 1), 200);
-    const rows = options?.sessionId
-      ? (this.db
-          .prepare(
-            `SELECT * FROM tool_execution_audit
-             WHERE session_id = ?
-             ORDER BY created_at DESC LIMIT ?`
-          )
-          .all(options.sessionId, limit) as Record<string, unknown>[])
-      : (this.db
-          .prepare(
-            `SELECT * FROM tool_execution_audit
-             ORDER BY created_at DESC LIMIT ?`
-          )
-          .all(limit) as Record<string, unknown>[]);
+    const conditions: string[] = [];
+    const params: unknown[] = [];
+    if (options?.sessionId) {
+      conditions.push('session_id = ?');
+      params.push(options.sessionId);
+    }
+    if (options?.source) {
+      conditions.push('extension_source = ?');
+      params.push(options.source);
+    }
+    const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+    const sql = `SELECT * FROM tool_execution_audit ${where} ORDER BY created_at DESC LIMIT ?`;
+    const rows = this.db.prepare(sql).all(...params, limit) as Record<string, unknown>[];
     return rows.map(normalizeRow);
   }
 }

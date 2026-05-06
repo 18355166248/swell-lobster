@@ -15,7 +15,12 @@ import {
   buildSkillExtensionId,
   buildSkillManifest,
 } from './manifest.js';
-import { ExtensionHealthStatus, ExtensionKind, ExtensionSource, type ExtensionDescriptor } from './types.js';
+import {
+  ExtensionHealthStatus,
+  ExtensionKind,
+  ExtensionSource,
+  type ExtensionDescriptor,
+} from './types.js';
 
 type ParsedExtensionId =
   | { source: 'builtin'; target: string }
@@ -104,7 +109,9 @@ export class ExtensionCatalog {
       .filter((tool) => !isMcpTool(tool))
       .map(toBuiltinDescriptor);
     const skills = loadAllSkills().map(toSkillDescriptor);
-    const mcpDescriptors = await Promise.all(mcpStore.list().map((server) => toMcpDescriptor(server)));
+    const mcpDescriptors = await Promise.all(
+      mcpStore.list().map((server) => toMcpDescriptor(server))
+    );
 
     return [...builtins, ...skills, ...mcpDescriptors].sort((left, right) => {
       if (left.source !== right.source) return left.source.localeCompare(right.source);

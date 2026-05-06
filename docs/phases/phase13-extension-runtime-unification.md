@@ -201,19 +201,21 @@ export interface ExtensionDescriptor {
 
 ## 当前实现进展（2026-05-06）
 
-已落地后端统一扩展基线：
+后端统一扩展基线 + 前端入口 + 审计来源全部落地：
 
 - `extensions/types.ts`：定义统一 descriptor / manifest / source / health status
 - `extensions/manifest.ts`：为 builtin / skill / mcp server 生成最小 manifest
 - `extensions/lifecycle.ts`：统一 MCP 健康状态映射
 - `extensions/catalog.ts`：聚合 builtin、assistant skill、MCP server，并提供 enable / disable / reload
+- `extensions/toolSource.ts`：按 sanitize 后的工具名反查扩展来源（避免 ESM 循环依赖）
 - `api/routes/extensions.ts`：提供 `GET /api/extensions`、`GET /api/extensions/:id`、`POST /api/extensions/:id/{enable|disable|reload}`
 - `api/routes/extensions.test.ts`：覆盖 unified catalog、skill 启停、MCP 生命周期动作与 builtin 禁止变更
-
-当前仍未完成：
-
-- 前端统一扩展入口页
-- 审计记录补充扩展来源字段
+- `apps/web-ui/src/pages/Extensions/index.tsx`：统一入口页（表格 + 抽屉详情 + 来源/健康状态/关键字过滤），与 Skills / MCP 页面风格一致
+- `apps/web-ui/src/types/extensions.ts`：与后端 descriptor 对齐的前端类型
+- DB migration 27：`tool_execution_audit` 增加 `extension_source` / `extension_id` 列与索引
+- `tools/executionAudit.ts`：record/listRecent 支持 source 透传与过滤
+- `api/routes/approvals.ts`：`/api/approvals/audit?source=builtin|skill|mcp` 支持按来源过滤
+- `tools/executionAudit.test.ts`：覆盖 record 来源持久化、source 过滤、approvals 路由 400 校验
 
 ---
 
@@ -242,11 +244,11 @@ export interface ExtensionDescriptor {
 
 ## 完成情况
 
-| 步骤   | 内容                | 状态                      |
-| ------ | ------------------- | ------------------------- |
-| 步骤 1 | 统一扩展模型        | ✅ 已完成                 |
-| 步骤 2 | Catalog 聚合层      | ✅ 已完成                 |
-| 步骤 3 | 统一 manifest 约定  | ✅ 已完成                 |
-| 步骤 4 | 生命周期与健康状态  | ✅ 已完成                 |
-| 步骤 5 | 统一 API 与前端入口 | 🟡 后端已完成，前端待接入 |
-| 步骤 6 | 审计与权限联动      | ⬜ 待实现                 |
+| 步骤   | 内容                | 状态      |
+| ------ | ------------------- | --------- |
+| 步骤 1 | 统一扩展模型        | ✅ 已完成 |
+| 步骤 2 | Catalog 聚合层      | ✅ 已完成 |
+| 步骤 3 | 统一 manifest 约定  | ✅ 已完成 |
+| 步骤 4 | 生命周期与健康状态  | ✅ 已完成 |
+| 步骤 5 | 统一 API 与前端入口 | ✅ 已完成 |
+| 步骤 6 | 审计与权限联动      | ✅ 已完成 |

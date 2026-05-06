@@ -337,9 +337,7 @@ const migrations: Array<{ version: number; up: (db: Database.Database) => void }
       };
       execSafe(`ALTER TABLE mcp_servers ADD COLUMN registry_id TEXT;`);
       execSafe(`ALTER TABLE mcp_servers ADD COLUMN url TEXT;`);
-      execSafe(
-        `ALTER TABLE mcp_servers ADD COLUMN headers TEXT NOT NULL DEFAULT '{}';`
-      );
+      execSafe(`ALTER TABLE mcp_servers ADD COLUMN headers TEXT NOT NULL DEFAULT '{}';`);
     },
   },
   {
@@ -399,7 +397,9 @@ const migrations: Array<{ version: number; up: (db: Database.Database) => void }
       execSafe(`ALTER TABLE journal_entries ADD COLUMN mood TEXT`);
       execSafe(`ALTER TABLE journal_entries ADD COLUMN weather TEXT`);
       execSafe(`ALTER TABLE journal_entries ADD COLUMN location TEXT`);
-      execSafe(`ALTER TABLE journal_entries ADD COLUMN memory_extracted INTEGER NOT NULL DEFAULT 0`);
+      execSafe(
+        `ALTER TABLE journal_entries ADD COLUMN memory_extracted INTEGER NOT NULL DEFAULT 0`
+      );
 
       // 记忆来源追踪：区分来自聊天、日记还是手动创建
       execSafe(`ALTER TABLE memories ADD COLUMN source_type TEXT NOT NULL DEFAULT 'chat'`);
@@ -603,6 +603,28 @@ const migrations: Array<{ version: number; up: (db: Database.Database) => void }
       execSafe(`ALTER TABLE execution_plans ADD COLUMN failed_step_id TEXT`);
       execSafe(`ALTER TABLE execution_plans ADD COLUMN failed_step_title TEXT`);
       execSafe(`ALTER TABLE execution_plans ADD COLUMN failed_step_order INTEGER`);
+    },
+  },
+  {
+    version: 27,
+    up: (db) => {
+      const execSafe = (sql: string) => {
+        try {
+          db.exec(sql);
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          if (!message.includes('duplicate column name')) throw error;
+        }
+      };
+
+      // 阶段 13 收口：审计记录补充扩展来源字段，旧记录保留 NULL
+      execSafe(`ALTER TABLE tool_execution_audit ADD COLUMN extension_source TEXT`);
+      execSafe(`ALTER TABLE tool_execution_audit ADD COLUMN extension_id TEXT`);
+
+      db.exec(`
+        CREATE INDEX IF NOT EXISTS idx_tool_execution_audit_source
+          ON tool_execution_audit(extension_source, created_at DESC);
+      `);
     },
   },
 ];

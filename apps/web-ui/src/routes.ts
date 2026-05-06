@@ -5,6 +5,7 @@ export const ROUTES = {
   IM: '/im',
   SKILLS: '/skills',
   MCP: '/mcp',
+  EXTENSIONS: '/extensions',
   SCHEDULER: '/scheduler',
   MEMORY: '/memory',
   JOURNAL: '/journal',

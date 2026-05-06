@@ -29,6 +29,7 @@ import { persistUploadedBuffer, type StoredAttachment } from '../upload/handler.
 import { toLLMMessages, type ChatInputAttachment } from './attachments.js';
 import { approvalStore } from '../store/approvalStore.js';
 import { executionAuditService, type AuditDecision } from '../tools/executionAudit.js';
+import { resolveToolSource } from '../extensions/toolSource.js';
 import { planStore } from '../store/planStore.js';
 import type {
   ExecutionPlan,
@@ -746,6 +747,11 @@ export class ChatService {
       arguments: toolCall.arguments,
     });
 
+    // 阶段 13：审计补来源字段，反查失败时归 null（不阻断审计落库）
+    const toolSource = resolveToolSource(toolCall.name);
+    const extensionSource = toolSource?.source ?? null;
+    const extensionId = toolSource?.extensionId || null;
+
     if (disabledToolNames.has(toolCall.name)) {
       trace.status = 'failed';
       // 返回普通 tool_result 而不是抛异常，让模型有机会解释为什么该工具不可用。
@@ -860,6 +866,8 @@ export class ChatService {
             durationMs: 0,
             status: 'failed',
             outputSummary: trace.result,
+            extensionSource,
+            extensionId,
           });
           throw new ToolApprovalInterruptedError(
             trace.result,
@@ -901,6 +909,8 @@ export class ChatService {
         durationMs: Date.now() - startMs,
         status: 'success',
         outputSummary: trace.result ?? '',
+        extensionSource,
+        extensionId,
       });
     } catch (error) {
       trace.status = 'failed';
@@ -920,6 +930,8 @@ export class ChatService {
         durationMs: Date.now() - startMs,
         status: 'failed',
         outputSummary: trace.result,
+        extensionSource,
+        extensionId,
       });
     }
     return trace;

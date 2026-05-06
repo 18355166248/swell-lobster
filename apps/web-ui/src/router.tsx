@@ -25,6 +25,10 @@ export const router = createBrowserRouter([
         lazy: async () => ({ Component: (await import('./pages/MCP')).MCPPage }),
       },
       {
+        path: 'extensions',
+        lazy: async () => ({ Component: (await import('./pages/Extensions')).ExtensionsPage }),
+      },
+      {
         path: 'scheduler',
         lazy: async () => ({ Component: (await import('./pages/Scheduler')).SchedulerPage }),
       },

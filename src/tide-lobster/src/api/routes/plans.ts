@@ -26,7 +26,7 @@ plansRouter.post('/api/plans/:id/cancel', (c) => {
   recordEvent({
     category: 'plan.created',
     status: 'error',
-    sessionId: plan.session_id,
+    sessionId: plan.sessionId,
     meta: { planId: plan.id, action: 'cancelled', stepCount: plan.steps.length },
   });
   return c.json(planStore.getById(plan.id));

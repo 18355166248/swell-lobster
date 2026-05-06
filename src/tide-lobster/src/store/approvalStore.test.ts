@@ -1,24 +1,46 @@
-import { afterEach, describe, expect, it } from 'vitest';
-import { getDb } from '../db/index.js';
-import { ApprovalStore } from './approvalStore.js';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
 
 const SESSION_PREFIX = 'test-approval-store-';
 
-function cleanup(): void {
-  getDb()
-    .prepare(`DELETE FROM tool_approval_requests WHERE session_id LIKE ?`)
-    .run(`${SESSION_PREFIX}%`);
-}
-
-afterEach(() => {
-  cleanup();
-  getDb().prepare(`DELETE FROM tool_approval_session_grants WHERE session_id LIKE ?`).run(
-    `${SESSION_PREFIX}%`
-  );
-});
-
 describe('ApprovalStore', () => {
+  let repoRoot = '';
+
+  beforeEach(() => {
+    repoRoot = mkdtempSync(join(tmpdir(), 'swell-approval-store-test-'));
+    mkdirSync(join(repoRoot, 'identity'), { recursive: true });
+    mkdirSync(join(repoRoot, 'data'), { recursive: true });
+    writeFileSync(join(repoRoot, 'identity', 'assistant.md'), 'You are a test assistant.');
+    process.env.SWELL_PROJECT_ROOT = repoRoot;
+    process.env.SWELL_DATA_DIR = join(repoRoot, 'data');
+    process.env.SWELL_IDENTITY_DIR = join(repoRoot, 'identity');
+    vi.resetModules();
+  });
+
+  afterEach(async () => {
+    const { getDb } = await import('../db/index.js');
+    getDb()
+      .prepare(`DELETE FROM tool_approval_requests WHERE session_id LIKE ?`)
+      .run(`${SESSION_PREFIX}%`);
+    getDb().prepare(`DELETE FROM tool_approval_session_grants WHERE session_id LIKE ?`).run(
+      `${SESSION_PREFIX}%`
+    );
+
+    try {
+      rmSync(repoRoot, { recursive: true, force: true });
+    } catch {
+      // ignore locked files on Windows
+    }
+    delete process.env.SWELL_PROJECT_ROOT;
+    delete process.env.SWELL_DATA_DIR;
+    delete process.env.SWELL_IDENTITY_DIR;
+    vi.resetModules();
+  });
+
   it('waits for approve and resolves the pending request', async () => {
+    const { ApprovalStore } = await import('./approvalStore.js');
     const store = new ApprovalStore();
     const request = store.createRequest({
       sessionId: `${SESSION_PREFIX}approve`,
@@ -38,6 +60,7 @@ describe('ApprovalStore', () => {
   });
 
   it('expires pending requests on timeout', async () => {
+    const { ApprovalStore } = await import('./approvalStore.js');
     const store = new ApprovalStore();
     const request = store.createRequest({
       sessionId: `${SESSION_PREFIX}timeout`,
@@ -53,6 +76,7 @@ describe('ApprovalStore', () => {
   });
 
   it('stores and reuses session approval grants', async () => {
+    const { ApprovalStore } = await import('./approvalStore.js');
     const store = new ApprovalStore();
     const grant = store.grantSessionApproval(
       `${SESSION_PREFIX}grant`,

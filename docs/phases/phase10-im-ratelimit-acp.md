@@ -324,12 +324,12 @@ im_rate_stats (
 
 ## 完成情况
 
-| 步骤   | 内容                            | 状态                                                                    |
-| ------ | ------------------------------- | ----------------------------------------------------------------------- |
-| 步骤 1 | IM 抽象层收敛                   | ✅ 已完成（rateLimiter.ts、base.ts 通用 webhook 支持）                  |
-| 步骤 2 | 钉钉通道                        | ✅ 已完成（channels/dingtalk/index.ts，Stream SDK）                     |
-| 步骤 3 | 飞书通道                        | ✅ 已完成（channels/feishu/index.ts，Webhook 模式，支持签名校验）       |
-| 步骤 4 | 通道级速率限制                  | ✅ 已完成（im/rateLimiter.ts、im_rate_stats 表）                        |
-| 步骤 5 | Agent 间通信（`delegate_task`） | ✅ 已完成（tools/builtins/delegate_task.ts、agents/delegateService.ts） |
-| 步骤 6 | 前端与配置收口                  | ✅ 已完成（IM 页面数据驱动，通道类型字段已补飞书）                      |
-| 步骤 7 | 测试与回归                      | ⬜ 待实现（飞书 webhook 验签单测、通道集成验证）                        |
+| 步骤   | 内容                            | 状态                                                                         |
+| ------ | ------------------------------- | ---------------------------------------------------------------------------- |
+| 步骤 1 | IM 抽象层收敛                   | ✅ 已完成（rateLimiter.ts、base.ts 通用 webhook 支持）                       |
+| 步骤 2 | 钉钉通道                        | ✅ 已完成（channels/dingtalk/index.ts，Stream SDK）                          |
+| 步骤 3 | 飞书通道                        | ✅ 已完成（channels/feishu/index.ts，WSClient 长连接，支持文本/富文本/图片） |
+| 步骤 4 | 通道级速率限制                  | ✅ 已完成（im/rateLimiter.ts、im_rate_stats 表）                             |
+| 步骤 5 | Agent 间通信（`delegate_task`） | ✅ 已完成（tools/builtins/delegate_task.ts、agents/delegateService.ts）      |
+| 步骤 6 | 前端与配置收口                  | ✅ 已完成（IM 页面数据驱动，通道类型字段已补飞书）                           |
+| 步骤 7 | 测试与回归                      | ⬜ 待实现（飞书 webhook 验签单测、通道集成验证）                             |

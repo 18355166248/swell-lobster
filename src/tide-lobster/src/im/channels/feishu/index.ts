@@ -70,23 +70,40 @@ function asciiJson(value: unknown): string {
 }
 
 /**
- * 将标准 Markdown 转为飞书卡片 markdown 元素兼容的格式。
- * 飞书卡片不支持 # ## ### 标题语法，转成加粗替代。
+ * 是否包含需要走卡片渲染的 Markdown 结构。
+ * v2 卡片 markdown 元素已原生支持下列全部语法，命中任意一项即用卡片，
+ * 否则当作纯文本（短回复、emoji ack 等）走 text 消息以减小负载。
  */
-function normalizeForFeishu(text: string): string {
-  return text.replace(/^#{1,6}\s+(.+)$/gm, '**$1**');
-}
-
-/** 检测文本是否含有 Markdown 语法，需要用卡片渲染 */
 function hasMarkdownSyntax(text: string): boolean {
-  return /```[\s\S]*?```|\*\*.*?\*\*|^#{1,6}\s|\[.+?\]\(.+?\)/m.test(text);
+  return (
+    /^#{1,6}\s/m.test(text) || // 标题
+    /\*\*[^*\n]+\*\*/.test(text) || // 粗体 **
+    /__[^_\n]+__/.test(text) || // 粗体 __
+    /```[\s\S]*?```/.test(text) || // 代码块
+    /`[^`\n]+`/.test(text) || // 行内代码
+    /\[[^\]\n]+\]\([^)\n]+\)/.test(text) || // 链接
+    /^\s*(?:[-*+]|\d+\.)\s+/m.test(text) || // 有序/无序列表
+    /^\s{0,3}>\s+/m.test(text) || // 引用块
+    /^\s{0,3}\|.+\|\s*$/m.test(text) || // 表格
+    /^\s{0,3}-{3,}\s*$/m.test(text) // 分隔线
+  );
 }
 
-/** 构造飞书卡片 JSON，markdown 元素直接渲染 md 格式 */
+/**
+ * 构造飞书卡片 v2 (schema 2.0) JSON：markdown 元素原生支持标题/列表/表格/
+ * 引用块/代码块/行内代码/分隔线，无需手工预处理。
+ *
+ * 文档参考：
+ * https://open.feishu.cn/document/uAjLw4CM/ukzMukzMukzM/feishu-cards/card-json-v2-components/content-components/rich-text
+ *
+ * 注意：必须显式声明 `schema: "2.0"`，否则飞书会按 v1 解析（v1 不支持标题/表格/引用块）。
+ */
 function buildMarkdownCard(content: string): string {
   return asciiJson({
-    config: { wide_screen_mode: true },
-    elements: [{ tag: 'markdown', content: normalizeForFeishu(content) }],
+    schema: '2.0',
+    body: {
+      elements: [{ tag: 'markdown', content }],
+    },
   });
 }
 

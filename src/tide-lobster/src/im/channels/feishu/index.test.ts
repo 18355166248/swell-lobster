@@ -120,7 +120,9 @@ describe('FeishuChannel', () => {
         chat_id: 'oc_chat_1',
         chat_type: 'p2p',
         message_type: 'text',
-        content: JSON.stringify({ text: '@Swell   <at user_id="ou_bot_123"></at> 帮我整理今天待办' }),
+        content: JSON.stringify({
+          text: '@Swell   <at user_id="ou_bot_123"></at> 帮我整理今天待办',
+        }),
         mentions: [
           {
             id: { open_id: 'ou_bot_123' },
@@ -221,9 +223,14 @@ describe('FeishuChannel', () => {
       path: { message_id: 'root-msg-1' },
       data: {
         msg_type: 'interactive',
-        content: expect.stringContaining('**\\u4eca\\u65e5\\u603b\\u7ed3**'),
+        // v2 卡片必须声明 schema 2.0，markdown 元素原生支持 # 标题
+        content: expect.stringContaining('"schema":"2.0"'),
       },
     });
+    const replyArg = replyMock.mock.calls[0]?.[0] as { data?: { content?: string } } | undefined;
+    expect(replyArg?.data?.content).toContain('"tag":"markdown"');
+    // 中文标题以 \uXXXX 形式保留，无需再降级为粗体
+    expect(replyArg?.data?.content).toContain('# \\u4eca\\u65e5\\u603b\\u7ed3');
     expect(createMock).not.toHaveBeenCalled();
   });
 });

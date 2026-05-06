@@ -91,3 +91,11 @@ npm run build:desktop
 - 新增顶层产品目录或工程目录时，必须补对应 `AGENTS.md`。
 - 不要再把存储描述成 “JSON only” 或 “no database”；当前后端同时使用 SQLite 和 JSON。
 - 根指南保持短小，详细实现规则下沉到最近的子系统文档。
+
+## 参考文档
+
+- [docs/runtime-guide.md](docs/runtime-guide.md) — 启动链路、桌面运行关系、常见排障
+- [docs/desktop-validation-checklist.md](docs/desktop-validation-checklist.md) — 桌面发布前人工验收清单
+- [docs/desktop-env-config.md](docs/desktop-env-config.md) — 桌面端环境变量与代理配置
+- [docs/PROJECT_STATUS.md](docs/PROJECT_STATUS.md) — 当前项目状态
+- [docs/roadmap.md](docs/roadmap.md) — 开发路线图

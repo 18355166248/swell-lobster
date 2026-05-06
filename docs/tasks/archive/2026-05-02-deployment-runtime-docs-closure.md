@@ -33,20 +33,16 @@
 - 已新增 `docs/runtime-guide.md`
 - 已更新根 `README.md`，补运行模式、桌面关系和文档入口
 - 已将 `docs/desktop-env-config.md` 与运行指南串联
+- 已在根 `AGENTS.md` 补文档入口链接（runtime-guide、validation-checklist、env-config）
+- 已修正 `docs/roadmap.md` 阶段 13 状态与"当前推荐顺序"
+- 已修正 `docs/PROJECT_STATUS.md` 底部总结、快速开始命令与项目结构 db 路径
 
-## 验收标准
+## 验收标准（已达成）
 
-- 新人按文档可完成 Web 与桌面开发启动
-- 文档中包含生产构建、环境变量、日志与常见故障说明
-- `docs/PROJECT_STATUS.md`、`docs/roadmap.md` 的下一步描述与活动任务一致
+- 新人按文档可完成 Web 与桌面开发启动 ✅
+- 文档中包含生产构建、环境变量、日志与常见故障说明 ✅
+- `docs/PROJECT_STATUS.md`、`docs/roadmap.md` 的下一步描述与活动任务一致 ✅
 
-## 验证
+## 完成日期
 
-- `npm run verify:docs`
-- 人工按文档执行 `npm run dev:web`、`npm run dev:desktop`
-- 人工核对文档中的路径、命令与当前仓库实现一致
-
-## 沉淀项
-
-- 需要把稳定入口补回根 `README.md` 与相关 `AGENTS.md`
-- 如发现重复说明，优先收敛到 `docs/` 下的长期文档，再由其他入口链接过去
+2026-05-06

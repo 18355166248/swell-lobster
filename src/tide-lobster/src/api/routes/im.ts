@@ -436,6 +436,22 @@ type FeishuAuthModule = {
   FeishuAuth: new (...args: any[]) => FeishuAuthInstance;
 };
 
+async function loadFeishuAuthModule(): Promise<FeishuAuthModule> {
+  try {
+    const dynamicImport = new Function('s', 'return import(s)') as (specifier: string) => Promise<
+      unknown
+    >;
+    return (await dynamicImport(
+      '@larksuite/openclaw-lark-tools/dist/utils/feishu-auth.js'
+    )) as FeishuAuthModule;
+  } catch (error: unknown) {
+    const detail = error instanceof Error ? error.message : String(error);
+    throw new Error(
+      `飞书扫码安装依赖未就绪：@larksuite/openclaw-lark-tools (${detail})`
+    );
+  }
+}
+
 /** deviceCode → { isLark, expireAt } 的短暂会话状态，仅内存 */
 const feishuQrSessions = new Map<string, { isLark: boolean; expireAt: number }>();
 setInterval(() => {
@@ -452,9 +468,7 @@ imRouter.post('/api/im/feishu/install/qrcode', async (c) => {
     .catch((): { isLark?: boolean } => ({}));
   const isLark = body.isLark === true;
   try {
-    const { FeishuAuth } = (await import(
-      '@larksuite/openclaw-lark-tools/dist/utils/feishu-auth.js'
-    )) as unknown as FeishuAuthModule;
+    const { FeishuAuth } = await loadFeishuAuthModule();
     const auth = new FeishuAuth();
     auth.setDomain(isLark);
     await auth.init();
@@ -480,9 +494,7 @@ imRouter.post('/api/im/feishu/install/poll', async (c) => {
   const session = feishuQrSessions.get(deviceCode);
   if (!session) return c.json({ detail: 'session expired or not found' }, 404);
   try {
-    const { FeishuAuth } = (await import(
-      '@larksuite/openclaw-lark-tools/dist/utils/feishu-auth.js'
-    )) as unknown as FeishuAuthModule;
+    const { FeishuAuth } = await loadFeishuAuthModule();
     const auth = new FeishuAuth();
     auth.setDomain(session.isLark);
     const resp = await auth.poll(deviceCode);

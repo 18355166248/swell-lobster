@@ -34,6 +34,12 @@
 | 阶段 13：统一扩展运行时（catalog、manifest、API + 前端扩展管理页）    | ✅   | ✅   |
 | 阶段 14：统一观测事件、trace、指标聚合、DB 迁移收敛、备份恢复、错误码 | ✅   | ✅   |
 
+### 规划中
+
+| 功能                                                                             | 后端 | 前端 |
+| -------------------------------------------------------------------------------- | ---- | ---- |
+| 阶段 15：API 鉴权 + 字段加密 + 文档生成技能（docx/xlsx/pptx）+ 浏览器/邮件自动化 | ⏳   | ⏳   |
+
 ### 核心功能完整度
 
 当前已完成阶段 1-7、阶段 9-14，系统具备：
@@ -77,6 +83,7 @@
 阶段12：计划模式 + 多 Agent ✅ → 计划结构、执行引擎、时间线 UI、metrics 与失败定位已完成
 阶段13：统一扩展运行时 ✅    → catalog、manifest、API、前端扩展管理页、审计联动全部完成
 阶段14：观测性与稳定性 ✅    → trace、指标、migration、备份恢复、发布基线全部完成
+阶段15：安全加固 + 文档技能 ⏳ → API 鉴权、字段加密、docx/xlsx/pptx、浏览器/邮件自动化
 ```
 
 ### 依赖关系图
@@ -84,7 +91,7 @@
 ```
 阶段1 ─────────────────────────────────────────────────────────────────── 所有后续依赖
   │   阶段2 （可与阶段1并行启动）
-  └── 阶段3 ── 阶段4 ── 阶段5 ── 阶段6 ── 阶段7 ── 阶段9 ── 阶段10 ── 阶段11 ── 阶段12 ── 阶段13 ── 阶段14
+  └── 阶段3 ── 阶段4 ── 阶段5 ── 阶段6 ── 阶段7 ── 阶段9 ── 阶段10 ── 阶段11 ── 阶段12 ── 阶段13 ── 阶段14 ── 阶段15
 ```
 
 ---
@@ -106,6 +113,7 @@
 | [phases/phase12-plan-mode-multi-agent.md](./phases/phase12-plan-mode-multi-agent.md)                           | 计划模式 + 多 Agent 协作    |
 | [phases/phase13-extension-runtime-unification.md](./phases/phase13-extension-runtime-unification.md)           | 统一扩展运行时              |
 | [phases/phase14-observability-stability-governance.md](./phases/phase14-observability-stability-governance.md) | 观测性 + 稳定性 + 数据治理  |
+| [phases/phase15-security-productivity-skills.md](./phases/phase15-security-productivity-skills.md)             | 安全加固 + 生产力技能补强   |
 | [architecture/database-schema.md](./architecture/database-schema.md)                                           | 完整 SQLite Schema          |
 | [architecture/api-reference.md](./architecture/api-reference.md)                                               | 所有 API 端点汇总           |
 
@@ -141,13 +149,19 @@
 
 ## 当前推荐顺序
 
-阶段 1-14 全部完成，桌面端已完成实机验证。当前系统达到生产就绪标准。
+阶段 1-14 全部完成，桌面端已完成实机验证。下一步进入阶段 15（安全加固 + 生产力技能补强），详见 [phases/phase15-security-productivity-skills.md](./phases/phase15-security-productivity-skills.md)。
 
-待处理技术债务（按优先级）：
+阶段 15 范围：
 
-1. API 认证与鉴权
-2. 敏感数据加密
-3. 部署文档与运行说明收尾
-4. 输入验证增强、CORS 配置
-5. 数据库查询优化
-6. 大文件上传优化、图片压缩
+1. API 鉴权（本机 token + 远程 token）
+2. 敏感字段加密（IM Token / LLM API Key / SMTP 密码）
+3. 输入校验 + CORS 收紧
+4. 文档生成技能：docx / xlsx / pptx
+5. 浏览器自动化技能（基于 playwright）
+6. 邮件发送技能（SMTP MVP）
+
+剩余技术债务（按优先级，不在阶段 15 必做范围）：
+
+1. 部署文档与运行说明收尾
+2. 数据库查询优化
+3. 大文件上传优化、图片压缩

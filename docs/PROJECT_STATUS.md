@@ -207,16 +207,27 @@ swell-lobster/
 
 ## 🎯 下一步建议
 
-阶段 1-14 全部完成，桌面端实机验证已通过。系统达到生产就绪标准。
+阶段 1-14 全部完成，桌面端实机验证已通过。下一步进入 **阶段 15：安全加固 + 生产力技能补强**，方案见 [phases/phase15-security-productivity-skills.md](./phases/phase15-security-productivity-skills.md)。
 
-### 待处理技术债务
+### 阶段 15 范围（3 周）
 
-#### 安全（高优先级）
+**模块一：安全加固（1 周）**
 
-- [ ] API 认证与鉴权
-- [ ] 敏感数据加密
-- [ ] 输入验证增强
-- [ ] CORS 配置
+- [ ] API 鉴权（本机 token 自动注入 + 远程 token 管理）
+- [ ] 字段级 AES-256-GCM 加密（IM Token / LLM API Key / SMTP 密码）
+- [ ] 输入校验（zod schema 化关键 POST/PATCH）
+- [ ] CORS 白名单收紧（默认仅放行桌面端与本地开发源）
+
+**模块二：生产力技能（2 周）**
+
+- [ ] `docx_writer`（基于 docx）
+- [ ] `xlsx_writer`（基于 exceljs，多 sheet + 表头冻结）
+- [ ] `pptx_writer`（基于 pptxgenjs，4 种 layout）
+- [ ] `browser_automation`（基于 playwright，screenshot / extract_text / fill_and_submit）
+- [ ] `email_send`（基于 nodemailer，SMTP MVP）
+- [ ] 5 个对应的 markdown 技能模板 + 前端 Skills 页分组
+
+### 阶段 15 之外的技术债务
 
 #### 文档
 
@@ -249,10 +260,10 @@ swell-lobster/
 
 ### 安全
 
-- [ ] API 认证与鉴权
-- [ ] 敏感数据加密
-- [ ] 输入验证增强
-- [ ] CORS 配置
+- [ ] API 认证与鉴权（阶段 15）
+- [ ] 敏感数据加密（阶段 15）
+- [ ] 输入验证增强（阶段 15）
+- [ ] CORS 配置（阶段 15）
 
 ### 性能
 

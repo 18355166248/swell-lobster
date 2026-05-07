@@ -36,9 +36,11 @@
 
 ### 规划中
 
-| 功能                                                                             | 后端 | 前端 |
-| -------------------------------------------------------------------------------- | ---- | ---- |
-| 阶段 15：API 鉴权 + 字段加密 + 文档生成技能（docx/xlsx/pptx）+ 浏览器/邮件自动化 | ⏳   | ⏳   |
+| 功能                                                                                                                                              | 后端 | 前端 |
+| ------------------------------------------------------------------------------------------------------------------------------------------------- | ---- | ---- |
+| 阶段 [15a](./phases/phase15-security-productivity-skills.md#p15-subphases)：API 鉴权、CORS、`zod` 校验、字段加密、Security 设置页、迁移与观测事件 | ⏳   | ⏳   |
+| 阶段 [15b](./phases/phase15-security-productivity-skills.md#p15-subphases)：docx / xlsx / pptx 工具 + 技能模板 + Skills「文档生成」               | ⏳   | ⏳   |
+| 阶段 [15c](./phases/phase15-security-productivity-skills.md#p15-subphases)：browser_automation、email_send（SMTP）+ 技能模板 + Skills「自动化」   | ⏳   | ⏳   |
 
 ### 核心功能完整度
 
@@ -83,8 +85,10 @@
 阶段12：计划模式 + 多 Agent ✅ → 计划结构、执行引擎、时间线 UI、metrics 与失败定位已完成
 阶段13：统一扩展运行时 ✅    → catalog、manifest、API、前端扩展管理页、审计联动全部完成
 阶段14：观测性与稳定性 ✅    → trace、指标、migration、备份恢复、发布基线全部完成
-阶段15：安全加固 + 文档技能 ⏳ → API 鉴权、字段加密、docx/xlsx/pptx、浏览器/邮件自动化
+阶段15：安全加固 + 文档技能 ⏳ → 拆分子阶段 15a（安全）→ 15b（doc/xlsx/pptx）与 15c（Playwright/SMTP）并行，见 phase15 文档锚点 `#p15-subphases`
 ```
+
+注：同上子阶段释义与验收清单见 [phase15-security-productivity-skills.md](./phases/phase15-security-productivity-skills.md#p15-subphases)。
 
 ### 依赖关系图
 
@@ -94,41 +98,44 @@
   └── 阶段3 ── 阶段4 ── 阶段5 ── 阶段6 ── 阶段7 ── 阶段9 ── 阶段10 ── 阶段11 ── 阶段12 ── 阶段13 ── 阶段14 ── 阶段15
 ```
 
+阶段 15 在交付上再拆：先 **15a**，再并行 **15b**、**15c**（见 phase15）。
+
 ---
 
 ## 详细文档索引
 
-| 文档                                                                                                           | 内容                        |
-| -------------------------------------------------------------------------------------------------------------- | --------------------------- |
-| [phases/phase1-identity.md](./phases/phase1-identity.md)                                                       | 身份系统激活 + 聊天增强     |
-| [phases/phase2-token-search.md](./phases/phase2-token-search.md)                                               | Token 统计 + 会话搜索       |
-| [phases/phase3-memory-tools.md](./phases/phase3-memory-tools.md)                                               | 记忆系统 + Function Calling |
-| [phases/phase4-mcp-scheduler.md](./phases/phase4-mcp-scheduler.md)                                             | MCP 服务器 + 计划任务       |
-| [phases/phase5-im-skills.md](./phases/phase5-im-skills.md)                                                     | IM 通道 + 技能系统          |
-| [phases/phase6-multimodal-input.md](./phases/phase6-multimodal-input.md)                                       | 多模态输入 + 生产力工具     |
-| [phases/phase7-agent-templates.md](./phases/phase7-agent-templates.md)                                         | Agent 模板系统              |
-| [phases/phase9-vector-memory-search.md](./phases/phase9-vector-memory-search.md)                               | 向量记忆 + 网络搜索         |
-| [phases/phase10-im-ratelimit-acp.md](./phases/phase10-im-ratelimit-acp.md)                                     | 更多 IM + ACP               |
-| [phases/phase11-execution-approval.md](./phases/phase11-execution-approval.md)                                 | 工具执行审批 + 安全边界     |
-| [phases/phase12-plan-mode-multi-agent.md](./phases/phase12-plan-mode-multi-agent.md)                           | 计划模式 + 多 Agent 协作    |
-| [phases/phase13-extension-runtime-unification.md](./phases/phase13-extension-runtime-unification.md)           | 统一扩展运行时              |
-| [phases/phase14-observability-stability-governance.md](./phases/phase14-observability-stability-governance.md) | 观测性 + 稳定性 + 数据治理  |
-| [phases/phase15-security-productivity-skills.md](./phases/phase15-security-productivity-skills.md)             | 安全加固 + 生产力技能补强   |
-| [architecture/database-schema.md](./architecture/database-schema.md)                                           | 完整 SQLite Schema          |
-| [architecture/api-reference.md](./architecture/api-reference.md)                                               | 所有 API 端点汇总           |
+| 文档                                                                                                           | 内容                                                            |
+| -------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| [phases/phase1-identity.md](./phases/phase1-identity.md)                                                       | 身份系统激活 + 聊天增强                                         |
+| [phases/phase2-token-search.md](./phases/phase2-token-search.md)                                               | Token 统计 + 会话搜索                                           |
+| [phases/phase3-memory-tools.md](./phases/phase3-memory-tools.md)                                               | 记忆系统 + Function Calling                                     |
+| [phases/phase4-mcp-scheduler.md](./phases/phase4-mcp-scheduler.md)                                             | MCP 服务器 + 计划任务                                           |
+| [phases/phase5-im-skills.md](./phases/phase5-im-skills.md)                                                     | IM 通道 + 技能系统                                              |
+| [phases/phase6-multimodal-input.md](./phases/phase6-multimodal-input.md)                                       | 多模态输入 + 生产力工具                                         |
+| [phases/phase7-agent-templates.md](./phases/phase7-agent-templates.md)                                         | Agent 模板系统                                                  |
+| [phases/phase9-vector-memory-search.md](./phases/phase9-vector-memory-search.md)                               | 向量记忆 + 网络搜索                                             |
+| [phases/phase10-im-ratelimit-acp.md](./phases/phase10-im-ratelimit-acp.md)                                     | 更多 IM + ACP                                                   |
+| [phases/phase11-execution-approval.md](./phases/phase11-execution-approval.md)                                 | 工具执行审批 + 安全边界                                         |
+| [phases/phase12-plan-mode-multi-agent.md](./phases/phase12-plan-mode-multi-agent.md)                           | 计划模式 + 多 Agent 协作                                        |
+| [phases/phase13-extension-runtime-unification.md](./phases/phase13-extension-runtime-unification.md)           | 统一扩展运行时                                                  |
+| [phases/phase14-observability-stability-governance.md](./phases/phase14-observability-stability-governance.md) | 观测性 + 稳定性 + 数据治理                                      |
+| [phases/phase15-security-productivity-skills.md](./phases/phase15-security-productivity-skills.md)             | 安全加固 + 生产力技能（**15a/15b/15c**，锚点 `#p15-subphases`） |
+| [architecture/database-schema.md](./architecture/database-schema.md)                                           | 完整 SQLite Schema                                              |
+| [architecture/api-reference.md](./architecture/api-reference.md)                                               | 所有 API 端点汇总                                               |
 
 ---
 
 ## 新增 npm 依赖汇总
 
-| 阶段 | 包                                       | 用途                           |
-| ---- | ---------------------------------------- | ------------------------------ |
-| 1    | 无                                       | 纯业务逻辑                     |
-| 2    | `recharts`（前端，可选）                 | Token 趋势图表                 |
-| 3    | 无                                       | undici 已有                    |
-| 4    | `node-cron`、`@modelcontextprotocol/sdk` | 定时任务、MCP 集成             |
-| 5    | `grammy`、`gray-matter`                  | Telegram Bot、frontmatter 解析 |
-| 6    | `pdfjs-dist`                             | PDF 解析                       |
+| 阶段 | 包                                           | 用途                                            |
+| ---- | -------------------------------------------- | ----------------------------------------------- |
+| 1    | 无                                           | 纯业务逻辑                                      |
+| 2    | `recharts`（前端，可选）                     | Token 趋势图表                                  |
+| 3    | 无                                           | undici 已有                                     |
+| 4    | `node-cron`、`@modelcontextprotocol/sdk`     | 定时任务、MCP 集成                              |
+| 5    | `grammy`、`gray-matter`                      | Telegram Bot、frontmatter 解析                  |
+| 6    | `pdfjs-dist`                                 | PDF 解析                                        |
+| 15   | `docx`、`exceljs`、`pptxgenjs`、`nodemailer` | Phase15 doc/xlsx/pptx 与 SMTP 发件（15b / 15c） |
 
 ---
 
@@ -149,16 +156,20 @@
 
 ## 当前推荐顺序
 
-阶段 1-14 全部完成，桌面端已完成实机验证。下一步进入阶段 15（安全加固 + 生产力技能补强），详见 [phases/phase15-security-productivity-skills.md](./phases/phase15-security-productivity-skills.md)。
+阶段 1-14 全部完成，桌面端已完成实机验证。下一步进入 [阶段 15](./phases/phase15-security-productivity-skills.md)（文档内 **[15a / 15b / 15c](./phases/phase15-security-productivity-skills.md#p15-subphases)** 子里程碑）。
 
-阶段 15 范围：
+阶段 15 范围（与文档子阶段对齐）：
 
-1. API 鉴权（本机 token + 远程 token）
-2. 敏感字段加密（IM Token / LLM API Key / SMTP 密码）
-3. 输入校验 + CORS 收紧
-4. 文档生成技能：docx / xlsx / pptx
-5. 浏览器自动化技能（基于 playwright）
-6. 邮件发送技能（SMTP MVP）
+- **15a（安全底座）**
+  1. API 鉴权（本机 token + 远程 token）
+  2. 敏感字段加密（IM Token / LLM API Key / Webhook Secret、`kv` 中 SMTP 密码等）
+  3. 输入校验 + CORS 收紧（及 Security 设置页、观测事件）
+
+- **15b（办公导出）** 4. 文档生成技能：`docx` / `xlsx` / `pptx`（及对应技能模板、Skills「文档生成」分组）
+
+- **15c（外向自动化）** 5. 浏览器自动化（Playwright，`browser_automation`）6. 邮件发送（SMTP MVP，`nodemailer`；IMAP / 收件后续）
+
+建议合并顺序：**15a-merge** → 并行 **15b-merge** / **15c-merge**。
 
 剩余技术债务（按优先级，不在阶段 15 必做范围）：
 

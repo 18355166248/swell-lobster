@@ -1,7 +1,7 @@
 # 阶段 15：安全加固 + 生产力技能补强
 
 > **目标**：把 SwellLobster 从"个人开发机本地可用"推进到"可以放心打开远程访问、IM 触发、生成可交付文档"。
-> **预估工作量**：3 周（安全 1 周 + 技能 2 周）
+> **预估工作量**：3 周 —— 建议按子阶段 **[15a](#p15-subphases)** / **[15b](#p15-subphases)** / **[15c](#p15-subphases)** 分拆合并（约各 1 周；15b 与 15c 可在 15a 合主干后并行开发）。
 > **前置条件**：阶段 1-14 已完成，桌面端实机验证通过
 
 ---
@@ -26,7 +26,7 @@
 3. 输入校验与 CORS 收紧
 4. 文档生成技能：`docx_writer` / `xlsx_writer` / `pptx_writer`
 5. 浏览器自动化技能：`browser_automation`（基于已装 playwright 插件）
-6. 邮件技能：`email_send` MVP（IMAP/SMTP）
+6. 邮件技能：`email_send` MVP（仅 SMTP 发件；收件 / IMAP 留后续）
 
 **本阶段不做：**
 
@@ -34,6 +34,64 @@
 - 不做完整 RBAC（只做 token 级 allow/deny）
 - 不做 OS 级沙箱（留给阶段 16）
 - 不做技能市场 / 在线安装
+
+---
+
+## Phase15 子阶段拆分
+
+<a id="p15-subphases"></a>
+
+为降低单次合并与验收粒度，在同一阶段文档内按下表交付；**阶段 15 完结 = 三个子阶段全部完结**。
+
+| 子阶段             | 范围（对应下文步骤）                                                                                                                                                                                      | 建议时长 | 说明                                                                                                                                  |
+| ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| **15a** 安全底座   | [步骤 1–6](#p15a-security) + [数据迁移](#数据迁移) 中与 `auth_tokens`、密钥加密、`migrateExistingSecrets` 相关内容 + [验收·15a](#accept-15a)                                                              | ~1 周    | 应先闭环——远程暴露、IM 扩展都依赖鉴权/CORS/密文存储；观测事件 `auth.token.used` / `auth.token.revoked` / `secret.migrated` 在此收口。 |
+| **15b** 办公导出   | [步骤 7–9](#p15b-docs) 及 [步骤 12](#p15-step12) 中与 **docx / xlsx / pptx** 技能模板、Skills 页「文档生成」分组 + [验收·15b](#accept-15b)                                                                | ~1 周    | 无外联网络高危面；在 **15a 合并进主干之后** ，可与 **15c 并行** 分支开发。                                                            |
+| **15c** 外向自动化 | [步骤 10–11](#p15c-automation)、[步骤 12](#p15-step12) 中与 **browser / email** 技能模板及分组；[步骤 11](#p15-step11) 依赖 `kv` 中 SMTP 密码加密（依托 15a 的 `secretFields`） + [验收·15c](#accept-15c) | ~1 周    | 强依赖 [阶段 11](./phase11-execution-approval.md) 审批门；`browser_automation` / `email_send` 均为 `risk: 'high'`。                   |
+
+**推荐合并与任务粒度**：先 **15a-merge**（安全与迁移），再并行 **15b-merge**、**15c-merge**；任务实例可落在 [docs/tasks/](../tasks/README.md)（例如 `2026-xx-xx-phase15a-security.md`），不必与本文同文件。
+
+```mermaid
+flowchart LR
+  subgraph p15a [Phase15a]
+    A1[tokenStore]
+    A2[middleware]
+    A3[CORS]
+    A4[crypto]
+    A5[zod]
+    A6[SecurityUI]
+  end
+  subgraph p15b [Phase15b]
+    B1[docx]
+    B2[xlsx]
+    B3[pptx]
+    B4[skillsUI_doc]
+  end
+  subgraph p15c [Phase15c]
+    C1[browser]
+    C2[email]
+    C3[skillsUI_auto]
+  end
+  p15a --> p15b
+  p15a --> p15c
+```
+
+---
+
+## 与参考项目对照（含 OpenClaw）
+
+<a id="p15-refs-openclaw"></a>
+
+本阶段仍以对齐 **LobsterAI / openakita** 为主；**OpenClaw**（同类「个人助手 + Gateway」）适合作能力与安全维度的对照，**不宜整仓照搬**。
+
+| 维度         | OpenClaw（外部参考）                                                                                                      | SwellLobster 本阶段取舍                                                                                                                                                                                                   |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 产品形态     | Gateway 控制面、多通道、Onboard CLI                                                                                       | 目标一致：开放远程 / IM 前必须先补 API 与秘密面                                                                                                                                                                           |
+| Gateway 鉴权 | 多模式：`token` / `password` / `tailscale` / `device-token` / `bootstrap-token` / `trusted-proxy`，配合限流与 origin 策略 | 先做 **本机文件 token + 可撤销远程 token + CORS 白名单**；**Tailscale / 设备信任** 未纳入 15，可作为 [后续阶段](#p15-phases-followup) 扩展，避免与「单用户、无 OAuth」前提冲突                                            |
+| 密钥落盘     | 凭据目录取 `~/.openclaw/credentials/`，与业务状态分离                                                                     | 15 采用 **`data/auth/master.key` + SQLite 字段密文**；长期倾向 **凭据与业务 DB 分层** 见 [阶段 15.x / 16](#p15-phases-followup)                                                                                           |
+| 安全工程化   | 仓库内 OpenGrep 规则包进 CI                                                                                               | 可选：在现有 `verify` 旁增加 **敏感 API 静态规则**（类 OpenGrep），不阻塞 15a 交付                                                                                                                                        |
+| 技能「交付」 | 大量 `SKILL.md` + `requires.bins`（如 Himalaya 邮件 CLI、nano-pdf、Peekaboo）                                             | 15 选 **内置 TypeScript 工具**（`docx` / `exceljs` / `pptxgenjs` / `nodemailer` / Playwright）：**单仓可测、不依赖用户本机 CLI 版本**；与 OpenClaw 的「外挂二进制」路线并存为设计差异，不在本阶段引入 Himalaya / nano-pdf |
+| 邮件         | Himalaya：IMAP + SMTP 全链路                                                                                              | **15c 仅 SMTP 发件 MVP**；IMAP 收件与外部 CLI 方案留到后续                                                                                                                                                                |
 
 ---
 
@@ -66,7 +124,9 @@ apps/web-ui/src/
 
 ---
 
-## 模块一：安全加固（1 周）
+<a id="p15a-security"></a>
+
+## 模块一：安全加固（子阶段 15a）
 
 ### 步骤 1：本机访问令牌
 
@@ -172,7 +232,11 @@ app.use('/api/*', requireAuthToken({ exempt: ['/api/health', '/api/shutdown'] })
 
 ---
 
-## 模块二：生产力技能（2 周）
+## 模块二：生产力技能（子阶段 15b + 15c）
+
+<a id="p15b-docs"></a>
+
+### 15b · 文档导出（docx / xlsx / pptx）
 
 ### 步骤 7：docx_writer
 
@@ -249,6 +313,10 @@ app.use('/api/*', requireAuthToken({ exempt: ['/api/health', '/api/shutdown'] })
 
 LLM 用法约束：先列大纲 → 一次性传 slides 数组生成，避免逐张调用。
 
+<a id="p15c-automation"></a>
+
+### 15c · 浏览器与邮件自动化
+
 ### 步骤 10：browser_automation
 
 复用已装的 `@playwright/test` 插件（仓库已有）。
@@ -279,6 +347,8 @@ LLM 用法约束：先列大纲 → 一次性传 slides 数组生成，避免逐
 - 截图 / 抓取结果存 `data/exports/browser/`
 - 单次任务超时 30s，强制关闭浏览器实例
 
+<a id="p15-step11"></a>
+
 ### 步骤 11：email_send（MVP）
 
 **新增依赖**：`nodemailer`
@@ -302,7 +372,13 @@ LLM 用法约束：先列大纲 → 一次性传 slides 数组生成，避免逐
 
 第一版仅支持 SMTP 发件，IMAP 收件留给后续。`risk: 'high'`、`requireApproval: true`。
 
-### 步骤 12：技能模板与前端
+<a id="p15-step12"></a>
+
+### 步骤 12：技能模板与前端（按子阶段落地）
+
+**15b**：新增并归类 `docx_report.md`、`xlsx_table.md`、`pptx_brief.md`，Skills 页「文档生成」Tab。
+
+**15c**：新增并归类 `browser_capture.md`、`send_email.md`，Skills 页「自动化」Tab（与上文 UI 分组一致）。
 
 `identity/skills/` 新增：
 
@@ -330,7 +406,11 @@ LLM 用法约束：先列大纲 → 一次性传 slides 数组生成，避免逐
 
 ## 验收清单
 
-### 安全
+交付判据：**下列 [15a](#accept-15a)、[15b](#accept-15b)、[15c](#accept-15c) 子清单全部通过** —— 可分子 PR / 子里程碑合并；对外宣称「阶段 15 完工」以前述三者齐备为准。
+
+<a id="accept-15a"></a>
+
+### 15a：安全底座
 
 - [ ] 桌面端启动后，`curl http://127.0.0.1:18900/api/chat/sessions` 不带 token → 401
 - [ ] 桌面端 UI 操作正常（sidecar 自动注入 token）
@@ -341,14 +421,28 @@ LLM 用法约束：先列大纲 → 一次性传 slides 数组生成，避免逐
 - [ ] CORS 默认仅允许白名单 origin，跨域 fetch 被拒
 - [ ] 关键 POST 接口缺字段 / 字段类型错误 → 400 + `VALIDATION_FAILED`
 
-### 技能
+<a id="accept-15b"></a>
+
+### 15b：文档导出技能
 
 - [ ] 在 Chat 中说"把刚才的讨论整理成 Word 报告"，返回 `data/exports/docx/*.docx`，Word 打开正常
 - [ ] xlsx_writer：多 sheet、表头冻结生效
 - [ ] pptx_writer：4 种 layout 各能产出一页可打开的 PPT
+- [ ] docx_report / xlsx_table / pptx_brief 三个技能在前端 Skills 页「文档生成」下可见且可手动执行
+
+<a id="accept-15c"></a>
+
+### 15c：高危自动化技能
+
 - [ ] browser_automation：触发审批门，批准后能截图并保存
-- [ ] email_send：触发审批门，批准后实际发出（自动化测试用 ethereal.email）
-- [ ] 5 个新技能在前端 Skills 页可见、可手动执行
+- [ ] email_send：触发审批门，批准后实际发出（自动化测试可用 ethereal.email）
+- [ ] browser_capture / send_email 两个技能在前端 Skills 页「自动化」下可见且可手动执行
+
+---
+
+## （附）模块二整体验收口径
+
+以下用于对照「原版不分拆」表述；**不推荐单独作为放行条件**：将 [15b](#accept-15b) 三项文档类 Chat 断言与 [15c](#accept-15c) 两项自动化断言放在同一试运行中即可完成。
 
 ---
 
@@ -366,16 +460,27 @@ LLM 用法约束：先列大纲 → 一次性传 slides 数组生成，避免逐
 
 ## 后续阶段（不在本阶段范围）
 
-- 阶段 16：OS 级沙箱（Windows AppContainer / macOS sandbox-exec / Linux bwrap）
-- 阶段 17：MDRM 关系型记忆图谱 + 3D 可视化
-- 阶段 18：组织编排（CEO / CTO / 写作 / 分析角色化 Agent + 黑板共享）
-- 阶段 19：技能市场 + 在线安装 + AI 现场生成技能
+<a id="p15-phases-followup"></a>
+
+以下内容保持「路线图」粒度，不落本 sprint 必选 scope：
+
+- **15.x（可选，建议在阶段 16 前做一次架构决策）**：凭据存储与运行时分离——SQLite / KV 仅存引用或直接密文之外的 **vault（目录或服务）**，与 OpenClaw 将 channel 凭证放独立目录的思路同型；落地形态（纯 filesystem、OS keychain、sideload secret）单列设计评审，不写死在 15a。
+- **PDF 导出 / 编排（OpenClaw 有 `nano-pdf` CLI 范式）**：不并入本节 [15b](#p15b-docs) 三巨头，避免与时间线争抢；归入 **阶段 16 或小版本**，若做则再选内置库 vs CLI。
+- **类 OpenGrep 的静态安全规则**：可选接入自定义规则门禁（挂靠根 `npm run verify` / CI），作为 **增补质量门**，不作为 15a 交付 blocker。
+
+已定主线：
+
+- **阶段 16**：OS 级沙箱（Windows AppContainer / macOS sandbox-exec / Linux bwrap）；以及 **出站策略默认值**——与既有 `fetchDispatcher`、工具 `risk` 元数据对齐成文（沙箱可与策略分 PR，同属「执行面硬化」）。
+- **阶段 17**：MDRM 关系型记忆图谱 + 3D 可视化。
+- **阶段 18**：组织编排（CEO / CTO / 写作 / 分析角色化 Agent + 黑板共享）。
+- **阶段 19**：技能市场 + 在线安装 + AI 现场生成技能；产品侧可参考 OpenClaw 的 `requires.bins` / 安装向导体验，**不做与 OpenClaw skill hub 的官方同步**（范围自洽）。
 
 ---
 
 ## 参考来源
 
 - LobsterAI 的 docx / xlsx / pptx / playwright / email 技能体系
+- OpenClaw：[Gateway 多模式鉴权](https://github.com/openclaw/openclaw)（`token` / `tailscale` / `device-token` 等）、凭据目录与 skills-as-CLI 形态 —— **对照用**，见上文 [与参考项目对照](#p15-refs-openclaw)
 - openakita 的"插件三级权限模型"与"敏感字段加密"
 - 阶段 11 已有的工具风险元数据 + 审批门（本阶段所有高危技能复用）
 - 阶段 14 已有的统一观测事件（本阶段新事件 `auth.token.used` / `auth.token.revoked` / `secret.migrated` 接入同一 trace）

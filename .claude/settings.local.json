@@ -161,7 +161,8 @@
       "WebFetch(domain:open.feishu.cn)",
       "Bash(awk '/migrations: Array|migrations = \\\\[|migrations: \\\\[/,/^\\\\];/' /Users/xmly/Swell/ai-code/swell-lobster/src/tide-lobster/src/db/index.ts)",
       "Bash(awk '/^\\\\];/{flag=1;next}flag' /Users/xmly/Swell/ai-code/swell-lobster/src/tide-lobster/src/db/index.ts)",
-      "Bash(echo \"tsc exit: $?\")"
+      "Bash(echo \"tsc exit: $?\")",
+      "Bash(npm i *)"
     ]
   }
 }

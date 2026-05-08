@@ -37,19 +37,23 @@ import { observabilityRouter } from './routes/observability.js';
 import { backupRouter } from './routes/backup.js';
 import { authRouter } from './routes/auth.js';
 import { requireAuthToken, DEFAULT_AUTH_EXEMPT_PATHS } from '../auth/middleware.js';
+import { getCorsOptions, createCorsOriginCheck } from './corsConfig.js';
 import { resolveAppEnvPath, settings } from '../config.js';
 import { AppError } from '../types/errors.js';
 
 export function createApp(): Hono {
   const app = new Hono();
 
-  // CORS — 与 Python 的 allow_origins=["*"] 一致
+  // CORS（阶段 15a-3）：origin 白名单（默认 + SWELL_CORS_ORIGINS env），
+  // null origin 拒绝；credentials 仅远程模式开启；allowHeaders 含 X-Auth-Token。
+  const corsOpts = getCorsOptions();
   app.use(
     '*',
     cors({
-      origin: '*',
-      allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-      allowHeaders: ['Content-Type', 'Authorization', 'X-Auth-Token'],
+      origin: createCorsOriginCheck(corsOpts.allowedOrigins),
+      credentials: corsOpts.credentials,
+      allowMethods: corsOpts.allowMethods,
+      allowHeaders: corsOpts.allowHeaders,
     })
   );
 

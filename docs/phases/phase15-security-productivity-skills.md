@@ -43,11 +43,11 @@
 
 为降低单次合并与验收粒度，在同一阶段文档内按下表交付；**阶段 15 完结 = 三个子阶段全部完结**。
 
-| 子阶段             | 范围（对应下文步骤）                                                                                                                                                                                      | 建议时长 | 说明                                                                                                                                  |
-| ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| **15a** 安全底座   | [步骤 1–6](#p15a-security) + [数据迁移](#数据迁移) 中与 `auth_tokens`、密钥加密、`migrateExistingSecrets` 相关内容 + [验收·15a](#accept-15a)                                                              | ~1 周    | 应先闭环——远程暴露、IM 扩展都依赖鉴权/CORS/密文存储；观测事件 `auth.token.used` / `auth.token.revoked` / `secret.migrated` 在此收口。 |
-| **15b** 办公导出   | [步骤 7–9](#p15b-docs) 及 [步骤 12](#p15-step12) 中与 **docx / xlsx / pptx** 技能模板、Skills 页「文档生成」分组 + [验收·15b](#accept-15b)                                                                | ~1 周    | 无外联网络高危面；在 **15a 合并进主干之后** ，可与 **15c 并行** 分支开发。                                                            |
-| **15c** 外向自动化 | [步骤 10–11](#p15c-automation)、[步骤 12](#p15-step12) 中与 **browser / email** 技能模板及分组；[步骤 11](#p15-step11) 依赖 `kv` 中 SMTP 密码加密（依托 15a 的 `secretFields`） + [验收·15c](#accept-15c) | ~1 周    | 强依赖 [阶段 11](./phase11-execution-approval.md) 审批门；`browser_automation` / `email_send` 均为 `risk: 'high'`。                   |
+| 子阶段             | 范围（对应下文步骤）                                                                                                                                                                                      | 建议时长 | 说明                                                                                                                                                                              |
+| ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **15a** 安全底座   | [步骤 1–6](#p15a-security) + [数据迁移](#数据迁移) 中与 `auth_tokens`、密钥加密、`migrateExistingSecrets` 相关内容 + [验收·15a](#accept-15a)；**内部再拆 5 个独立 PR**，见 [Phase15a 拆细](#p15a-prs)     | ~1 周    | 应先闭环——远程暴露、IM 扩展都依赖鉴权/CORS/密文存储；观测事件 `auth.token.used` / `auth.token.revoked` / `secret.migrated` 在此收口。                                             |
+| **15b** 办公导出   | [步骤 7–9](#p15b-docs) 及 [步骤 12](#p15-step12) 中与 **docx / xlsx / pptx** 技能模板、Skills 页「文档生成」分组 + [验收·15b](#accept-15b)                                                                | ~1 周    | 无外联网络高危面；在 **15a 合并进主干之后** ，可与 **15c 并行** 分支开发。                                                                                                        |
+| **15c** 外向自动化 | [步骤 10–11](#p15c-automation)、[步骤 12](#p15-step12) 中与 **browser / email** 技能模板及分组；[步骤 11](#p15-step11) 依赖 `kv` 中 SMTP 密码加密（依托 15a 的 `secretFields`） + [验收·15c](#accept-15c) | ~1 周    | 强依赖 [阶段 11](./phase11-execution-approval.md) 审批门；`browser_automation` 取 `riskLevel: 'execute'`、`email_send` 取 `riskLevel: 'network'`，二者 `requiresApproval: true`。 |
 
 **推荐合并与任务粒度**：先 **15a-merge**（安全与迁移），再并行 **15b-merge**、**15c-merge**；任务实例可落在 [docs/tasks/](../tasks/README.md)（例如 `2026-xx-xx-phase15a-security.md`），不必与本文同文件。
 
@@ -75,6 +75,22 @@ flowchart LR
   p15a --> p15b
   p15a --> p15c
 ```
+
+<a id="p15a-prs"></a>
+
+### Phase15a 拆细为 5 个独立 PR
+
+把原来的「~1 周一锅端」替换为 5 个可独立合并、可独立断言的子 PR；合并节奏：**15a-1 → 15a-2 → 15a-3** 必须按序，**15a-4 与 15a-5** 可在 **15a-3 合主之后并行**；**15b / 15c 的并行起跑线 = 15a-3 合主**，不必等 15a-4/15a-5。
+
+| PR        | 范围                                                                                                                          | 验收（独立可断言）                                                            |
+| --------- | ----------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| **15a-1** | [步骤 1](#p15a-security) `tokenStore.ts` + DB v29 `auth_tokens` 表 + `/api/auth/tokens` CRUD                                  | 单测覆盖 token hash / 撤销 / scope 默认 `full`；REST CRUD 调用打通            |
+| **15a-2** | [步骤 2](#p15a-security) `auth/middleware.ts` + [步骤 2.5](#p15-step2-5) 限流 + `auth.token.*` 事件类型扩展                   | 不带 token → 401；连续失败 11 次 → 429 + `Retry-After`；豁免列表生效          |
+| **15a-3** | [步骤 3](#p15a-security) CORS 收紧 + [步骤 5](#p15a-security) zod schema                                                      | 跨域 fetch 被拒；POST 缺字段 → 400 `VALIDATION_FAILED`                        |
+| **15a-4** | [步骤 4](#p15a-security) `auth/crypto.ts` + `secretFields.ts` + `migrateExistingSecrets()` + 备份/回滚                        | DB dump 后受保护字段全部 `enc:v1:`；删除 `master.key` 启动不崩，UI 提示       |
+| **15a-5** | [步骤 6](#p15a-security) 前端 Settings/Security + `client.ts` 注入 + Tauri sidecar `SWELL_LOCAL_TOKEN` 注入 + 远程模式开关 UX | 桌面端 UI 操作正常；Settings/Security 可创建/撤销远程 token、切换远程模式开关 |
+
+> 任务实例落 [docs/tasks/](../tasks/README.md)（如 `2026-xx-xx-phase15a-1-token-store.md` 等 5 个），不必与本文件同文件。
 
 ---
 
@@ -147,11 +163,21 @@ CREATE TABLE auth_tokens (
   token_hash TEXT NOT NULL UNIQUE,
   label TEXT NOT NULL,
   scope TEXT NOT NULL DEFAULT 'full',
+  -- 当前仅 'full'；预留 'chat-only' / 'read-only' / 'im-only'，由应用层 zod 决定
   created_at INTEGER NOT NULL,
   last_used_at INTEGER,
   revoked_at INTEGER
 );
 ```
+
+**Tauri sidecar 注入**：`SWELL_LOCAL_TOKEN` 由桌面端在启动 Node sidecar 之前注入，落地文件 `apps/desktop/src-tauri/src/lib.rs`（约 380-400 行 `cmd.env(...)` 链）：
+
+```rust
+let local_token = ensure_local_token(&data_dir)?; // 读 data/auth/local-token，缺则生成 0600
+cmd.env("SWELL_LOCAL_TOKEN", &local_token);
+```
+
+`ensure_local_token` 由 Rust 侧实现，与 Node 侧 `tokenStore.ts` 共用 `data/auth/local-token` 路径与生成逻辑（**仅 Rust 侧写**，Node 侧只读校验权限，避免双方竞写）。前端取 token 走 `tauri::invoke('get_local_token')`，由 Rust 直接返回内存里的副本，避免再读盘。
 
 ### 步骤 2：Hono 鉴权中间件
 
@@ -171,6 +197,25 @@ CREATE TABLE auth_tokens (
 app.use('/api/*', requireAuthToken({ exempt: ['/api/health', '/api/shutdown'] }));
 ```
 
+<a id="p15-step2-5"></a>
+
+### 步骤 2.5：暴破限流（auth rate-limit）
+
+**新建** `src/tide-lobster/src/auth/rateLimit.ts`
+
+参照 openclaw `src/gateway/auth-rate-limit.ts` 的最小可用子集，目标是给"开远程访问"前置一道抗暴破闸门。
+
+要求：
+
+- 内存滑动窗口，按 `clientIp` 计数；`X-Forwarded-For` 仅在远程模式且来源在反代白名单时信任，否则只信 socket 远端（防伪头注入）
+- 默认阈值：60s 内连续 10 次鉴权失败 → 封锁该 IP 5 分钟；可 env 覆盖：`SWELL_AUTH_RL_WINDOW_MS` / `SWELL_AUTH_RL_MAX` / `SWELL_AUTH_RL_BLOCK_MS`
+- loopback（`127.0.0.1` / `::1`）默认豁免；远程模式可关闭豁免
+- 触发封锁时返回 `429` + `Retry-After` 头，写观测事件 `auth.token.rateLimited`（`meta.clientIp` / `meta.windowFails`）
+- 通过 `withSerializedRateLimitAttempt` 串行化失败计数，避免并发绕过
+- 内存 bucket 设上限（如 `BUCKET_MAX_ENTRIES = 10_000`）防 DoS 自爆
+
+挂载顺序：在 `auth.middleware` 内部，token 校验**失败**后才计数；命中成功直接放行，不串扰正常请求。
+
 ### 步骤 3：CORS 收紧
 
 `api/server.ts` 现状：`origin: '*'`、`allowHeaders: [Content-Type, Authorization]`
@@ -180,7 +225,10 @@ app.use('/api/*', requireAuthToken({ exempt: ['/api/health', '/api/shutdown'] })
 - 默认 origin 白名单：`http://localhost:5173`、`tauri://localhost`、`http://127.0.0.1:18900`
 - `SWELL_CORS_ORIGINS` 环境变量可追加（逗号分隔）
 - `allowHeaders` 增加 `X-Auth-Token`
-- `credentials: true`（远程 token 模式下浏览器需要带 cookie）
+- `credentials: true` **仅在远程模式（`SWELL_REMOTE=1`）开启**；本机模式保持 `false`，避免桌面端 webview 意外吞 cookie
+- `null` origin（来自 `file://` / 某些 sandboxed iframe）直接拒绝，不走白名单匹配
+- **不做 `Host` header 兜底**（与 openclaw 不同；本仓没有 control-ui 多入口需求，Host 兜底反而扩攻击面）
+- `OPTIONS` preflight 由 cors 中间件统一回复，不进入 auth 中间件（`exempt` 列表加 `OPTIONS *`，避免预检 401）
 
 ### 步骤 4：字段级加密
 
@@ -195,16 +243,24 @@ app.use('/api/*', requireAuthToken({ exempt: ['/api/health', '/api/shutdown'] })
 
 集中维护受保护字段清单：
 
-| 表                | 字段                                                         |
-| ----------------- | ------------------------------------------------------------ |
-| `llm_endpoints`   | `api_key`                                                    |
-| `im_channels`     | `config.token`、`config.app_secret`、`config.webhook_secret` |
-| `mcp_servers`     | `env.*_KEY`、`env.*_TOKEN`（按 key 模式匹配）                |
-| `scheduler_tasks` | `webhook_payload` 中的密钥字段                               |
+| 表                    | 字段                                                                                      |
+| --------------------- | ----------------------------------------------------------------------------------------- |
+| `llm_endpoints`       | `api_key`                                                                                 |
+| `im_channels`         | `config.token`、`config.app_secret`、`config.webhook_secret`                              |
+| `mcp_servers`         | `env.*_KEY`、`env.*_TOKEN`（按 key 模式匹配）                                             |
+| `scheduler_tasks`     | `webhook_payload` 中的密钥字段                                                            |
+| **`key_value_store`** | **key=`email.smtp.config` 时 value JSON 内 `password` 字段（[步骤 11](#p15-step11) 用）** |
 
-提供 `wrapStore(rawStore, fields)` 高阶函数，CRUD 自动加解密。
+提供 `wrapStore(rawStore, fields)` 高阶函数，CRUD 自动加解密。**对 `key_value_store` 走特殊路径**：仅对登记 key 的 JSON 子字段加解密（写入时只对 `password` 子字段加密、读出时只对密文标记字段解密），其他 key 直读直写。
 
-启动时跑一次 `migrateExistingSecrets()`：扫描表，把明文值加密落回。日志按"已加密 N 条"汇总，不打印原值。
+**启动时执行 `migrateExistingSecrets()`**，过程化为：
+
+1. 启动顺序：`tokenStore` → `masterKey`（首启生成或读盘）→ `migrateExistingSecrets`；主密钥未就位时迁移函数空跑
+2. `createBackup()` 走现有 `db/backup.ts`，备份后缀 `.pre-secret-migration`
+3. 单事务内：扫描 `secretFields` 清单中所有未加密字段，逐条 `encrypt`，立刻 `decrypt` 与原值比对，不一致 → throw → 事务回滚；成功条数累加并写 `secret.migrated` 事件，**不打印原值**
+4. 提交事务后随机抽 N 条解密复核
+5. 任一阶段失败 → `restoreBackup('.pre-secret-migration')` → 启动失败，前端 `Settings/Security` 弹"主密钥写入失败，请检查数据目录权限"
+6. 主密钥丢失（`master.key` 不存在但表里有 `enc:v1:` 字段）→ 启动不崩，受保护字段读取走旁路返回空（不抛异常），`Settings/Security` 显示"主密钥缺失，请重新配置或恢复备份"，写 `secret.decryptFailed` 事件
 
 ### 步骤 5：输入校验
 
@@ -229,6 +285,13 @@ app.use('/api/*', requireAuthToken({ exempt: ['/api/health', '/api/shutdown'] })
 - 主密钥状态（未设置 / 已设置）
 - 远程 token 列表 + 创建 / 撤销
 - 重置本机 token（清空文件 + 重启）
+
+**远程访问开关卡片**（替代手敲 `SWELL_REMOTE=1` 的开发者路径）：
+
+- 开关："启用远程访问"，默认 OFF
+- 启用：弹二次确认 + 风险提示（"任何能访问本机端口的设备都将能调你的 LLM 凭据 / 邮箱 / IM 通道"）
+- 确认后：① 写 `data/auth/remote.enabled` flag；② 自动创建一条 `scope=full` 的远程 token，**仅本次显示一次**（关闭后无法再看，需重建）；③ 提示用户把 listen 改为 `0.0.0.0:18900`（前期只提示文案，不自动改 sidecar 启动参数）
+- 关闭：清 flag，但不撤销已签发 token（避免误关全断），同时弹"是否同时撤销所有远程 token"二次确认
 
 ---
 
@@ -342,10 +405,24 @@ LLM 用法约束：先列大纲 → 一次性传 slides 数组生成，避免逐
 
 要求：
 
-- 接入阶段 11 的工具风险元数据：`risk: 'high'`、`requireApproval: true`、`network: true`
-- 网络请求走 `net/fetchDispatcher.ts` 的边界检查
-- 截图 / 抓取结果存 `data/exports/browser/`
-- 单次任务超时 30s，强制关闭浏览器实例
+- 工具权限元数据（参照 `src/tide-lobster/src/tools/types.ts` 的 `ToolPermissionMeta`）：
+
+  ```ts
+  permission: {
+    riskLevel: 'execute',
+    requiresApproval: true,
+    networkScopes: ['https://*'],
+    pathScopes: ['data/exports/browser/**'],
+    sideEffectSummary: '打开 Chromium 并执行用户指定动作 / 截图 / 抓取',
+  }
+  ```
+
+- **网络代理**：浏览器实例启动时读 `HTTPS_PROXY` / `HTTP_PROXY`（与 `fetchDispatcher` 共用同一来源），传给 `chromium.launch({ proxy: { server: ... } })`。**不能复用 `fetchDispatcher`**——chromium 走自己的网络栈，与 undici dispatcher 互不通
+- **出网域名白名单**：入参 `url` 解析 host，走 `src/tide-lobster/src/net/originAllowlist.ts`（新建，复用 fetchDispatcher 同一份配置源）匹配；未命中 → 不启动浏览器，返回 `403 + AUTOMATION_DOMAIN_DENIED`，写 `auth.token.failed` 旁路事件
+- **资源回收**：单次任务 30s 超时强杀；`finally` 内 `await context.close(); await browser.close();`；第一版**不复用浏览器实例**（每次冷启，简化 MVP）
+- **截图 / 抓取结果**存 `data/exports/browser/`
+- **Playwright 二进制**复用阶段 11 的 `data/playwright`，桌面安装包不打入
+- 若 `extract_text` 走 fallback 的纯 HTTP GET 路径（不开浏览器），那一支才走 `fetchDispatcher`
 
 <a id="p15-step11"></a>
 
@@ -368,27 +445,60 @@ LLM 用法约束：先列大纲 → 一次性传 slides 数组生成，避免逐
 }
 ```
 
-配置存 `kv` 表（`email.smtp_*`）。SMTP 密码走步骤 4 的字段加密。
+配置存 `kv` 表（key=`email.smtp.config`，value=JSON `{ host, port, user, password, from, secure }`）。SMTP 密码走 [步骤 4](#p15a-security) 的字段加密（`secretFields` 已登记 `key_value_store.email.smtp.config.password`）。
 
-第一版仅支持 SMTP 发件，IMAP 收件留给后续。`risk: 'high'`、`requireApproval: true`。
+第一版仅支持 SMTP 发件，IMAP 收件留给后续。工具权限元数据：
+
+```ts
+permission: {
+  riskLevel: 'network',
+  requiresApproval: true,
+  networkScopes: ['smtp://*'],
+  pathScopes: ['data/**'], // 附件读取
+  sideEffectSummary: '通过 SMTP 发送邮件（外向网络副作用）',
+}
+```
+
+并在工具实现内强制 `to.length + cc.length <= 20`，避免被滥用群发。
 
 <a id="p15-step12"></a>
 
 ### 步骤 12：技能模板与前端（按子阶段落地）
 
-**15b**：新增并归类 `docx_report.md`、`xlsx_table.md`、`pptx_brief.md`，Skills 页「文档生成」Tab。
+**SKILL.md frontmatter 扩展**：新增 `category` 枚举字段，取值 `text` / `document` / `automation`，缺省 `text`（向后兼容现有 5 个技能）。示例：
 
-**15c**：新增并归类 `browser_capture.md`、`send_email.md`，Skills 页「自动化」Tab（与上文 UI 分组一致）。
+```yaml
+---
+name: docx_report
+display_name: Word 报告
+description: 把会话内容整理成 Word 报告
+version: 1
+trigger: llm_call
+enabled: true
+tags: [docx, export]
+category: document # ← 新增
+---
+```
 
-`identity/skills/` 新增：
+**Schema 解析器改动**：
 
-- `docx_report.md` — "把会话内容整理成 Word 报告"
-- `xlsx_table.md` — "把数据整理成 Excel 表格"
-- `pptx_brief.md` — "用 N 页 PPT 总结要点"
-- `browser_capture.md` — "访问网页并提取/截图"
-- `send_email.md` — "起草并发送邮件"
+- 改 `src/tide-lobster/src/skills/skillLoader.ts`（开发时 grep `display_name` 定位实际入口）：frontmatter 解析增加 `category`，未声明则默认 `text`
+- 后端 `/api/skills` 返回字段同步暴露 `category`
+- 前端 `AssistantSkill` 类型（`apps/web-ui/src/pages/Skills/index.tsx`）增加 `category: 'text' | 'document' | 'automation'`
 
-`apps/web-ui/src/pages/Skills/index.tsx` 增加分组 tab："文字处理 / 文档生成 / 自动化"，把新技能归到"文档生成 / 自动化"下。
+**前端渲染**：在 `assistant` Tab 内部用 antd `Segmented` 按 category 二级分组渲染（"文字处理 / 文档生成 / 自动化"）。`history` / `claude-code` 顶层 Tab 不动。i18n 三个 key：`skills.category.text` / `skills.category.document` / `skills.category.automation`。
+
+**新增技能模板与默认 category**：
+
+| 技能              | 子阶段 | 描述                       | category   |
+| ----------------- | ------ | -------------------------- | ---------- |
+| `docx_report`     | 15b    | 把会话内容整理成 Word 报告 | document   |
+| `xlsx_table`      | 15b    | 把数据整理成 Excel 表格    | document   |
+| `pptx_brief`      | 15b    | 用 N 页 PPT 总结要点       | document   |
+| `browser_capture` | 15c    | 访问网页并提取/截图        | automation |
+| `send_email`      | 15c    | 起草并发送邮件             | automation |
+
+**已有 5 个技能**（`code_review` / `daily_summary` / `task_decompose` / `translate` / `web_search`）默认 `category: text`，无需改动其文件，靠解析器默认值兜底；如要显式声明可作为各自独立小补丁，不阻塞 15b/15c。
 
 ---
 
@@ -400,7 +510,27 @@ LLM 用法约束：先列大纲 → 一次性传 slides 数组生成，避免逐
 2. `llm_endpoints.api_key` / `im_channels.config` 等字段加密迁移（一次性批处理）
 3. 启动时执行 `migrateExistingSecrets()`，已加密字段跳过
 
-回滚策略：备份当前 `tide-lobster.db` → 加密迁移 → 校验解密一次 → 失败则恢复备份。
+回滚策略：详见 [步骤 4](#p15a-security) 末尾的 6 步过程化描述（备份 → 单事务内加解密对比 → 失败 `restoreBackup` → 主密钥丢失旁路）；本节不再重复。
+
+---
+
+<a id="p15-events"></a>
+
+## 观测事件扩展
+
+`src/tide-lobster/src/observability/eventTypes.ts` 现有 `EventCategory` 联合类型不含 `auth.*` / `secret.*`，需扩展。本阶段新增以下 category：
+
+| Category                 | 触发点                            | meta 关键字段                               |
+| ------------------------ | --------------------------------- | ------------------------------------------- |
+| `auth.token.created`     | `/api/auth/tokens` POST 创建成功  | `tokenId` / `scope` / `label`               |
+| `auth.token.revoked`     | `/api/auth/tokens` DELETE         | `tokenId` / `scope`                         |
+| `auth.token.used`        | 中间件命中（节流 1 次/秒/token）  | `tokenId` / `scope` / `clientIp` / `path`   |
+| `auth.token.failed`      | 中间件鉴权失败 / 域名白名单未命中 | `clientIp` / `path` / `reason`              |
+| `auth.token.rateLimited` | [步骤 2.5](#p15-step2-5) 触发封锁 | `clientIp` / `windowFails` / `blockUntilMs` |
+| `secret.migrated`        | 加密迁移成功条数汇总              | `count` / `tableField`                      |
+| `secret.decryptFailed`   | 主密钥丢失或字段损坏              | `tableField`（**禁止** 落明文）             |
+
+**禁止规则**：所有 `meta` 仅记可观测元数据；不得落明文 token / API Key / 邮箱密码 / SMTP password / 用户输入正文。
 
 ---
 
@@ -414,11 +544,12 @@ LLM 用法约束：先列大纲 → 一次性传 slides 数组生成，避免逐
 
 - [ ] 桌面端启动后，`curl http://127.0.0.1:18900/api/chat/sessions` 不带 token → 401
 - [ ] 桌面端 UI 操作正常（sidecar 自动注入 token）
-- [ ] `SWELL_REMOTE=1` 启动后控制台一次性打印 token，复用此 token 可访问所有 API
+- [ ] Settings/Security「启用远程访问」开关 ON 后能创建 `scope=full` 远程 token，复用此 token 可访问所有 API；OFF 时 flag 移除
 - [ ] 撤销 token 后该 token 立即不可用
-- [ ] `tide-lobster.db` dump 出来后，IM Token / LLM API Key 字段全部 `enc:v1:...`
-- [ ] 删除 `data/auth/master.key` 后启动，所有加密字段读取失败但不崩溃，前端提示"主密钥丢失，请重新配置"
-- [ ] CORS 默认仅允许白名单 origin，跨域 fetch 被拒
+- [ ] 连续 11 次错 token 请求 → 第 11 次返回 `429 + Retry-After`，IP 在 5 分钟内继续被拒；loopback 默认豁免不进黑名单
+- [ ] `tide-lobster.db` dump 出来后，IM Token / LLM API Key / SMTP password 字段全部 `enc:v1:...`
+- [ ] 删除 `data/auth/master.key` 后启动，所有加密字段读取失败但不崩溃，前端提示"主密钥丢失，请重新配置"，写 `secret.decryptFailed` 事件
+- [ ] CORS 默认仅允许白名单 origin，跨域 fetch 被拒；`null` origin 直接拒
 - [ ] 关键 POST 接口缺字段 / 字段类型错误 → 400 + `VALIDATION_FAILED`
 
 <a id="accept-15b"></a>
@@ -428,15 +559,16 @@ LLM 用法约束：先列大纲 → 一次性传 slides 数组生成，避免逐
 - [ ] 在 Chat 中说"把刚才的讨论整理成 Word 报告"，返回 `data/exports/docx/*.docx`，Word 打开正常
 - [ ] xlsx_writer：多 sheet、表头冻结生效
 - [ ] pptx_writer：4 种 layout 各能产出一页可打开的 PPT
-- [ ] docx_report / xlsx_table / pptx_brief 三个技能在前端 Skills 页「文档生成」下可见且可手动执行
+- [ ] docx_report / xlsx_table / pptx_brief 三个技能在前端 Skills 页 `assistant` Tab 内的「文档生成」分组下可见且可手动执行；已有 5 个技能在「文字处理」分组下保持原有顺序
 
 <a id="accept-15c"></a>
 
 ### 15c：高危自动化技能
 
-- [ ] browser_automation：触发审批门，批准后能截图并保存
-- [ ] email_send：触发审批门，批准后实际发出（自动化测试可用 ethereal.email）
-- [ ] browser_capture / send_email 两个技能在前端 Skills 页「自动化」下可见且可手动执行
+- [ ] `browser_automation` 入参 url 为非白名单域名 → `403 + AUTOMATION_DOMAIN_DENIED`，**不启动浏览器**，写 `auth.token.failed` 事件
+- [ ] browser_automation：白名单内 url 触发审批门，批准后能截图并保存到 `data/exports/browser/`
+- [ ] email_send：触发审批门，批准后实际发出（自动化测试可用 ethereal.email）；`to + cc` 总数 > 20 时直接报 zod 校验错
+- [ ] browser_capture / send_email 两个技能在前端 Skills 页 `assistant` Tab 内的「自动化」分组下可见且可手动执行
 
 ---
 
@@ -470,7 +602,7 @@ LLM 用法约束：先列大纲 → 一次性传 slides 数组生成，避免逐
 
 已定主线：
 
-- **阶段 16**：OS 级沙箱（Windows AppContainer / macOS sandbox-exec / Linux bwrap）；以及 **出站策略默认值**——与既有 `fetchDispatcher`、工具 `risk` 元数据对齐成文（沙箱可与策略分 PR，同属「执行面硬化」）。
+- **阶段 16**：OS 级沙箱（Windows AppContainer / macOS sandbox-exec / Linux bwrap）；以及 **出站策略默认值**——与既有 `fetchDispatcher`、工具 `ToolPermissionMeta`（`riskLevel` / `networkScopes` / `pathScopes`）对齐成文（沙箱可与策略分 PR，同属「执行面硬化」）。
 - **阶段 17**：MDRM 关系型记忆图谱 + 3D 可视化。
 - **阶段 18**：组织编排（CEO / CTO / 写作 / 分析角色化 Agent + 黑板共享）。
 - **阶段 19**：技能市场 + 在线安装 + AI 现场生成技能；产品侧可参考 OpenClaw 的 `requires.bins` / 安装向导体验，**不做与 OpenClaw skill hub 的官方同步**（范围自洽）。
@@ -482,5 +614,5 @@ LLM 用法约束：先列大纲 → 一次性传 slides 数组生成，避免逐
 - LobsterAI 的 docx / xlsx / pptx / playwright / email 技能体系
 - OpenClaw：[Gateway 多模式鉴权](https://github.com/openclaw/openclaw)（`token` / `tailscale` / `device-token` 等）、凭据目录与 skills-as-CLI 形态 —— **对照用**，见上文 [与参考项目对照](#p15-refs-openclaw)
 - openakita 的"插件三级权限模型"与"敏感字段加密"
-- 阶段 11 已有的工具风险元数据 + 审批门（本阶段所有高危技能复用）
-- 阶段 14 已有的统一观测事件（本阶段新事件 `auth.token.used` / `auth.token.revoked` / `secret.migrated` 接入同一 trace）
+- 阶段 11 已有的工具风险元数据（`ToolPermissionMeta` / `riskLevel`）+ 审批门（本阶段所有高危技能复用）
+- 阶段 14 已有的统一观测事件（本阶段新增 `auth.token.created` / `auth.token.used` / `auth.token.revoked` / `auth.token.failed` / `auth.token.rateLimited` / `secret.migrated` / `secret.decryptFailed` 接入同一 trace，详见 [观测事件扩展](#p15-events)）

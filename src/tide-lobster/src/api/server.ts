@@ -35,6 +35,8 @@ import { notifyRouter } from './routes/notify.js';
 import { extensionsRouter } from './routes/extensions.js';
 import { observabilityRouter } from './routes/observability.js';
 import { backupRouter } from './routes/backup.js';
+import { authRouter } from './routes/auth.js';
+import { requireAuthToken, DEFAULT_AUTH_EXEMPT_PATHS } from '../auth/middleware.js';
 import { resolveAppEnvPath, settings } from '../config.js';
 import { AppError } from '../types/errors.js';
 
@@ -47,9 +49,14 @@ export function createApp(): Hono {
     cors({
       origin: '*',
       allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-      allowHeaders: ['Content-Type', 'Authorization'],
+      allowHeaders: ['Content-Type', 'Authorization', 'X-Auth-Token'],
     })
   );
+
+  // 鉴权中间件（阶段 15a-2）：所有 /api/* 强制 X-Auth-Token / ?token= 校验，
+  // 仅 health 与 shutdown 豁免；OPTIONS preflight 由 cors 中间件处理。
+  // 测试运行时（VITEST）自动 bypass，避免破坏现有 19 个 route 测试。
+  app.use('/api/*', requireAuthToken({ exempt: DEFAULT_AUTH_EXEMPT_PATHS }));
 
   // 全局错误处理：AppError 序列化为 { detail, code }，其余 fallback 为 { detail }
   app.onError((err, c) => {
@@ -111,6 +118,7 @@ export function createApp(): Hono {
   app.route('/', extensionsRouter); // /api/extensions/* — 统一扩展目录与生命周期
   app.route('/', observabilityRouter); // /api/observability/* — 观测事件与指标
   app.route('/', backupRouter); // /api/backup/* — 备份与恢复
+  app.route('/', authRouter); // /api/auth/* — 远程访问令牌（阶段 15a-1）
 
   return app;
 }

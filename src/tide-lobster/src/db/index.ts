@@ -653,6 +653,30 @@ const migrations: Array<{ version: number; up: (db: Database.Database) => void }
       `);
     },
   },
+  {
+    version: 29,
+    up: (db) => {
+      // 阶段 15a-1：远程访问令牌表。仅存 sha256(token)；明文 token 仅在创建时返回一次。
+      // scope 当前仅 'full'；预留 'chat-only' / 'read-only' / 'im-only'，由应用层 zod 决定。
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS auth_tokens (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          token_hash TEXT NOT NULL UNIQUE,
+          label TEXT NOT NULL,
+          scope TEXT NOT NULL DEFAULT 'full',
+          created_at INTEGER NOT NULL,
+          last_used_at INTEGER,
+          revoked_at INTEGER
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_auth_tokens_hash
+          ON auth_tokens(token_hash);
+
+        CREATE INDEX IF NOT EXISTS idx_auth_tokens_active
+          ON auth_tokens(revoked_at, created_at DESC);
+      `);
+    },
+  },
 ];
 
 function runMigrations(db: Database.Database): void {

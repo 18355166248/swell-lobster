@@ -158,7 +158,10 @@
       "Bash(pnpm test *)",
       "Bash(npx vitest *)",
       "Bash(./node_modules/.bin/tsc --noEmit -p apps/web-ui/tsconfig.app.json)",
-      "WebFetch(domain:open.feishu.cn)"
+      "WebFetch(domain:open.feishu.cn)",
+      "Bash(awk '/migrations: Array|migrations = \\\\[|migrations: \\\\[/,/^\\\\];/' /Users/xmly/Swell/ai-code/swell-lobster/src/tide-lobster/src/db/index.ts)",
+      "Bash(awk '/^\\\\];/{flag=1;next}flag' /Users/xmly/Swell/ai-code/swell-lobster/src/tide-lobster/src/db/index.ts)",
+      "Bash(echo \"tsc exit: $?\")"
     ]
   }
 }

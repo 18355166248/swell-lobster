@@ -15,7 +15,9 @@ export type EventCategory =
   | 'auth.token.revoked'
   | 'auth.token.used'
   | 'auth.token.failed'
-  | 'auth.token.rateLimited';
+  | 'auth.token.rateLimited'
+  | 'secret.migrated'
+  | 'secret.decryptFailed';
 
 export type EventStatus = 'ok' | 'error' | 'pending';
 

@@ -3,23 +3,34 @@
  *
  * 读写 `im_channels` 表；`status` / `error_message` 由 `IMManager` 在启停失败时更新。
  * 与 `imManager` 配合：列表 API 返回的「是否真在跑」需用管理器中的适配器状态覆盖 DB。
+ *
+ * 阶段 15a-4：`config` JSON 内的敏感子字段（`app_secret` / `webhook_secret` / `token`）
+ * 通过 `secretFields.ts` 在落库前加密、读出后解密；主密钥未就位时解密旁路返回 null。
  */
 import { randomUUID } from 'node:crypto';
 import { getDb } from '../db/index.js';
+import { decryptJsonObject, encryptJsonObject } from '../store/secretFields.js';
 import type { ChannelStatus, ChannelType, IMChannelConfig, IMChannelRow } from './types.js';
 
-/** 将 SQLite 行转为业务层使用的布尔与解析后的 config */
+/** 将 SQLite 行转为业务层使用的布尔与解析后的 config（自动解密敏感子字段） */
 function rowToConfig(row: IMChannelRow): IMChannelConfig {
+  const parsed = JSON.parse(row.config) as Record<string, unknown>;
+  const decrypted = decryptJsonObject('im_channels', 'config', parsed);
   return {
     id: row.id,
     channel_type: row.channel_type,
     name: row.name,
-    config: JSON.parse(row.config) as Record<string, unknown>,
+    config: decrypted,
     enabled: Boolean(row.enabled),
     status: row.status,
     error_message: row.error_message,
     created_at: row.created_at,
   };
+}
+
+function serializeConfig(config: Record<string, unknown>): string {
+  const encrypted = encryptJsonObject('im_channels', 'config', config);
+  return JSON.stringify(encrypted);
 }
 
 export const imStore = {
@@ -57,7 +68,7 @@ export const imStore = {
         id,
         data.channel_type,
         data.name,
-        JSON.stringify(data.config),
+        serializeConfig(data.config),
         data.enabled ? 1 : 0,
         now
       );
@@ -80,7 +91,7 @@ export const imStore = {
     }
     if (patch.config !== undefined) {
       updates.push('config = ?');
-      values.push(JSON.stringify(patch.config));
+      values.push(serializeConfig(patch.config));
     }
     if (patch.enabled !== undefined) {
       updates.push('enabled = ?');

@@ -17,6 +17,8 @@ import { chatService } from './chat/index.js';
 import { startSkillFileWatcher } from './skills/loader.js';
 import { writeAppLog } from './api/routes/logs.js';
 import { ensurePortAvailable } from './utils/portUtils.js';
+import { ensureMasterKey } from './auth/crypto.js';
+import { migrateExistingSecrets } from './store/migrateSecrets.js';
 import { existsSync, readdirSync, copyFileSync } from 'node:fs';
 import { join, basename } from 'node:path';
 
@@ -67,6 +69,23 @@ async function main() {
   initIdentityFiles();
   // 启动前确保端口空闲：dev 重启 / sidecar 残留时优雅释放占用进程，避免 EADDRINUSE 直接崩
   await ensurePortAvailable(settings.host, settings.port);
+
+  // 阶段 15a-4：先确保主密钥就位（首启自动生成 0600；远程模式可走 SWELL_MASTER_KEY env），
+  // 再执行加密迁移；任一步失败仅日志，不阻塞 HTTP（解密旁路在 secretFields 内处理）。
+  try {
+    ensureMasterKey();
+    const result = migrateExistingSecrets();
+    if (result.status === 'ok' && result.encryptedCount > 0) {
+      console.log(
+        `[secrets] migrated ${result.encryptedCount} field(s); sampled ${result.sampledCount} for verification`
+      );
+    } else if (result.status === 'failed') {
+      console.error(`[secrets] migration failed: ${result.reason}`);
+    }
+  } catch (e) {
+    console.error('[secrets] master key init failed:', e);
+  }
+
   const app = createApp();
   initializeBuiltinTools();
   startSkillFileWatcher(() => {

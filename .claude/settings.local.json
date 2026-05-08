@@ -165,7 +165,9 @@
       "Bash(npm i *)",
       "Bash(awk '/CREATE TABLE IF NOT EXISTS im_channels/,/\\\\\\);/{print NR\":\"$0}' /Users/xmly/Swell/ai-code/swell-lobster/src/tide-lobster/src/db/index.ts)",
       "Bash(awk '/CREATE TABLE IF NOT EXISTS mcp_servers/,/\\\\\\);/{print NR\":\"$0}' /Users/xmly/Swell/ai-code/swell-lobster/src/tide-lobster/src/db/index.ts)",
-      "Bash(awk '/CREATE TABLE IF NOT EXISTS scheduler_tasks/,/\\\\\\);/{print NR\":\"$0}' /Users/xmly/Swell/ai-code/swell-lobster/src/tide-lobster/src/db/index.ts)"
+      "Bash(awk '/CREATE TABLE IF NOT EXISTS scheduler_tasks/,/\\\\\\);/{print NR\":\"$0}' /Users/xmly/Swell/ai-code/swell-lobster/src/tide-lobster/src/db/index.ts)",
+      "Bash(echo \"tide-lobster tsc: $?\")",
+      "Bash(echo \"web-ui tsc: $?\")"
     ]
   }
 }

@@ -15,5 +15,6 @@ export const ROUTES = {
   CONFIG_IM: '/config/im',
   CONFIG_IDENTITY: '/config/identity',
   CONFIG_ADVANCED: '/config/advanced',
+  SETTINGS_SECURITY: '/settings/security',
   NOT_FOUND: '*',
 } as const;

@@ -69,6 +69,12 @@ export const router = createBrowserRouter([
         }),
       },
       {
+        path: 'settings/security',
+        lazy: async () => ({
+          Component: (await import('./pages/Settings/Security')).default,
+        }),
+      },
+      {
         path: ROUTES.NOT_FOUND,
         lazy: async () => ({ Component: (await import('./pages/NotFound')).NotFoundPage }),
       },

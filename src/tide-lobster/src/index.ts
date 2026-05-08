@@ -18,6 +18,7 @@ import { startSkillFileWatcher } from './skills/loader.js';
 import { writeAppLog } from './api/routes/logs.js';
 import { ensurePortAvailable } from './utils/portUtils.js';
 import { ensureMasterKey } from './auth/crypto.js';
+import { ensureLocalToken } from './auth/tokenStore.js';
 import { migrateExistingSecrets } from './store/migrateSecrets.js';
 import { existsSync, readdirSync, copyFileSync } from 'node:fs';
 import { join, basename } from 'node:path';
@@ -74,6 +75,8 @@ async function main() {
   // 再执行加密迁移；任一步失败仅日志，不阻塞 HTTP（解密旁路在 secretFields 内处理）。
   try {
     ensureMasterKey();
+    // 阶段 15a-5：本机 token 文件就位（Web/dev 模式无 Tauri 注入时也有可用 token）
+    ensureLocalToken();
     const result = migrateExistingSecrets();
     if (result.status === 'ok' && result.encryptedCount > 0) {
       console.log(

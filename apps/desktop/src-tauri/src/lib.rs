@@ -75,6 +75,25 @@ fn open_devtools(window: tauri::WebviewWindow) {
     window.open_devtools();
 }
 
+/// 阶段 15a-5：返回本机访问令牌。
+///
+/// 读取 `data/auth/local-token` 文件（由 sidecar 启动时 `ensureLocalToken()` 生成）。
+/// 前端通过 `tauri::invoke('get_local_token')` 获取后注入到所有 `/api/*` 请求的 `X-Auth-Token` 头。
+/// 文件不存在时返回错误，前端会回退到 `/api/auth/local-token`（loopback 兜底端点）。
+#[tauri::command]
+fn get_local_token(app: AppHandle) -> Result<String, String> {
+    let path = resolve_global_env_dir(&app)
+        .join("data")
+        .join("auth")
+        .join("local-token");
+    if !path.exists() {
+        return Err("local-token file not yet initialized".to_string());
+    }
+    std::fs::read_to_string(&path)
+        .map(|s| s.trim().to_string())
+        .map_err(|e| format!("read local-token: {e}"))
+}
+
 fn resolve_output_dir(app: &AppHandle) -> PathBuf {
     if let Ok(custom) = std::env::var("SWELL_OUTPUT_DIR") {
         return PathBuf::from(custom);
@@ -599,6 +618,7 @@ pub fn run() {
             get_output_dir,
             get_log_path,
             open_devtools,
+            get_local_token,
             restart_backend
         ])
         .run(tauri::generate_context!())

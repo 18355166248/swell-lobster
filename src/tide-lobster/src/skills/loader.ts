@@ -118,6 +118,7 @@ function parseSkillFile(filePath: string, source: 'builtin' | 'user'): SkillDef 
       display_name: String(data.display_name ?? data.name),
       description: String(data.description ?? ''),
       version: String(data.version ?? '1.0.0'),
+      category: String(data.category ?? 'text'),
       // frontmatter 中 enabled 缺失时默认为 true；显式写 enabled: false 才禁用
       enabled: data.enabled !== false,
       tags,

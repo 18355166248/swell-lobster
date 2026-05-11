@@ -17,6 +17,7 @@ export interface SkillDef {
   display_name: string;
   description: string;
   version: string;
+  category: string;
   enabled: boolean;
   tags: string[];
   /** 正文；`executeSkill` 会将模板占位符替换为传入参数 */

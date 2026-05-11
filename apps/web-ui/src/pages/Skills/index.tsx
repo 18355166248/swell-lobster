@@ -40,6 +40,7 @@ type AssistantSkill = {
   display_name: string;
   description: string;
   version: string;
+  category: string;
   enabled: boolean;
   tags: string[];
   prompt_template: string;
@@ -91,6 +92,14 @@ function SkillSourceTag({ skill }: { skill: AssistantSkill }) {
       <Tag>{t(`skills.${skill.source === 'builtin' ? 'sourceBuiltin' : 'sourceUser'}`)}</Tag>
     </div>
   );
+}
+
+function getAssistantSkillCategoryLabel(t: (key: string) => string, category: string): string {
+  const normalized = category.trim().toLowerCase();
+  if (normalized === 'document') return t('skills.categories.document');
+  if (normalized === 'automation') return t('skills.categories.automation');
+  if (normalized === 'general') return t('skills.categories.general');
+  return t('skills.categories.text');
 }
 
 function SkillLogsTable({
@@ -346,6 +355,7 @@ function AssistantSkillsTab() {
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyPage, setHistoryPage] = useState(1);
   const [messageApi, contextHolder] = message.useMessage();
+  const [categoryFilter, setCategoryFilter] = useState<string>('all');
 
   const load = async () => {
     setLoading(true);
@@ -453,6 +463,12 @@ function AssistantSkillsTab() {
       ),
     },
     {
+      title: t('skills.category'),
+      key: 'category',
+      width: 120,
+      render: (_, record) => <Tag>{getAssistantSkillCategoryLabel(t, record.category)}</Tag>,
+    },
+    {
       title: t('skills.enabled'),
       key: 'enabled',
       width: 80,
@@ -499,6 +515,12 @@ function AssistantSkillsTab() {
     },
   ];
 
+  const categories = Array.from(new Set(skills.map((skill) => skill.category || 'text')));
+  const filteredSkills =
+    categoryFilter === 'all'
+      ? skills
+      : skills.filter((skill) => (skill.category || 'text') === categoryFilter);
+
   return (
     <>
       {contextHolder}
@@ -515,15 +537,36 @@ function AssistantSkillsTab() {
           <Text type="secondary">{t('common.loading')}</Text>
         </div>
       ) : (
-        <div className="rounded border border-border bg-background">
-          <Table<AssistantSkill>
-            rowKey="name"
-            dataSource={skills}
-            columns={columns}
-            size="small"
-            pagination={{ pageSize: 10, hideOnSinglePage: true }}
-            locale={{ emptyText: t('skills.assistantEmpty') }}
-          />
+        <div className="space-y-3">
+          <div className="flex flex-wrap gap-2">
+            <Button
+              size="small"
+              type={categoryFilter === 'all' ? 'primary' : 'default'}
+              onClick={() => setCategoryFilter('all')}
+            >
+              {t('skills.categories.all')}
+            </Button>
+            {categories.map((category) => (
+              <Button
+                key={category}
+                size="small"
+                type={categoryFilter === category ? 'primary' : 'default'}
+                onClick={() => setCategoryFilter(category)}
+              >
+                {getAssistantSkillCategoryLabel(t, category)}
+              </Button>
+            ))}
+          </div>
+          <div className="rounded border border-border bg-background">
+            <Table<AssistantSkill>
+              rowKey="name"
+              dataSource={filteredSkills}
+              columns={columns}
+              size="small"
+              pagination={{ pageSize: 10, hideOnSinglePage: true }}
+              locale={{ emptyText: t('skills.assistantEmpty') }}
+            />
+          </div>
         </div>
       )}
 

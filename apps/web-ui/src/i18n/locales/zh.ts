@@ -284,6 +284,13 @@ const zh = {
     viewHistory: '历史',
     inputLabel: '输入',
     outputLabel: '输出',
+    categories: {
+      all: '全部',
+      text: '文本处理',
+      document: '文档生成',
+      automation: '自动化',
+      general: '通用',
+    },
   },
 
   // 状态面板

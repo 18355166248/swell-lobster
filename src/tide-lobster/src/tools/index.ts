@@ -6,6 +6,9 @@ import { writeMemoryTool } from './builtins/write_memory.js';
 import { readFileTool } from './builtins/read_file.js';
 import { webSearchTool } from './builtins/web_search.js';
 import { delegateTaskTool } from './builtins/delegate_task.js';
+import { docxWriterTool } from './builtins/docx_writer.js';
+import { xlsxWriterTool } from './builtins/xlsx_writer.js';
+import { pptxWriterTool } from './builtins/pptx_writer.js';
 import { globalToolRegistry } from './registry.js';
 
 let initialized = false;
@@ -22,4 +25,7 @@ export function initializeBuiltinTools(): void {
   globalToolRegistry.register(readFileTool);
   globalToolRegistry.register(webSearchTool);
   globalToolRegistry.register(delegateTaskTool);
+  globalToolRegistry.register(docxWriterTool);
+  globalToolRegistry.register(xlsxWriterTool);
+  globalToolRegistry.register(pptxWriterTool);
 }

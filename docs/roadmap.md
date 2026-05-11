@@ -6,7 +6,7 @@
 
 ---
 
-## 当前状态（2026-05-07）
+## 当前状态（2026-05-11）
 
 ### 已完成（可用）
 
@@ -33,14 +33,14 @@
 | 阶段 12（步骤1-6）：计划模式数据结构 + 执行引擎 + 持久化 + 时间线 UI  | ✅   | ✅   |
 | 阶段 13：统一扩展运行时（catalog、manifest、API + 前端扩展管理页）    | ✅   | ✅   |
 | 阶段 14：统一观测事件、trace、指标聚合、DB 迁移收敛、备份恢复、错误码 | ✅   | ✅   |
+| 阶段 15a：API 鉴权、CORS、`zod` 校验、字段加密、Security 设置页       | ✅   | ✅   |
 
 ### 规划中
 
-| 功能                                                                                                                                              | 后端 | 前端 |
-| ------------------------------------------------------------------------------------------------------------------------------------------------- | ---- | ---- |
-| 阶段 [15a](./phases/phase15-security-productivity-skills.md#p15-subphases)：API 鉴权、CORS、`zod` 校验、字段加密、Security 设置页、迁移与观测事件 | ⏳   | ⏳   |
-| 阶段 [15b](./phases/phase15-security-productivity-skills.md#p15-subphases)：docx / xlsx / pptx 工具 + 技能模板 + Skills「文档生成」               | ⏳   | ⏳   |
-| 阶段 [15c](./phases/phase15-security-productivity-skills.md#p15-subphases)：browser_automation、email_send（SMTP）+ 技能模板 + Skills「自动化」   | ⏳   | ⏳   |
+| 功能                                                                                                                                            | 后端 | 前端 |
+| ----------------------------------------------------------------------------------------------------------------------------------------------- | ---- | ---- |
+| 阶段 [15b](./phases/phase15-security-productivity-skills.md#p15-subphases)：docx / xlsx / pptx 工具 + 技能模板 + Skills「文档生成」             | ⏳   | ⏳   |
+| 阶段 [15c](./phases/phase15-security-productivity-skills.md#p15-subphases)：browser_automation、email_send（SMTP）+ 技能模板 + Skills「自动化」 | ⏳   | ⏳   |
 
 ### 核心功能完整度
 
@@ -66,6 +66,7 @@
 - DB 迁移收敛、备份恢复（SQLite + data 目录，pre-restore 回滚保护）
 - 统一错误码与 AppError 类（`types/errors.ts`）
 - Status 页观测面板（最近失败、慢调用、审批阻塞、MCP 健康状态）
+- API 鉴权、本机/远程 token、鉴权失败限流、CORS 白名单、敏感字段加密与 Security 设置页
 
 ---
 
@@ -85,7 +86,9 @@
 阶段12：计划模式 + 多 Agent ✅ → 计划结构、执行引擎、时间线 UI、metrics 与失败定位已完成
 阶段13：统一扩展运行时 ✅    → catalog、manifest、API、前端扩展管理页、审计联动全部完成
 阶段14：观测性与稳定性 ✅    → trace、指标、migration、备份恢复、发布基线全部完成
-阶段15：安全加固 + 文档技能 ⏳ → 拆分子阶段 15a（安全）→ 15b（doc/xlsx/pptx）与 15c（Playwright/SMTP）并行，见 phase15 文档锚点 `#p15-subphases`
+阶段15a：安全底座 ✅        → token 鉴权、CORS、zod 校验、敏感字段加密、Security 设置页
+阶段15b：文档导出能力 ⏳    → docx/xlsx/pptx tools、文档技能模板、Skills 文档分组
+阶段15c：自动化能力 ⏳      → browser_automation、email_send（SMTP），待 15b 后并行
 ```
 
 注：同上子阶段释义与验收清单见 [phase15-security-productivity-skills.md](./phases/phase15-security-productivity-skills.md#p15-subphases)。
@@ -156,20 +159,15 @@
 
 ## 当前推荐顺序
 
-阶段 1-14 全部完成，桌面端已完成实机验证。下一步进入 [阶段 15](./phases/phase15-security-productivity-skills.md)（文档内 **[15a / 15b / 15c](./phases/phase15-security-productivity-skills.md#p15-subphases)** 子里程碑）。
+阶段 15a 已完成，桌面端已完成实机验证。当前主线进入 [阶段 15b](./phases/phase15-security-productivity-skills.md)（文档内 **[15b / 15c](./phases/phase15-security-productivity-skills.md#p15-subphases)** 子里程碑）。
 
 阶段 15 范围（与文档子阶段对齐）：
 
-- **15a（安全底座）**
-  1. API 鉴权（本机 token + 远程 token）
-  2. 敏感字段加密（IM Token / LLM API Key / Webhook Secret、`kv` 中 SMTP 密码等）
-  3. 输入校验 + CORS 收紧（及 Security 设置页、观测事件）
+- **15b（办公导出）** 1. 文档生成技能：`docx` / `xlsx` / `pptx`（及对应技能模板、Skills「文档生成」分组）
 
-- **15b（办公导出）** 4. 文档生成技能：`docx` / `xlsx` / `pptx`（及对应技能模板、Skills「文档生成」分组）
+- **15c（外向自动化）** 2. 浏览器自动化（Playwright，`browser_automation`）3. 邮件发送（SMTP MVP，`nodemailer`；IMAP / 收件后续）
 
-- **15c（外向自动化）** 5. 浏览器自动化（Playwright，`browser_automation`）6. 邮件发送（SMTP MVP，`nodemailer`；IMAP / 收件后续）
-
-建议合并顺序：**15a-merge** → 并行 **15b-merge** / **15c-merge**。
+建议合并顺序：**15b-merge** → **15c-merge**；若资源允许可并行准备 15c，但不抢主线。
 
 剩余技术债务（按优先级，不在阶段 15 必做范围）：
 

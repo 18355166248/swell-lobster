@@ -276,6 +276,13 @@ const en = {
     viewHistory: 'History',
     inputLabel: 'Input',
     outputLabel: 'Output',
+    categories: {
+      all: 'All',
+      text: 'Text',
+      document: 'Document',
+      automation: 'Automation',
+      general: 'General',
+    },
   },
 
   status: {

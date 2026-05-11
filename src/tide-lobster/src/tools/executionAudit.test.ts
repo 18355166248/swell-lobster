@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+﻿import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { mkdtempSync, mkdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -17,12 +17,10 @@ describe('executionAuditService', () => {
     vi.resetModules();
   });
 
-  afterEach(() => {
-    try {
-      rmSync(repoRoot, { recursive: true, force: true });
-    } catch {
-      // ignore
-    }
+  afterEach(async () => {
+    const { closeDb } = await import('../db/index.js');
+    closeDb();
+    rmSync(repoRoot, { recursive: true, force: true });
     delete process.env.SWELL_GLOBAL_ENV_DIR;
     delete process.env.SWELL_PROJECT_ROOT;
     delete process.env.SWELL_DATA_DIR;
@@ -100,12 +98,10 @@ describe('approvalsRouter /api/approvals/audit source filter', () => {
     vi.resetModules();
   });
 
-  afterEach(() => {
-    try {
-      rmSync(repoRoot, { recursive: true, force: true });
-    } catch {
-      // ignore
-    }
+  afterEach(async () => {
+    const { closeDb } = await import('../db/index.js');
+    closeDb();
+    rmSync(repoRoot, { recursive: true, force: true });
     delete process.env.SWELL_GLOBAL_ENV_DIR;
     delete process.env.SWELL_PROJECT_ROOT;
     delete process.env.SWELL_DATA_DIR;

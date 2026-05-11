@@ -14,7 +14,7 @@
     "prepare": "husky",
     "lint": "npm run lint --prefix apps/web-ui",
     "lint:fix": "npm run lint:fix --prefix apps/web-ui",
-    "typecheck": "npm run typecheck -w tide-lobster && ./node_modules/.bin/tsc --noEmit -p apps/web-ui/tsconfig.app.json && ./node_modules/.bin/tsc --noEmit -p apps/web-ui/tsconfig.node.json",
+    "typecheck": "npm run typecheck -w tide-lobster && tsc --noEmit -p apps/web-ui/tsconfig.app.json && tsc --noEmit -p apps/web-ui/tsconfig.node.json",
     "test": "npm run test -w tide-lobster",
     "build": "npm run build -w tide-lobster && npm run build -w swell-lobster",
     "verify:docs": "node scripts/check-consistency.mjs",

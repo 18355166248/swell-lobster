@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+﻿import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -27,12 +27,10 @@ describe('journalRouter', () => {
     vi.clearAllMocks();
   });
 
-  afterEach(() => {
-    try {
-      rmSync(repoRoot, { recursive: true, force: true });
-    } catch {
-      // ignore locked files on Windows
-    }
+  afterEach(async () => {
+    const { closeDb } = await import('../../db/index.js');
+    closeDb();
+    rmSync(repoRoot, { recursive: true, force: true });
     delete process.env.SWELL_PROJECT_ROOT;
     delete process.env.SWELL_DATA_DIR;
     delete process.env.SWELL_IDENTITY_DIR;

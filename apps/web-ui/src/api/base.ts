@@ -15,6 +15,14 @@ export function getApiBase(): string {
   return API_BASE.replace(/\/$/, '');
 }
 
+/** 带 X-Auth-Token 的 fetch 包装；用于不走 requestJson 的裸流式请求 */
+export async function authFetch(url: string, init: RequestInit = {}): Promise<Response> {
+  const token = await resolveAuthToken(getApiBase());
+  const headers = new Headers(init.headers);
+  if (token) headers.set('X-Auth-Token', token);
+  return fetch(url, { ...init, headers });
+}
+
 export class AuthRequiredError extends Error {
   readonly code: string;
   constructor(code: string, message: string) {

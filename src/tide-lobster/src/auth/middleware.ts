@@ -190,4 +190,9 @@ function reject429(
 }
 
 /** 默认 exempt 路径，由 server.ts 引用（避免 server.ts 与 middleware.ts 重复硬编码） */
-export const DEFAULT_AUTH_EXEMPT_PATHS = ['/api/health', '/api/shutdown'];
+export const DEFAULT_AUTH_EXEMPT_PATHS = [
+  '/api/health',
+  '/api/shutdown',
+  // 本机 token 自取端点：由 isLoopbackRequest 保护，无需 auth 中间件
+  '/api/auth/local-token',
+];

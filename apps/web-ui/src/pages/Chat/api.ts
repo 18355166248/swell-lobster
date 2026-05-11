@@ -1,4 +1,4 @@
-import { apiGet, apiPatch, apiPost, getApiBase } from '../../api/base';
+import { apiGet, apiPatch, apiPost, authFetch, getApiBase } from '../../api/base';
 import type {
   ChatAttachment,
   ChatStreamEvent,
@@ -49,7 +49,7 @@ export async function fetchPersonas(): Promise<PersonaInfo[]> {
 }
 
 export async function deleteSession(sessionId: string): Promise<void> {
-  const res = await fetch(`${getApiBase()}/api/sessions/${sessionId}`, { method: 'DELETE' });
+  const res = await authFetch(`${getApiBase()}/api/sessions/${sessionId}`, { method: 'DELETE' });
   if (!res.ok) {
     const payload = (await res.json().catch(() => ({}))) as { detail?: string };
     throw new Error(payload.detail ?? `DELETE session failed: ${res.status}`);
@@ -74,7 +74,7 @@ export async function uploadAttachment(file: File): Promise<{
 }> {
   const formData = new FormData();
   formData.append('file', file);
-  const res = await fetch(`${getApiBase()}/api/upload/file`, {
+  const res = await authFetch(`${getApiBase()}/api/upload/file`, {
     method: 'POST',
     body: formData,
   });
@@ -119,7 +119,7 @@ export async function sendMessageStream(
   onEvent: (event: ChatStreamEvent) => void,
   signal?: AbortSignal
 ): Promise<{ conversation_id: string; session: ChatSession }> {
-  const res = await fetch(`${getApiBase()}/api/chat/stream`, {
+  const res = await authFetch(`${getApiBase()}/api/chat/stream`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),

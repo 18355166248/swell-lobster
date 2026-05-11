@@ -3,10 +3,7 @@ import { join } from 'node:path';
 import Database from 'better-sqlite3';
 import { settings } from '../config.js';
 
-const dbPath = join(settings.dataDir, 'tide-lobster.db');
-mkdirSync(settings.dataDir, { recursive: true });
-
-const db = new Database(dbPath);
+let db: Database.Database | null = null;
 
 const migrations: Array<{ version: number; up: (db: Database.Database) => void }> = [
   {
@@ -697,8 +694,22 @@ function runMigrations(db: Database.Database): void {
   console.log('[db] schema version:', finalRow?.v ?? 0);
 }
 
-runMigrations(db);
+function openDb(): Database.Database {
+  const dbPath = join(settings.dataDir, 'tide-lobster.db');
+  mkdirSync(settings.dataDir, { recursive: true });
+  const instance = new Database(dbPath);
+  runMigrations(instance);
+  return instance;
+}
 
 export function getDb(): Database.Database {
+  if (!db) db = openDb();
   return db;
+}
+
+export function closeDb(): void {
+  if (db) {
+    db.close();
+    db = null;
+  }
 }

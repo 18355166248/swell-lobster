@@ -66,6 +66,7 @@ function buildGuideChecks() {
           '.vscode',
           '.cursor',
           '.claude',
+          '.agents',
           '.trae',
           '.playwright-mcp',
           '.playwright',

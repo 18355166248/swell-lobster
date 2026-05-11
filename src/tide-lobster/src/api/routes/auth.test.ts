@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+﻿import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -14,12 +14,10 @@ describe('authRouter (zod 校验)', () => {
     vi.resetModules();
   });
 
-  afterEach(() => {
-    try {
-      rmSync(projectRoot, { recursive: true, force: true });
-    } catch {
-      // ignore
-    }
+  afterEach(async () => {
+    const { closeDb } = await import('../../db/index.js');
+    closeDb();
+    rmSync(projectRoot, { recursive: true, force: true });
     delete process.env.SWELL_PROJECT_ROOT;
     delete process.env.SWELL_DATA_DIR;
     delete process.env.SWELL_GLOBAL_ENV_DIR;

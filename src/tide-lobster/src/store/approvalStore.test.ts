@@ -20,19 +20,16 @@ describe('ApprovalStore', () => {
   });
 
   afterEach(async () => {
-    const { getDb } = await import('../db/index.js');
+    const { getDb, closeDb } = await import('../db/index.js');
     getDb()
       .prepare(`DELETE FROM tool_approval_requests WHERE session_id LIKE ?`)
       .run(`${SESSION_PREFIX}%`);
     getDb().prepare(`DELETE FROM tool_approval_session_grants WHERE session_id LIKE ?`).run(
       `${SESSION_PREFIX}%`
     );
+    closeDb();
 
-    try {
-      rmSync(repoRoot, { recursive: true, force: true });
-    } catch {
-      // ignore locked files on Windows
-    }
+    rmSync(repoRoot, { recursive: true, force: true });
     delete process.env.SWELL_PROJECT_ROOT;
     delete process.env.SWELL_DATA_DIR;
     delete process.env.SWELL_IDENTITY_DIR;

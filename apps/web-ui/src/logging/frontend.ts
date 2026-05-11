@@ -1,3 +1,5 @@
+import { resolveAuthToken } from '../api/authToken';
+
 const API_BASE =
   (typeof import.meta !== 'undefined' &&
     (import.meta as { env?: Record<string, string> }).env?.VITE_API_BASE) ||
@@ -20,9 +22,13 @@ function shouldSkip(path: string): boolean {
 }
 
 export async function reportFrontendLog(entry: FrontendLogEntry): Promise<void> {
-  await fetch(`${getApiBase()}/api/logs`, {
+  const base = getApiBase();
+  const token = await resolveAuthToken(base);
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (token) headers['X-Auth-Token'] = token;
+  await fetch(`${base}/api/logs`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers,
     body: JSON.stringify({ ...entry, source: 'frontend' }),
   });
 }

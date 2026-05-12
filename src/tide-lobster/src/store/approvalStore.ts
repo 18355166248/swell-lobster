@@ -243,6 +243,7 @@ export class ApprovalStore {
 
       if (options?.timeoutMs && options.timeoutMs > 0) {
         timer = setTimeout(() => {
+          if (!(this.db as unknown as { open?: boolean }).open) return;
           const expired = this.expire(id, 'approval timed out');
           settle(expired ?? this.getById(id)!);
         }, options.timeoutMs);
@@ -256,6 +257,8 @@ export class ApprovalStore {
     resolvedBy?: string,
     resolutionNote?: string
   ): ToolApprovalRequest | undefined {
+    // DB 可能在测试 teardown 后被关闭（事件循环拥堵时定时器延迟触发）
+    if (!(this.db as unknown as { open?: boolean }).open) return undefined;
     const existing = this.getById(id);
     if (!existing) return undefined;
     if (existing.status !== 'pending') return existing;

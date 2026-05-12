@@ -49,9 +49,9 @@ describe('ApprovalStore', () => {
 
     setTimeout(() => {
       store.approve(request.id, 'tester', 'looks good');
-    }, 10);
+    }, 50);
 
-    const resolved = await store.waitForDecision(request.id, { timeoutMs: 200 });
+    const resolved = await store.waitForDecision(request.id, { timeoutMs: 2000 });
     expect(resolved.status).toBe('approved');
     expect(resolved.resolved_by).toBe('tester');
   });

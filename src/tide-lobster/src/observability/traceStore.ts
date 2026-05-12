@@ -4,7 +4,7 @@ import type { EventCategory, EventStatus, ObservabilityEvent, RecordEventInput }
 const SLOW_THRESHOLD_MS = 5000;
 
 export function recordEvent(input: RecordEventInput): void {
-  setImmediate(() => {
+  const write = () => {
     try {
       const db = getDb();
       db.prepare(
@@ -21,7 +21,15 @@ export function recordEvent(input: RecordEventInput): void {
     } catch {
       // 观测写失败不影响主流程
     }
-  });
+  };
+
+  if (process.env['VITEST']) {
+    write();
+    return;
+  }
+
+  const handle = setImmediate(write);
+  handle.unref?.();
 }
 
 export interface QueryEventsOptions {
@@ -133,7 +141,7 @@ export function querySlowCalls(limit = 20): ObservabilityEvent[] {
 }
 
 export function cleanupOldEvents(): void {
-  setImmediate(() => {
+  const cleanup = () => {
     try {
       const db = getDb();
       const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
@@ -141,5 +149,13 @@ export function cleanupOldEvents(): void {
     } catch {
       // 清理失败不影响主流程
     }
-  });
+  };
+
+  if (process.env['VITEST']) {
+    cleanup();
+    return;
+  }
+
+  const handle = setImmediate(cleanup);
+  handle.unref?.();
 }

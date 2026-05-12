@@ -1,4 +1,3 @@
-import { memoryStore } from '../../memory/store.js';
 import type { MemoryType } from '../../memory/types.js';
 import { ToolRiskLevel, type ToolDef } from '../types.js';
 
@@ -32,6 +31,7 @@ export const writeMemoryTool: ToolDef = {
     const text = String(content ?? '').trim();
     if (!text) return '记忆内容不能为空';
 
+    const { memoryStore } = await import('../../memory/store.js');
     memoryStore.create({
       content: text,
       memory_type: memory_type as MemoryType,

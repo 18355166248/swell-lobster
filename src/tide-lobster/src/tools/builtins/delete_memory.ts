@@ -1,4 +1,3 @@
-import { memoryStore } from '../../memory/store.js';
 import { ToolRiskLevel, type ToolDef } from '../types.js';
 
 export const deleteMemoryTool: ToolDef = {
@@ -17,6 +16,7 @@ export const deleteMemoryTool: ToolDef = {
     },
   },
   async execute({ query }) {
+    const { memoryStore } = await import('../../memory/store.js');
     const found = memoryStore.search(String(query), 1);
     if (!found.length) return '未找到匹配的记忆';
     memoryStore.delete(found[0].id);

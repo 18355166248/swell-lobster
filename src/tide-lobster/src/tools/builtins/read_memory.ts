@@ -1,6 +1,5 @@
 import { settings } from '../../config.js';
 import { getEmbeddingService } from '../../memory/embeddingService.js';
-import { memoryStore } from '../../memory/store.js';
 import { ToolRiskLevel, type ToolDef } from '../types.js';
 
 export const readMemoryTool: ToolDef = {
@@ -28,6 +27,7 @@ export const readMemoryTool: ToolDef = {
     if (!keyword) return '未提供搜索关键词';
 
     const k = Number(limit ?? 5);
+    const { memoryStore } = await import('../../memory/store.js');
     const embSvc = getEmbeddingService();
 
     if (embSvc) {

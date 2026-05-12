@@ -1,4 +1,3 @@
-import { delegateTask } from '../../agents/delegateService.js';
 import { ToolRiskLevel, type ToolDef } from '../types.js';
 
 export const delegateTaskTool: ToolDef = {
@@ -32,6 +31,7 @@ export const delegateTaskTool: ToolDef = {
   },
   async execute(args, context) {
     // 透传父会话 id，未显式指定 endpoint 时让子会话复用父会话端点。
+    const { delegateTask } = await import('../../agents/delegateService.js');
     const result = await delegateTask({
       task: String(args.task ?? ''),
       templateId: typeof args.templateId === 'string' ? args.templateId : null,

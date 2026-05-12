@@ -1,6 +1,6 @@
 import { join } from 'node:path';
 
-import ExcelJS from 'exceljs';
+import type ExcelJSType from 'exceljs';
 import { z } from 'zod';
 
 import { ToolRiskLevel, type ToolDef } from '../types.js';
@@ -54,6 +54,7 @@ export const xlsxWriterTool: ToolDef = {
       return `xlsx_writer 参数校验失败：${parsed.error.issues[0]?.message ?? 'invalid args'}`;
     }
 
+    const ExcelJS = (await import('exceljs')).default as typeof ExcelJSType;
     const workbook = new ExcelJS.Workbook();
     for (const sheet of parsed.data.sheets) {
       const worksheet = workbook.addWorksheet(sheet.name);

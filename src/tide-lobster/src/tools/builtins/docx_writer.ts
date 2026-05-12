@@ -2,17 +2,7 @@ import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { z } from 'zod';
-import {
-  Document,
-  HeadingLevel,
-  Packer,
-  Paragraph,
-  Table,
-  TableCell,
-  TableRow,
-  TextRun,
-  WidthType,
-} from 'docx';
+import type * as Docx from 'docx';
 
 import { ToolRiskLevel, type ToolDef } from '../types.js';
 import {
@@ -54,19 +44,25 @@ const argsSchema = z.object({
   sections: z.array(sectionSchema).min(1),
 });
 
-function toHeading(level: 1 | 2 | 3): (typeof HeadingLevel)[keyof typeof HeadingLevel] {
-  if (level === 1) return HeadingLevel.HEADING_1;
-  if (level === 2) return HeadingLevel.HEADING_2;
-  return HeadingLevel.HEADING_3;
+type DocxModule = typeof Docx;
+type DocxChild = InstanceType<DocxModule['Paragraph']> | InstanceType<DocxModule['Table']>;
+
+function toHeading(
+  docx: DocxModule,
+  level: 1 | 2 | 3
+): (typeof Docx.HeadingLevel)[keyof typeof Docx.HeadingLevel] {
+  if (level === 1) return docx.HeadingLevel.HEADING_1;
+  if (level === 2) return docx.HeadingLevel.HEADING_2;
+  return docx.HeadingLevel.HEADING_3;
 }
 
-function buildParagraph(item: z.infer<typeof paragraphItemSchema>): Paragraph {
+function buildParagraph(docx: DocxModule, item: z.infer<typeof paragraphItemSchema>) {
   if (typeof item === 'string') {
-    return new Paragraph({ children: [new TextRun(item)] });
+    return new docx.Paragraph({ children: [new docx.TextRun(item)] });
   }
-  return new Paragraph({
+  return new docx.Paragraph({
     children: [
-      new TextRun({
+      new docx.TextRun({
         text: item.text,
         bold: item.bold,
         italics: item.italic,
@@ -75,31 +71,35 @@ function buildParagraph(item: z.infer<typeof paragraphItemSchema>): Paragraph {
   });
 }
 
-function buildTable(table: z.infer<typeof tableSchema>): Table {
+function buildTable(docx: DocxModule, table: z.infer<typeof tableSchema>) {
   const rows = [
-    new TableRow({
+    new docx.TableRow({
       children: table.headers.map(
         (header) =>
-          new TableCell({
-            children: [new Paragraph({ children: [new TextRun({ text: header, bold: true })] })],
+          new docx.TableCell({
+            children: [
+              new docx.Paragraph({
+                children: [new docx.TextRun({ text: header, bold: true })],
+              }),
+            ],
           })
       ),
     }),
     ...table.rows.map(
       (row) =>
-        new TableRow({
+        new docx.TableRow({
           children: row.map(
             (cell) =>
-              new TableCell({
-                children: [new Paragraph(cell)],
+              new docx.TableCell({
+                children: [new docx.Paragraph(cell)],
               })
           ),
         })
     ),
   ];
 
-  return new Table({
-    width: { size: 100, type: WidthType.PERCENTAGE },
+  return new docx.Table({
+    width: { size: 100, type: docx.WidthType.PERCENTAGE },
     rows,
   });
 }
@@ -139,13 +139,14 @@ export const docxWriterTool: ToolDef = {
     }
 
     const { filename, title, sections } = parsed.data;
-    const children: Array<Paragraph | Table> = [];
+    const docx = await import('docx');
+    const children: DocxChild[] = [];
 
     if (title) {
       children.push(
-        new Paragraph({
-          heading: HeadingLevel.TITLE,
-          children: [new TextRun({ text: title, bold: true })],
+        new docx.Paragraph({
+          heading: docx.HeadingLevel.TITLE,
+          children: [new docx.TextRun({ text: title, bold: true })],
         })
       );
     }
@@ -153,32 +154,32 @@ export const docxWriterTool: ToolDef = {
     for (const section of sections) {
       if (section.heading) {
         children.push(
-          new Paragraph({
-            heading: toHeading(section.heading.level),
-            children: [new TextRun(section.heading.text)],
+          new docx.Paragraph({
+            heading: toHeading(docx, section.heading.level),
+            children: [new docx.TextRun(section.heading.text)],
           })
         );
       }
 
       for (const paragraph of section.paragraphs ?? []) {
-        children.push(buildParagraph(paragraph));
+        children.push(buildParagraph(docx, paragraph));
       }
 
       for (const bullet of section.bullets ?? []) {
         children.push(
-          new Paragraph({
+          new docx.Paragraph({
             bullet: { level: 0 },
-            children: [new TextRun(bullet)],
+            children: [new docx.TextRun(bullet)],
           })
         );
       }
 
       if (section.table) {
-        children.push(buildTable(section.table));
+        children.push(buildTable(docx, section.table));
       }
     }
 
-    const doc = new Document({
+    const doc = new docx.Document({
       sections: [
         {
           children,
@@ -189,7 +190,7 @@ export const docxWriterTool: ToolDef = {
     const outputDir = ensureOutputDir();
     const safeBase = sanitizeBaseName(filename, 'document');
     const outputPath = join(outputDir, `${safeBase}.docx`);
-    const buffer = await Packer.toBuffer(doc);
+    const buffer = await docx.Packer.toBuffer(doc);
     await writeFile(outputPath, buffer);
 
     const ref = buildOutputFileRef(`${safeBase}.docx`, outputPath);

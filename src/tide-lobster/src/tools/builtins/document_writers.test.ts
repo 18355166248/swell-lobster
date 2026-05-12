@@ -103,4 +103,63 @@ describe('document writer builtins', () => {
     expect(globalToolRegistry.get('xlsx_writer')?.name).toBe('xlsx_writer');
     expect(globalToolRegistry.get('pptx_writer')?.name).toBe('pptx_writer');
   });
+
+  it('accepts phase15 document writer schemas for spreadsheets and presentations', async () => {
+    const { xlsxWriterTool } = await import('./xlsx_writer.js');
+    const { pptxWriterTool } = await import('./pptx_writer.js');
+
+    const imagePath = join(dataDir, 'tiny.png');
+    writeFileSync(
+      imagePath,
+      Buffer.from(
+        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAFgwJ/lR3RugAAAABJRU5ErkJggg==',
+        'base64'
+      )
+    );
+
+    const xlsxResult = await xlsxWriterTool.execute({
+      filename: 'phase15-table',
+      sheets: [
+        {
+          name: 'Plan',
+          headers: ['Item', 'Status'],
+          rows: [
+            ['docx_writer', 'done'],
+            ['xlsx_writer', 'in progress'],
+          ],
+          columnWidths: [24, 18],
+          freezeHeader: true,
+        },
+      ],
+    });
+    const pptxResult = await pptxWriterTool.execute({
+      filename: 'phase15-brief',
+      theme: 'business',
+      slides: [
+        { layout: 'title', title: 'Phase 15b', subtitle: 'Document export' },
+        { layout: 'content', title: 'Scope', bullets: ['Word', 'Excel', 'PowerPoint'] },
+        {
+          layout: 'two-column',
+          title: 'Progress',
+          left: ['Backend tools', 'Skill templates'],
+          right: ['Frontend grouping', 'Verification'],
+        },
+        { layout: 'image', title: 'Preview', imagePath, caption: 'Generated asset' },
+      ],
+    });
+
+    const outputDir = join(dataDir, 'outputs');
+    expect(xlsxResult).toContain('/api/files/phase15-table.xlsx');
+    expect(pptxResult).toContain('/api/files/phase15-brief.pptx');
+    expect(existsSync(join(outputDir, 'phase15-table.xlsx'))).toBe(true);
+    expect(existsSync(join(outputDir, 'phase15-brief.pptx'))).toBe(true);
+
+    const ExcelJS = (await import('exceljs')).default;
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.readFile(join(outputDir, 'phase15-table.xlsx'));
+    const worksheet = workbook.getWorksheet('Plan');
+    expect(worksheet?.getRow(1).values).toEqual([, 'Item', 'Status']);
+    expect(worksheet?.getColumn(1).width).toBe(24);
+    expect(worksheet?.views?.[0]).toMatchObject({ state: 'frozen', ySplit: 1 });
+  });
 });

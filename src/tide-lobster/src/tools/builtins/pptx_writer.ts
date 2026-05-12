@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { z } from 'zod';
@@ -12,13 +13,19 @@ import {
 
 const slideSchema = z.object({
   layout: z
-    .enum(['title', 'title-content', 'two-column', 'table'])
+    .enum(['title', 'content', 'title-content', 'two-column', 'table', 'image'])
     .optional()
-    .default('title-content'),
+    .default('content'),
   title: z.string().trim().min(1),
+  subtitle: z.string().trim().optional(),
   body: z.array(z.string().trim().min(1)).optional(),
+  bullets: z.array(z.string().trim().min(1)).optional(),
   leftBody: z.array(z.string().trim().min(1)).optional(),
   rightBody: z.array(z.string().trim().min(1)).optional(),
+  left: z.array(z.string().trim().min(1)).optional(),
+  right: z.array(z.string().trim().min(1)).optional(),
+  imagePath: z.string().trim().min(1).optional(),
+  caption: z.string().trim().optional(),
   table: z
     .object({
       headers: z.array(z.string()).min(1),
@@ -30,9 +37,11 @@ const slideSchema = z.object({
 
 const argsSchema = z.object({
   filename: z.string().trim().min(1),
-  theme: z.enum(['default', 'calm', 'bold']).optional().default('default'),
+  theme: z.enum(['default', 'calm', 'bold', 'dark', 'business']).optional().default('default'),
   slides: z.array(slideSchema).min(1),
 });
+
+type SlideDef = z.infer<typeof slideSchema>;
 
 function addBullets(
   slide: {
@@ -58,9 +67,9 @@ function applyTheme(
   pptx: {
     theme: Record<string, unknown>;
   },
-  theme: 'default' | 'calm' | 'bold'
+  theme: 'default' | 'calm' | 'bold' | 'dark' | 'business'
 ) {
-  if (theme === 'calm') {
+  if (theme === 'calm' || theme === 'business') {
     pptx.theme = {
       headFontFace: 'Aptos Display',
       bodyFontFace: 'Aptos',
@@ -75,6 +84,15 @@ function applyTheme(
       lang: 'zh-CN',
     };
   }
+}
+
+function getBodyLines(slideDef: SlideDef): string[] {
+  return slideDef.bullets ?? slideDef.body ?? [];
+}
+
+function getColumnLines(slideDef: SlideDef, side: 'left' | 'right'): string[] {
+  if (side === 'left') return slideDef.left ?? slideDef.leftBody ?? [];
+  return slideDef.right ?? slideDef.rightBody ?? [];
 }
 
 export const pptxWriterTool: ToolDef = {
@@ -95,13 +113,13 @@ export const pptxWriterTool: ToolDef = {
     },
     theme: {
       type: 'string',
-      description: '演示主题，可选 default / calm / bold',
-      enum: ['default', 'calm', 'bold'],
+      description: '演示主题，可选 default / dark / business；兼容 calm / bold',
+      enum: ['default', 'dark', 'business', 'calm', 'bold'],
     },
     slides: {
       type: 'array',
       description:
-        'slide 数组。每项包含 title，layout 可选 title/title-content/two-column/table。可附 body、leftBody、rightBody、table、notes。',
+        'slide 数组。每项包含 title，layout 可选 title/content/two-column/image；兼容 title-content/table。可附 subtitle、bullets、left/right、imagePath、caption、notes。',
       required: true,
       items: { type: 'object' },
     },
@@ -119,6 +137,7 @@ export const pptxWriterTool: ToolDef = {
       theme: Record<string, unknown>;
       addSlide: () => {
         addText: (text: unknown, options?: Record<string, unknown>) => unknown;
+        addImage: (options: Record<string, unknown>) => unknown;
         addTable: (rows: string[][], options?: Record<string, unknown>) => unknown;
         addNotes: (notes: string) => unknown;
       };
@@ -142,8 +161,11 @@ export const pptxWriterTool: ToolDef = {
       });
 
       if (slideDef.layout === 'title') {
-        if (slideDef.body?.length) {
-          slide.addText(slideDef.body.join('\n'), {
+        const titleBody = slideDef.subtitle
+          ? [slideDef.subtitle, ...getBodyLines(slideDef)]
+          : getBodyLines(slideDef);
+        if (titleBody.length) {
+          slide.addText(titleBody.join('\n'), {
             x: 0.9,
             y: 1.6,
             w: 11,
@@ -154,8 +176,8 @@ export const pptxWriterTool: ToolDef = {
           });
         }
       } else if (slideDef.layout === 'two-column') {
-        addBullets(slide, slideDef.leftBody ?? [], { x: 0.6, y: 1.4, w: 5.6, h: 4.8 });
-        addBullets(slide, slideDef.rightBody ?? [], { x: 6.6, y: 1.4, w: 5.6, h: 4.8 });
+        addBullets(slide, getColumnLines(slideDef, 'left'), { x: 0.6, y: 1.4, w: 5.6, h: 4.8 });
+        addBullets(slide, getColumnLines(slideDef, 'right'), { x: 6.6, y: 1.4, w: 5.6, h: 4.8 });
       } else if (slideDef.layout === 'table' && slideDef.table) {
         slide.addTable([slideDef.table.headers, ...slideDef.table.rows], {
           x: 0.6,
@@ -167,8 +189,24 @@ export const pptxWriterTool: ToolDef = {
           fill: 'FFFFFF',
           rowH: 0.45,
         });
+      } else if (slideDef.layout === 'image') {
+        if (!slideDef.imagePath || !existsSync(slideDef.imagePath)) {
+          return `pptx_writer 参数校验失败：imagePath 文件不存在`;
+        }
+        slide.addImage({ path: slideDef.imagePath, x: 1.4, y: 1.25, w: 10.5, h: 4.8 });
+        if (slideDef.caption) {
+          slide.addText(slideDef.caption, {
+            x: 1.4,
+            y: 6.15,
+            w: 10.5,
+            h: 0.35,
+            align: 'center',
+            fontSize: 12,
+            color: '64748B',
+          });
+        }
       } else {
-        addBullets(slide, slideDef.body ?? [], { x: 0.8, y: 1.4, w: 11, h: 4.8 });
+        addBullets(slide, getBodyLines(slideDef), { x: 0.8, y: 1.4, w: 11, h: 4.8 });
       }
 
       if (slideDef.notes) {

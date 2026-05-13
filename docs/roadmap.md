@@ -6,7 +6,7 @@
 
 ---
 
-## 当前状态（2026-05-11）
+## 当前状态（2026-05-13）
 
 ### 已完成（可用）
 
@@ -34,12 +34,12 @@
 | 阶段 13：统一扩展运行时（catalog、manifest、API + 前端扩展管理页）    | ✅   | ✅   |
 | 阶段 14：统一观测事件、trace、指标聚合、DB 迁移收敛、备份恢复、错误码 | ✅   | ✅   |
 | 阶段 15a：API 鉴权、CORS、`zod` 校验、字段加密、Security 设置页       | ✅   | ✅   |
+| 阶段 15b：docx / xlsx / pptx 工具 + 技能模板 + Skills「文档生成」     | ✅   | ✅   |
 
 ### 规划中
 
 | 功能                                                                                                                                            | 后端 | 前端 |
 | ----------------------------------------------------------------------------------------------------------------------------------------------- | ---- | ---- |
-| 阶段 [15b](./phases/phase15-security-productivity-skills.md#p15-subphases)：docx / xlsx / pptx 工具 + 技能模板 + Skills「文档生成」             | ⏳   | ⏳   |
 | 阶段 [15c](./phases/phase15-security-productivity-skills.md#p15-subphases)：browser_automation、email_send（SMTP）+ 技能模板 + Skills「自动化」 | ⏳   | ⏳   |
 
 ### 核心功能完整度
@@ -67,6 +67,7 @@
 - 统一错误码与 AppError 类（`types/errors.ts`）
 - Status 页观测面板（最近失败、慢调用、审批阻塞、MCP 健康状态）
 - API 鉴权、本机/远程 token、鉴权失败限流、CORS 白名单、敏感字段加密与 Security 设置页
+- 文档导出工具（docx/xlsx/pptx）、文档技能模板与 Skills「文档生成」分类
 
 ---
 
@@ -87,8 +88,8 @@
 阶段13：统一扩展运行时 ✅    → catalog、manifest、API、前端扩展管理页、审计联动全部完成
 阶段14：观测性与稳定性 ✅    → trace、指标、migration、备份恢复、发布基线全部完成
 阶段15a：安全底座 ✅        → token 鉴权、CORS、zod 校验、敏感字段加密、Security 设置页
-阶段15b：文档导出能力 ⏳    → docx/xlsx/pptx tools、文档技能模板、Skills 文档分组
-阶段15c：自动化能力 ⏳      → browser_automation、email_send（SMTP），待 15b 后并行
+阶段15b：文档导出能力 ✅    → docx/xlsx/pptx tools、文档技能模板、Skills 文档分组
+阶段15c：自动化能力 ⏳      → browser_automation、email_send（SMTP），当前主线
 ```
 
 注：同上子阶段释义与验收清单见 [phase15-security-productivity-skills.md](./phases/phase15-security-productivity-skills.md#p15-subphases)。
@@ -101,7 +102,7 @@
   └── 阶段3 ── 阶段4 ── 阶段5 ── 阶段6 ── 阶段7 ── 阶段9 ── 阶段10 ── 阶段11 ── 阶段12 ── 阶段13 ── 阶段14 ── 阶段15
 ```
 
-阶段 15 在交付上再拆：先 **15a**，再并行 **15b**、**15c**（见 phase15）。
+阶段 15 在交付上已完成 **15a**、**15b**；当前进入 **15c**（见 phase15）。
 
 ---
 
@@ -130,15 +131,15 @@
 
 ## 新增 npm 依赖汇总
 
-| 阶段 | 包                                           | 用途                                            |
-| ---- | -------------------------------------------- | ----------------------------------------------- |
-| 1    | 无                                           | 纯业务逻辑                                      |
-| 2    | `recharts`（前端，可选）                     | Token 趋势图表                                  |
-| 3    | 无                                           | undici 已有                                     |
-| 4    | `node-cron`、`@modelcontextprotocol/sdk`     | 定时任务、MCP 集成                              |
-| 5    | `grammy`、`gray-matter`                      | Telegram Bot、frontmatter 解析                  |
-| 6    | `pdfjs-dist`                                 | PDF 解析                                        |
-| 15   | `docx`、`exceljs`、`pptxgenjs`、`nodemailer` | Phase15 doc/xlsx/pptx 与 SMTP 发件（15b / 15c） |
+| 阶段 | 包                                           | 用途                                                       |
+| ---- | -------------------------------------------- | ---------------------------------------------------------- |
+| 1    | 无                                           | 纯业务逻辑                                                 |
+| 2    | `recharts`（前端，可选）                     | Token 趋势图表                                             |
+| 3    | 无                                           | undici 已有                                                |
+| 4    | `node-cron`、`@modelcontextprotocol/sdk`     | 定时任务、MCP 集成                                         |
+| 5    | `grammy`、`gray-matter`                      | Telegram Bot、frontmatter 解析                             |
+| 6    | `pdfjs-dist`                                 | PDF 解析                                                   |
+| 15   | `docx`、`exceljs`、`pptxgenjs`、`nodemailer` | Phase15 文档导出与 SMTP 发件（`nodemailer` 仍待 15c 接入） |
 
 ---
 
@@ -159,15 +160,14 @@
 
 ## 当前推荐顺序
 
-阶段 15a 已完成，桌面端已完成实机验证。当前主线进入 [阶段 15b](./phases/phase15-security-productivity-skills.md)（文档内 **[15b / 15c](./phases/phase15-security-productivity-skills.md#p15-subphases)** 子里程碑）。
+阶段 15a / 15b 已完成，桌面端已完成实机验证。当前主线进入 [阶段 15c](./phases/phase15-security-productivity-skills.md)（文档内 **[15b / 15c](./phases/phase15-security-productivity-skills.md#p15-subphases)** 子里程碑）。
 
 阶段 15 范围（与文档子阶段对齐）：
 
-- **15b（办公导出）** 1. 文档生成技能：`docx` / `xlsx` / `pptx`（及对应技能模板、Skills「文档生成」分组）
+- **15b（办公导出）** 已完成：文档生成工具、对应技能模板、Skills「文档生成」分组已落地
+- **15c（外向自动化）** 待启动：1. 浏览器自动化（Playwright，`browser_automation`）2. 邮件发送（SMTP MVP，`nodemailer`；IMAP / 收件后续）
 
-- **15c（外向自动化）** 2. 浏览器自动化（Playwright，`browser_automation`）3. 邮件发送（SMTP MVP，`nodemailer`；IMAP / 收件后续）
-
-建议合并顺序：**15b-merge** → **15c-merge**；若资源允许可并行准备 15c，但不抢主线。
+建议顺序：先做一次 **15b verify 收口**，再进入 **15c-merge**；15c 内部优先 `browser_automation`，后做 `email_send`。
 
 剩余技术债务（按优先级，不在阶段 15 必做范围）：
 

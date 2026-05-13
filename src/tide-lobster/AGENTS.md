@@ -13,7 +13,7 @@
 
 ## 技术栈
 
-Node.js 20+、Hono 4、TypeScript 5.6、Vitest、better-sqlite3、undici、dotenv、tsx
+Node.js 20.20.0、Hono 4、TypeScript 5.6、Vitest、better-sqlite3、undici、dotenv、tsx
 
 ## 路由约定
 

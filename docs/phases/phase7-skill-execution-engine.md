@@ -160,7 +160,7 @@ apps/
 
 **方案：Node.js SEA（Single Executable Application）**
 
-- Node.js 20+ 内置，构建时仍需要 `postject` 注入 blob
+- Node.js 20.20.0 内置，构建时仍需要 `postject` 注入 blob
 - 构建流程：
   1. `npm run build`（tsc → dist/）
   2. `node --experimental-sea-config sea-config.json`（生成 sea-prep.blob）

@@ -29,7 +29,7 @@ swell-lobster/
 
 ## 环境要求
 
-- Node.js `>=20.20.0`
+- Node.js `20.20.0`（使用 `fnm use 20.20.0` 切换）
 - npm workspaces
 - Rust 工具链（desktop 校验与打包需要）
 

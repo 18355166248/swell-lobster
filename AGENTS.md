@@ -10,7 +10,32 @@ SwellLobster 是一个个人 AI 助手产品的 monorepo。
 - `identity/` — persona、soul 与助手提示资产
 - `data/` — 运行时状态、上传文件、JSON 配置与 SQLite 数据库
 
-要求 Node.js `>=20.20.0`。桌面端校验还需要 Rust 工具链。
+要求 Node.js `20.20.0`。桌面端校验还需要 Rust 工具链。
+
+## Node 运行时
+
+- 本项目固定使用 Node.js `20.20.0`，以 `.node-version` 为准。
+- 运行任何 `node` / `npm` / `npx` / `tsx` / `vitest` / `tsc` 命令前，必须先用 `fnm use 20.20.0` 切换当前 shell。
+- 在 PowerShell 中执行校验或开发命令时，把切换与命令放在同一个 shell 会话里，例如：
+
+```powershell
+fnm use 20.20.0
+node --version
+npm run verify
+```
+
+- 如果当前 PowerShell 会话里 `fnm` 不在 `PATH`（例如 Codex 非交互 shell），先加载 fnm 环境，再切换：
+
+```powershell
+& "$env:LOCALAPPDATA\Microsoft\WinGet\Links\fnm.exe" env --use-on-cd --shell powershell | Out-String | Invoke-Expression
+fnm use 20.20.0
+node --version
+npm run verify
+```
+
+- `node --version` 必须输出 `v20.20.0` 后才能继续运行仓库命令。
+- 如果 Codex 沙箱拒绝执行 `fnm.exe`，必须用提升权限重跑同一条 fnm 切换命令；如果无法完成 fnm 切换，停止并询问用户，不要继续执行任何 Node/npm 校验或开发命令。
+- 不要直接使用系统默认 `node`，也不要绕过 fnm 直接调用固定 Node 安装路径运行本仓库命令；当前机器默认 Node 可能不是 20，会导致 `better-sqlite3` 等原生依赖 ABI 不匹配。
 
 ## 真相来源
 

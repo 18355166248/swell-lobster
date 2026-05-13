@@ -20,6 +20,8 @@ import { CopyOutlined, ReloadOutlined } from '@ant-design/icons';
 import { apiDelete, apiGet, apiPost } from '../../../api/base';
 import { clearTokenCache, setStoredToken } from '../../../api/authToken';
 import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router';
+import { ROUTES } from '../../../routes';
 
 const { Title, Text, Paragraph } = Typography;
 
@@ -63,9 +65,11 @@ function formatTime(ms: number | null | undefined): string {
 
 export default function SecuritySettingsPage() {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const [masterKeyStatus, setMasterKeyStatus] = useState<MasterKeyStatus | null>(null);
   const [tokens, setTokens] = useState<RemoteToken[]>([]);
   const [remoteEnabled, setRemoteEnabled] = useState<boolean>(false);
+  const [remoteRestartRequired, setRemoteRestartRequired] = useState<boolean>(false);
   const [smtpConfig, setSmtpConfig] = useState<SmtpConfigView | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
   const [smtpSaving, setSmtpSaving] = useState<boolean>(false);
@@ -160,6 +164,7 @@ export default function SecuritySettingsPage() {
     try {
       await apiPost('/api/auth/remote-mode', { enabled: true });
       setRemoteEnabled(true);
+      setRemoteRestartRequired(true);
       message.success(t('security.messages.remoteEnabled'));
     } catch (e) {
       message.error(t('security.errors.enableRemote', { message: (e as Error).message }));
@@ -177,6 +182,7 @@ export default function SecuritySettingsPage() {
         }
       );
       setRemoteEnabled(res.enabled);
+      setRemoteRestartRequired(true);
       if (res.revokedTokens > 0) {
         message.success(t('security.messages.remoteDisabledRevoked', { count: res.revokedTokens }));
       } else {
@@ -255,6 +261,21 @@ export default function SecuritySettingsPage() {
     <div className="p-6 max-w-4xl mx-auto">
       <Title level={3}>{t('security.title')}</Title>
       <Paragraph type="secondary">{t('security.subtitle')}</Paragraph>
+
+      {remoteRestartRequired && (
+        <Alert
+          className="mb-4"
+          type="warning"
+          message={t('security.remote.restartRequiredTitle')}
+          description={t('security.remote.restartRequiredDescription')}
+          action={
+            <Button size="small" onClick={() => navigate(ROUTES.STATUS)}>
+              {t('security.remote.goToStatus')}
+            </Button>
+          }
+          showIcon
+        />
+      )}
 
       <Card title={t('security.masterKey.title')} className="mb-4">
         <Space>

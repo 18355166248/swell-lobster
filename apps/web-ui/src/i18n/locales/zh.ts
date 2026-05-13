@@ -333,6 +333,10 @@ const zh = {
       revokeAll: '同时撤销所有 token',
       disableDescription:
         '关闭远程模式不会自动撤销已签发的 token；如需彻底吊销现有 token，请选择“同时撤销”。',
+      restartRequiredTitle: '远程访问配置已变更，需重启后端后生效',
+      restartRequiredDescription:
+        '打包版桌面可前往状态页直接重启后端；开发态桌面请重启 `./dev.sh desktop` 或后端进程。',
+      goToStatus: '前往状态页',
     },
     smtp: {
       title: 'SMTP 发信配置',

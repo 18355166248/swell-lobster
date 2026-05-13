@@ -325,6 +325,10 @@ const en = {
       revokeAll: 'Disable and revoke all tokens',
       disableDescription:
         'Disabling remote mode does not revoke already issued tokens automatically. Choose revoke if you want to invalidate them now.',
+      restartRequiredTitle: 'Remote access settings changed and require a backend restart',
+      restartRequiredDescription:
+        'In packaged desktop builds, go to the Status page and restart the backend directly. In desktop dev mode, restart `./dev.sh desktop` or the backend process.',
+      goToStatus: 'Go to Status',
     },
     smtp: {
       title: 'SMTP Delivery',

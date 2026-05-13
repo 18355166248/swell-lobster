@@ -13,8 +13,8 @@
  * - POST   /api/auth/remote-mode                启用 / 关闭远程访问
  */
 
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { existsSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 
 import { Hono } from 'hono';
 import { z } from 'zod';
@@ -28,28 +28,12 @@ import {
   TOKEN_SCOPES,
 } from '../../auth/tokenStore.js';
 import { getMasterKeyStatus } from '../../auth/crypto.js';
+import { readRemoteFlag, writeRemoteFlag } from '../../auth/remoteMode.js';
 import { settings } from '../../config.js';
 import { recordEvent } from '../../observability/traceStore.js';
 import { validateBody, validateParam } from '../utils/validate.js';
 
 export const authRouter = new Hono();
-
-const REMOTE_FLAG_PATH = (): string => join(settings.dataDir, 'auth', 'remote.enabled');
-
-function readRemoteFlag(): boolean {
-  return existsSync(REMOTE_FLAG_PATH());
-}
-
-function writeRemoteFlag(enabled: boolean): void {
-  const path = REMOTE_FLAG_PATH();
-  if (enabled) {
-    const dir = dirname(path);
-    if (!existsSync(dir)) mkdirSync(dir, { recursive: true, mode: 0o700 });
-    writeFileSync(path, new Date().toISOString(), { mode: 0o600 });
-  } else if (existsSync(path)) {
-    rmSync(path);
-  }
-}
 
 function isLoopbackRequest(c: {
   req: { header: (k: string) => string | undefined; url: string };

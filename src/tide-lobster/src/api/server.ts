@@ -38,6 +38,7 @@ import { observabilityRouter } from './routes/observability.js';
 import { backupRouter } from './routes/backup.js';
 import { authRouter } from './routes/auth.js';
 import { requireAuthToken, DEFAULT_AUTH_EXEMPT_PATHS } from '../auth/middleware.js';
+import { isRemoteRuntimeActive, readRemoteFlag } from '../auth/remoteMode.js';
 import { getCorsOptions, createCorsOriginCheck } from './corsConfig.js';
 import { resolveAppEnvPath, settings } from '../config.js';
 import { AppError } from '../types/errors.js';
@@ -83,6 +84,10 @@ export function createApp(): Hono {
       data_dir: settings.dataDir,
       env_path: resolveAppEnvPath(),
       runtime_mode: process.env.SWELL_DESKTOP_RUNTIME?.trim() || 'server',
+      listen_host: settings.host,
+      listen_port: settings.port,
+      remote_mode_desired: readRemoteFlag(),
+      remote_mode_active: isRemoteRuntimeActive(),
       exec_path: process.execPath,
     })
   );

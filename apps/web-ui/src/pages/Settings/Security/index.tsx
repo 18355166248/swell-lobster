@@ -56,6 +56,12 @@ type SmtpFormValues = {
   secure: boolean;
 };
 
+type HealthView = {
+  listen_host?: string;
+  remote_mode_desired?: boolean;
+  remote_mode_active?: boolean;
+};
+
 function formatTime(ms: number | null | undefined): string {
   if (!ms) return '—';
   const d = new Date(ms);
@@ -69,7 +75,7 @@ export default function SecuritySettingsPage() {
   const [masterKeyStatus, setMasterKeyStatus] = useState<MasterKeyStatus | null>(null);
   const [tokens, setTokens] = useState<RemoteToken[]>([]);
   const [remoteEnabled, setRemoteEnabled] = useState<boolean>(false);
-  const [remoteRestartRequired, setRemoteRestartRequired] = useState<boolean>(false);
+  const [health, setHealth] = useState<HealthView | null>(null);
   const [smtpConfig, setSmtpConfig] = useState<SmtpConfigView | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
   const [smtpSaving, setSmtpSaving] = useState<boolean>(false);
@@ -83,16 +89,18 @@ export default function SecuritySettingsPage() {
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
-      const [statusRes, tokensRes, remoteRes, smtpRes] = await Promise.all([
+      const [statusRes, tokensRes, remoteRes, smtpRes, healthRes] = await Promise.all([
         apiGet<{ status: MasterKeyStatus }>('/api/auth/master-key/status'),
         apiGet<{ tokens: RemoteToken[] }>('/api/auth/tokens'),
         apiGet<{ enabled: boolean }>('/api/auth/remote-mode'),
         apiGet<{ config: SmtpConfigView | null }>('/api/config/email-smtp'),
+        apiGet<HealthView>('/api/health'),
       ]);
       setMasterKeyStatus(statusRes.status);
       setTokens(tokensRes.tokens);
       setRemoteEnabled(remoteRes.enabled);
       setSmtpConfig(smtpRes.config);
+      setHealth(healthRes);
     } catch (e) {
       message.error(t('security.errors.load', { message: (e as Error).message }));
     } finally {
@@ -164,8 +172,8 @@ export default function SecuritySettingsPage() {
     try {
       await apiPost('/api/auth/remote-mode', { enabled: true });
       setRemoteEnabled(true);
-      setRemoteRestartRequired(true);
       message.success(t('security.messages.remoteEnabled'));
+      await refresh();
     } catch (e) {
       message.error(t('security.errors.enableRemote', { message: (e as Error).message }));
     }
@@ -182,7 +190,6 @@ export default function SecuritySettingsPage() {
         }
       );
       setRemoteEnabled(res.enabled);
-      setRemoteRestartRequired(true);
       if (res.revokedTokens > 0) {
         message.success(t('security.messages.remoteDisabledRevoked', { count: res.revokedTokens }));
       } else {
@@ -193,6 +200,12 @@ export default function SecuritySettingsPage() {
       message.error(t('security.errors.disableRemote', { message: (e as Error).message }));
     }
   };
+
+  const remoteRestartRequired =
+    health !== null &&
+    typeof health.remote_mode_desired === 'boolean' &&
+    typeof health.remote_mode_active === 'boolean' &&
+    health.remote_mode_desired !== health.remote_mode_active;
 
   const onCopyToken = async (token: string) => {
     try {
@@ -267,7 +280,9 @@ export default function SecuritySettingsPage() {
           className="mb-4"
           type="warning"
           message={t('security.remote.restartRequiredTitle')}
-          description={t('security.remote.restartRequiredDescription')}
+          description={t('security.remote.restartRequiredDescription', {
+            host: health?.remote_mode_desired ? '0.0.0.0' : '127.0.0.1',
+          })}
           action={
             <Button size="small" onClick={() => navigate(ROUTES.STATUS)}>
               {t('security.remote.goToStatus')}
@@ -328,7 +343,9 @@ export default function SecuritySettingsPage() {
           <Alert
             type="warning"
             message={t('security.remote.enabledTitle')}
-            description={t('security.remote.enabledDescription')}
+            description={t('security.remote.enabledDescription', {
+              host: health?.listen_host ?? '0.0.0.0',
+            })}
           />
         )}
       </Card>

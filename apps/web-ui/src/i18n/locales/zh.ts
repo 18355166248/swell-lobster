@@ -322,7 +322,7 @@ const zh = {
         '启用后，任何能访问本机端口的设备都可能调用你的 LLM、邮箱和 IM 通道能力。建议仅在受信网络下开启。',
       enabledTitle: '远程访问已启用',
       enabledDescription:
-        '重启服务后会自动以 0.0.0.0:18900 监听；若需自定义监听地址，可在 .env 中设置 API_HOST。',
+        '当前后端监听地址：{{host}}。若要允许局域网访问，请确认重启后监听在 0.0.0.0:18900，或在 .env 中自定义 API_HOST。',
       enableConfirmTitle: '确认启用远程访问？',
       enableConfirm: '确认启用',
       riskTitle: '风险提示',
@@ -335,7 +335,7 @@ const zh = {
         '关闭远程模式不会自动撤销已签发的 token；如需彻底吊销现有 token，请选择“同时撤销”。',
       restartRequiredTitle: '远程访问配置已变更，需重启后端后生效',
       restartRequiredDescription:
-        '打包版桌面可前往状态页直接重启后端；开发态桌面请重启 `./dev.sh desktop` 或后端进程。',
+        '目标监听地址将切换为 {{host}}:18900。打包版桌面可前往状态页直接重启后端；开发态桌面请重启 `./dev.sh desktop` 或后端进程。',
       goToStatus: '前往状态页',
     },
     smtp: {

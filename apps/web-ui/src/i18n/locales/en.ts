@@ -314,7 +314,7 @@ const en = {
         'When enabled, any device that can reach this port may use your LLM, email, and IM capabilities. Only enable this on trusted networks.',
       enabledTitle: 'Remote access enabled',
       enabledDescription:
-        'After restart the backend will listen on 0.0.0.0:18900 automatically. Set API_HOST in .env if you need a custom listen address.',
+        'Current backend listen address: {{host}}. To allow LAN access, make sure it restarts on 0.0.0.0:18900, or set API_HOST in .env.',
       enableConfirmTitle: 'Enable remote access?',
       enableConfirm: 'Enable',
       riskTitle: 'Risk warning',
@@ -327,7 +327,7 @@ const en = {
         'Disabling remote mode does not revoke already issued tokens automatically. Choose revoke if you want to invalidate them now.',
       restartRequiredTitle: 'Remote access settings changed and require a backend restart',
       restartRequiredDescription:
-        'In packaged desktop builds, go to the Status page and restart the backend directly. In desktop dev mode, restart `./dev.sh desktop` or the backend process.',
+        'The target listen address will switch to {{host}}:18900. In packaged desktop builds, go to the Status page and restart the backend directly. In desktop dev mode, restart `./dev.sh desktop` or the backend process.',
       goToStatus: 'Go to Status',
     },
     smtp: {

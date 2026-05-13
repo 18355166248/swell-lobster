@@ -413,8 +413,6 @@ fn start_tide_lobster(app: &AppHandle) -> Result<CommandChild, String> {
         .env("SWELL_GLOBAL_ENV_DIR", global_env_dir.to_string_lossy().as_ref())
         .env("SWELL_DESKTOP_RUNTIME", desktop_runtime_mode())
         .env("SWELL_OUTPUT_DIR", output_dir.to_string_lossy().as_ref())
-        .env("API_HOST", "127.0.0.1")
-        .env("API_PORT", "18900")
         .env("BETTER_SQLITE3_BINDING", sqlite_binding.to_string_lossy().as_ref())
         .env("SWELL_UV_BIN", uv_path.to_string_lossy().as_ref());
 

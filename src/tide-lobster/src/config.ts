@@ -124,6 +124,33 @@ function env(swellKey: string, fallback: string): string {
   return process.env[`SWELL_${swellKey}`] ?? process.env[swellKey] ?? fallback;
 }
 
+function resolveDataDirDefault(): string {
+  return env('DATA_DIR', join(homedir(), '.swell-lobster', 'data'));
+}
+
+export function applyRemoteRuntimeDefaults(options?: {
+  env?: NodeJS.ProcessEnv;
+  remoteFlagExists?: (path: string) => boolean;
+}): void {
+  const targetEnv = options?.env ?? process.env;
+  const exists = options?.remoteFlagExists ?? existsSync;
+  const dataDir =
+    targetEnv.SWELL_DATA_DIR?.trim() ||
+    targetEnv.DATA_DIR?.trim() ||
+    join(homedir(), '.swell-lobster', 'data');
+  const remoteFlagPath = join(dataDir, 'auth', 'remote.enabled');
+  const remoteEnabled = targetEnv.SWELL_REMOTE?.trim() === '1' || exists(remoteFlagPath);
+
+  if (remoteEnabled) {
+    targetEnv.SWELL_REMOTE = '1';
+    if (!targetEnv.API_HOST?.trim()) {
+      targetEnv.API_HOST = '0.0.0.0';
+    }
+  }
+}
+
+applyRemoteRuntimeDefaults();
+
 function envNumber(swellKey: string, fallback: number): number {
   const raw = readConfiguredEnvValueAny([`SWELL_${swellKey}`, swellKey]);
   if (!raw) return fallback;
@@ -147,7 +174,7 @@ export type SearchProvider = typeof SEARCH_PROVIDERS[number];
 export const settings = {
   identityDir: env('IDENTITY_DIR', resolve(REPO_ROOT, 'identity')),
   projectRoot: env('PROJECT_ROOT', REPO_ROOT),
-  dataDir: env('DATA_DIR', join(homedir(), '.swell-lobster', 'data')),
+  dataDir: resolveDataDirDefault(),
   agentName: env('AGENT_NAME', 'Swell-Lobster'),
   port: parseInt(process.env.API_PORT ?? '18900', 10),
   host: process.env.API_HOST ?? '127.0.0.1',

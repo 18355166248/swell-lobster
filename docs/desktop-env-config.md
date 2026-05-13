@@ -111,6 +111,9 @@ export NO_PROXY=localhost,127.0.0.1
 | `HTTP_PROXY`       | HTTP 请求走代理                                             | `http://127.0.0.1:7897`      |
 | `ALL_PROXY`        | HTTP + HTTPS 统一代理（优先级低于上两项）                   | `http://127.0.0.1:7897`      |
 | `NO_PROXY`         | 不走代理的主机名，逗号分隔，支持通配符 `*`                  | `localhost,127.0.0.1,.local` |
+| `API_HOST`         | 后端监听地址；远程模式常用 `0.0.0.0`                        | `0.0.0.0`                    |
+| `API_PORT`         | 后端监听端口                                                | `18900`                      |
+| `SWELL_REMOTE`     | 远程运行模式开关；开启后会放宽远程限流/CORS 等运行态逻辑    | `1`                          |
 | `SWELL_PYTHON_BIN` | 指定 Python 可执行文件路径，用于 run_script 工具            | `/usr/local/bin/python3`     |
 | `SWELL_OUTPUT_DIR` | 覆盖输出文件目录（默认 `~/Documents/SwellLobster/outputs`） | `/tmp/swell-out`             |
 
@@ -125,6 +128,17 @@ export NO_PROXY=localhost,127.0.0.1
 ```
 
 即打包桌面版优先使用用户主目录下的全局 `.env`；开发态仍可继续使用仓库根 `.env`。
+
+## 远程访问建议配置
+
+如果你需要让局域网内其它设备访问桌面端内置后端，推荐在 `~/.swell-lobster/.env` 中加入：
+
+```env
+API_HOST=0.0.0.0
+SWELL_REMOTE=1
+```
+
+当前版本下，只要“远程访问”开关已开启并重启服务，后端也会自动按 `0.0.0.0:18900` 启动；显式写入 `.env` 的好处是行为更直观，也方便自定义监听地址或端口。
 
 ---
 

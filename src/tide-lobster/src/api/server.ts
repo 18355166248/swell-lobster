@@ -11,6 +11,7 @@ import { cors } from 'hono/cors';
 import { configRouter } from './routes/config.js';
 import { configEndpointsRouter } from './routes/configEndpoints.js';
 import { configEnvRouter } from './routes/configEnv.js';
+import { configEmailRouter } from './routes/configEmail.js';
 import { configViewsRouter } from './routes/configViews.js';
 import { configSkillsRouter } from './routes/configSkills.js';
 import { identityRouter } from './routes/identity.js';
@@ -96,6 +97,7 @@ export function createApp(): Hono {
   app.route('/', configRouter);
   app.route('/', configEndpointsRouter);
   app.route('/', configEnvRouter);
+  app.route('/', configEmailRouter);
   app.route('/', configViewsRouter);
   app.route('/', configSkillsRouter);
 

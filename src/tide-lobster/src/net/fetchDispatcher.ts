@@ -23,7 +23,7 @@ function shouldBypassProxy(hostname: string, noProxyRaw: string): boolean {
   return false;
 }
 
-function proxyUrlForTarget(targetUrl: string): string | undefined {
+export function getProxyUrlForTarget(targetUrl: string): string | undefined {
   let hostname: string;
   try {
     hostname = new URL(targetUrl).hostname;
@@ -48,7 +48,7 @@ let cachedProxyAgent: ProxyAgent | undefined;
 
 /** 每个请求 URL 对应：直连 Agent 或缓存的 ProxyAgent（覆盖全局 dispatcher 语义） */
 export function getFetchDispatcherForUrl(url: string): Dispatcher {
-  const proxyUrl = proxyUrlForTarget(url);
+  const proxyUrl = getProxyUrlForTarget(url);
   if (!proxyUrl) return directDispatcher;
   if (cachedProxyUrl === proxyUrl && cachedProxyAgent) return cachedProxyAgent;
   void cachedProxyAgent?.close();

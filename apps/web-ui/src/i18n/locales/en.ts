@@ -57,6 +57,7 @@ const en = {
     toolsSkills: 'Tools & Skills',
     soul: 'Soul & Will',
     identity: 'Identity',
+    security: 'Security',
     advanced: 'Advanced',
     appName: 'SwellLobster',
     appSubtitle: 'Desktop Terminal',
@@ -282,6 +283,111 @@ const en = {
       document: 'Document',
       automation: 'Automation',
       general: 'General',
+    },
+  },
+
+  security: {
+    title: 'Security Settings',
+    subtitle: 'Manage local tokens, remote access, SMTP delivery, and master key state.',
+    actions: {
+      revoke: 'Revoke',
+    },
+    masterKey: {
+      title: 'Master Key',
+      status: 'Status:',
+      present: 'Present',
+      missing: 'Missing',
+      alertTitle: 'Master key missing',
+      alertDescription:
+        'Protected fields such as IM tokens, webhook secrets, and SMTP passwords will resolve to null. Check whether data/auth/master.key was removed or restore from backup.',
+    },
+    localToken: {
+      title: 'Local token',
+      description:
+        'The local token is generated automatically when the sidecar starts, and the desktop UI injects it into requests. Resetting it invalidates the old token immediately.',
+      reset: 'Reset local token',
+      resetConfirm: 'All current connections will need a new token after reset. Continue?',
+    },
+    remote: {
+      title: 'Remote Access',
+      description:
+        'When enabled, any device that can reach this port may use your LLM, email, and IM capabilities. Only enable this on trusted networks.',
+      enabledTitle: 'Remote access enabled',
+      enabledDescription:
+        'After restart the backend will listen on 0.0.0.0:18900 automatically. Set API_HOST in .env if you need a custom listen address.',
+      enableConfirmTitle: 'Enable remote access?',
+      enableConfirm: 'Enable',
+      riskTitle: 'Risk warning',
+      riskDescription:
+        'Any device that can reach this port may call LLM credentials, email, and IM channels. Only enable this on trusted networks.',
+      disableConfirmTitle: 'Revoke all remote tokens as well?',
+      keepTokens: 'Keep tokens, only disable remote mode',
+      revokeAll: 'Disable and revoke all tokens',
+      disableDescription:
+        'Disabling remote mode does not revoke already issued tokens automatically. Choose revoke if you want to invalidate them now.',
+    },
+    smtp: {
+      title: 'SMTP Delivery',
+      description:
+        'After configuration, the `email_send` tool and automation email skill can send through SMTP. Passwords are stored with field-level encryption.',
+      host: 'SMTP Host',
+      port: 'Port',
+      user: 'Username',
+      from: 'From Address',
+      password: 'Password',
+      secure: 'Secure Connection (SSL/TLS)',
+      hostRequired: 'Enter the SMTP host',
+      portRequired: 'Enter the port',
+      userRequired: 'Enter the username',
+      fromRequired: 'Enter the sender address',
+      passwordPlaceholder: 'Leave blank to keep the current saved password',
+      passwordRetainHint:
+        'Leave blank to keep the current password. Entering a new value replaces it.',
+      passwordRequiredHint: 'A password is required on first save.',
+      savedTitle: 'SMTP configuration saved',
+      savedDescription: 'Current host: {{host}}, default sender: {{from}}.',
+    },
+    remoteTokens: {
+      title: 'Remote Access Tokens',
+      create: 'Create token',
+      label: 'Label',
+      labelRequired: 'Enter a label such as mac / mobile / hometown',
+    },
+    tokenTable: {
+      id: 'ID',
+      label: 'Label',
+      scope: 'Scope',
+      createdAt: 'Created',
+      lastUsedAt: 'Last Used',
+      revokeConfirm: 'This token will become unusable immediately after revocation. Continue?',
+    },
+    createdToken: {
+      title: 'New token created (shown only once)',
+      copy: 'Copy token',
+      saved: 'I saved it',
+      warning: 'Save this token now. You will not be able to view it again after closing.',
+      label: 'Label: ',
+      scope: 'Scope: ',
+    },
+    messages: {
+      revoked: 'Revoked',
+      localTokenReset: 'Local token reset',
+      remoteEnabled:
+        'Remote access enabled. Restart the service to listen on 0.0.0.0:18900 automatically.',
+      remoteDisabled: 'Remote access disabled',
+      remoteDisabledRevoked: 'Remote access disabled and {{count}} token(s) revoked',
+      copied: 'Copied to clipboard',
+      copyUnavailable: 'Clipboard unavailable, copy manually',
+      smtpSaved: 'SMTP configuration saved',
+    },
+    errors: {
+      load: 'Load failed: {{message}}',
+      createToken: 'Create failed: {{message}}',
+      revokeToken: 'Revoke failed: {{message}}',
+      resetLocalToken: 'Reset failed: {{message}}',
+      enableRemote: 'Enable failed: {{message}}',
+      disableRemote: 'Disable failed: {{message}}',
+      saveSmtp: 'Failed to save SMTP config: {{message}}',
     },
   },
 

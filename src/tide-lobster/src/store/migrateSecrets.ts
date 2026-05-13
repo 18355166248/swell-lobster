@@ -44,6 +44,7 @@ interface ColumnPlan {
 const TABLE_PLANS: ColumnPlan[] = [
   { table: 'im_channels', idColumn: 'id', fields: SECRET_FIELDS.im_channels ?? [] },
   { table: 'scheduler_tasks', idColumn: 'id', fields: SECRET_FIELDS.scheduler_tasks ?? [] },
+  { table: 'key_value_store', idColumn: 'key', fields: SECRET_FIELDS.key_value_store ?? [] },
 ];
 
 function getByPath(obj: Record<string, unknown>, path: string): unknown {
@@ -148,6 +149,7 @@ export function migrateExistingSecrets(): MigrateResult {
             rowDelta += 1;
             continue;
           }
+          if (f.keyMatch && row['key'] !== f.keyMatch) continue;
           // jsonPath
           let obj = jsonColumns.get(f.column);
           if (!obj) {
@@ -230,7 +232,9 @@ export function migrateExistingSecrets(): MigrateResult {
           const parsed = JSON.parse(stored) as Record<string, unknown>;
           for (const f of (SECRET_FIELDS[u.table] ?? []).filter(
             (x): x is SecretField & { kind: 'jsonPath'; path: string } =>
-              x.kind === 'jsonPath' && x.column === col
+              x.kind === 'jsonPath' &&
+              x.column === col &&
+              (!x.keyMatch || fresh['key'] === x.keyMatch)
           )) {
             const v = getByPath(parsed, f.path);
             if (typeof v === 'string' && isEncrypted(v)) decrypt(v);

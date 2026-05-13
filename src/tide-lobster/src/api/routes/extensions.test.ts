@@ -90,6 +90,8 @@ describe('extensionsRouter', () => {
     expect(byId.get('builtin:docx_writer')?.source).toBe('builtin');
     expect(byId.get('builtin:xlsx_writer')?.source).toBe('builtin');
     expect(byId.get('builtin:pptx_writer')?.source).toBe('builtin');
+    expect(byId.get('builtin:browser_automation')?.source).toBe('builtin');
+    expect(byId.get('builtin:email_send')?.source).toBe('builtin');
     expect(byId.get('skill:release-helper')?.source).toBe('skill');
     expect(byId.get(`mcp:${server.id}`)?.source).toBe('mcp');
     expect(byId.get(`mcp:${server.id}`)?.metadata?.toolCount).toBe(1);

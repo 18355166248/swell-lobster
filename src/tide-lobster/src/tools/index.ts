@@ -9,6 +9,8 @@ import { delegateTaskTool } from './builtins/delegate_task.js';
 import { docxWriterTool } from './builtins/docx_writer.js';
 import { xlsxWriterTool } from './builtins/xlsx_writer.js';
 import { pptxWriterTool } from './builtins/pptx_writer.js';
+import { browserAutomationTool } from './builtins/browser_automation.js';
+import { emailSendTool } from './builtins/email_send.js';
 import { globalToolRegistry } from './registry.js';
 
 let initialized = false;
@@ -28,4 +30,6 @@ export function initializeBuiltinTools(): void {
   globalToolRegistry.register(docxWriterTool);
   globalToolRegistry.register(xlsxWriterTool);
   globalToolRegistry.register(pptxWriterTool);
+  globalToolRegistry.register(browserAutomationTool);
+  globalToolRegistry.register(emailSendTool);
 }

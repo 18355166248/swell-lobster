@@ -31,6 +31,7 @@ const CONFIG_ROUTES = [
   ROUTES.CONFIG_IM,
   ROUTES.CONFIG_IDENTITY,
   ROUTES.CONFIG_ADVANCED,
+  ROUTES.SETTINGS_SECURITY,
 ];
 
 export function Sidebar() {
@@ -73,6 +74,7 @@ export function Sidebar() {
         { key: ROUTES.CONFIG_LLM, icon: <CloudServerOutlined />, label: t('sidebar.llmEndpoints') },
         { key: ROUTES.CONFIG_IM, icon: <CommentOutlined />, label: t('sidebar.imChannel') },
         { key: ROUTES.CONFIG_IDENTITY, icon: <UserOutlined />, label: t('sidebar.identity') },
+        { key: ROUTES.SETTINGS_SECURITY, icon: <SettingOutlined />, label: t('sidebar.security') },
         { key: ROUTES.CONFIG_ADVANCED, icon: <SettingOutlined />, label: t('sidebar.advanced') },
       ],
     },

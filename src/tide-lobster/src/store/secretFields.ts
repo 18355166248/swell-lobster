@@ -31,6 +31,8 @@ export interface JsonPathField {
   column: string;
   /** dot-path，例如 `app_secret`、`oauth.refresh_token` */
   path: string;
+  /** 仅当行内 key 列匹配时生效（用于 key_value_store 等共享表） */
+  keyMatch?: string;
 }
 
 export interface ColumnField {
@@ -54,8 +56,7 @@ export const SECRET_FIELDS: Record<string, SecretField[]> = {
     { kind: 'jsonPath', column: 'config', path: 'token' },
   ],
   scheduler_tasks: [{ kind: 'column', column: 'webhook_secret' }],
-  // 15c 上线时再追加：
-  // key_value_store: [{ kind: 'jsonPath', column: 'value', path: 'password', keyMatch: 'email.smtp.config' }]
+  key_value_store: [{ kind: 'jsonPath', column: 'value', path: 'password', keyMatch: 'email.smtp.config' }],
 };
 
 /** 仅供测试：替换 SECRET_FIELDS 一个分片 */
@@ -114,6 +115,16 @@ function getColumnIsString(value: unknown): value is string {
   return typeof value === 'string';
 }
 
+function matchesKeyConstraint(
+  field: SecretField,
+  rowOrContext: Record<string, unknown> | { key?: string } | undefined
+): boolean {
+  if (field.kind !== 'jsonPath' || !field.keyMatch) return true;
+  const keyValue =
+    rowOrContext && 'key' in rowOrContext ? rowOrContext.key : undefined;
+  return typeof keyValue === 'string' && keyValue === field.keyMatch;
+}
+
 /**
  * 加密一行：返回新 row，敏感字段就地替换为密文（明文 → enc:v1，已加密原样）。
  *
@@ -136,6 +147,7 @@ export function encryptRowFields<T extends Record<string, unknown>>(table: strin
       }
       continue;
     }
+    if (!matchesKeyConstraint(f, out)) continue;
     // jsonPath
     let obj = jsonColumns.get(f.column);
     if (!obj) {
@@ -198,6 +210,7 @@ export function decryptRowFields<T extends Record<string, unknown>>(table: strin
       }
       continue;
     }
+    if (!matchesKeyConstraint(f, out)) continue;
     // jsonPath
     let obj = jsonColumns.get(f.column);
     if (!obj) {
@@ -245,10 +258,14 @@ export function decryptRowFields<T extends Record<string, unknown>>(table: strin
 export function encryptJsonObject(
   table: string,
   column: string,
-  obj: Record<string, unknown>
+  obj: Record<string, unknown>,
+  options?: { key?: string }
 ): Record<string, unknown> {
   const fields = (SECRET_FIELDS[table] ?? []).filter(
-    (f): f is JsonPathField => f.kind === 'jsonPath' && f.column === column
+    (f): f is JsonPathField =>
+      f.kind === 'jsonPath' &&
+      f.column === column &&
+      matchesKeyConstraint(f, options)
   );
   if (fields.length === 0) return obj;
   const out = { ...obj };
@@ -264,10 +281,14 @@ export function encryptJsonObject(
 export function decryptJsonObject(
   table: string,
   column: string,
-  obj: Record<string, unknown>
+  obj: Record<string, unknown>,
+  options?: { key?: string }
 ): Record<string, unknown> {
   const fields = (SECRET_FIELDS[table] ?? []).filter(
-    (f): f is JsonPathField => f.kind === 'jsonPath' && f.column === column
+    (f): f is JsonPathField =>
+      f.kind === 'jsonPath' &&
+      f.column === column &&
+      matchesKeyConstraint(f, options)
   );
   if (fields.length === 0) return obj;
   const masterPresent = loadMasterKey() !== null;

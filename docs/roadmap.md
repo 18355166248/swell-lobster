@@ -1,7 +1,7 @@
 # swell-lobster 功能开发路线图
 
 > 参考项目：openakita（Python 完整 AI 助手）
-> 后端：Node.js 20+ / Hono 4 / better-sqlite3
+> 后端：Node.js 20.20.0 / Hono 4 / better-sqlite3
 > 前端：React 19 / TypeScript / Ant Design 6 / Tailwind
 
 ---
@@ -10,37 +10,38 @@
 
 ### 已完成（可用）
 
-| 功能                                                                  | 后端 | 前端 |
-| --------------------------------------------------------------------- | ---- | ---- |
-| 聊天会话（SSE 流式）                                                  | ✅   | ✅   |
-| LLM 端点管理                                                          | ✅   | ✅   |
-| Identity 文件读写                                                     | ✅   | ✅   |
-| 阶段 1：身份注入 system prompt、persona、消息操作、上下文截断         | ✅   | ✅   |
-| 阶段 2：Token 统计 + 会话搜索                                         | ✅   | ✅   |
-| 阶段 3：记忆管理 + 工具调用                                           | ✅   | ✅   |
-| 阶段 4：MCP 服务器 + 计划任务                                         | ✅   | ✅   |
-| 阶段 5：IM 通道 + 技能系统                                            | ✅   | ✅   |
-| 阶段 6：多模态输入 + 生产力工具                                       | ✅   | ✅   |
-| 阶段 7：Agent 模板系统                                                | ✅   | ✅   |
-| Markdown + LaTeX + Mermaid 渲染                                       | —    | ✅   |
-| 文件上传与附件管理                                                    | ✅   | ✅   |
-| 会话导出（Markdown）                                                  | ✅   | ✅   |
-| 日记功能                                                              | ✅   | ✅   |
-| 日记增强：心情记录 + 记忆联动                                         | ✅   | ✅   |
-| 阶段 9：Embedding 配置 + 语义记忆检索 + `web_search` 收口能力         | ✅   | ✅   |
-| 阶段 10：IM 限流 + 钉钉 / 飞书通道 + `delegate_task` 委托 MVP         | ✅   | ✅   |
-| 阶段 11：工具风险元数据 + 审批状态机 + 审计日志 + 前端审批 UI         | ✅   | ✅   |
-| 阶段 12（步骤1-6）：计划模式数据结构 + 执行引擎 + 持久化 + 时间线 UI  | ✅   | ✅   |
-| 阶段 13：统一扩展运行时（catalog、manifest、API + 前端扩展管理页）    | ✅   | ✅   |
-| 阶段 14：统一观测事件、trace、指标聚合、DB 迁移收敛、备份恢复、错误码 | ✅   | ✅   |
-| 阶段 15a：API 鉴权、CORS、`zod` 校验、字段加密、Security 设置页       | ✅   | ✅   |
-| 阶段 15b：docx / xlsx / pptx 工具 + 技能模板 + Skills「文档生成」     | ✅   | ✅   |
+| 功能                                                                          | 后端 | 前端 |
+| ----------------------------------------------------------------------------- | ---- | ---- |
+| 聊天会话（SSE 流式）                                                          | ✅   | ✅   |
+| LLM 端点管理                                                                  | ✅   | ✅   |
+| Identity 文件读写                                                             | ✅   | ✅   |
+| 阶段 1：身份注入 system prompt、persona、消息操作、上下文截断                 | ✅   | ✅   |
+| 阶段 2：Token 统计 + 会话搜索                                                 | ✅   | ✅   |
+| 阶段 3：记忆管理 + 工具调用                                                   | ✅   | ✅   |
+| 阶段 4：MCP 服务器 + 计划任务                                                 | ✅   | ✅   |
+| 阶段 5：IM 通道 + 技能系统                                                    | ✅   | ✅   |
+| 阶段 6：多模态输入 + 生产力工具                                               | ✅   | ✅   |
+| 阶段 7：Agent 模板系统                                                        | ✅   | ✅   |
+| Markdown + LaTeX + Mermaid 渲染                                               | —    | ✅   |
+| 文件上传与附件管理                                                            | ✅   | ✅   |
+| 会话导出（Markdown）                                                          | ✅   | ✅   |
+| 日记功能                                                                      | ✅   | ✅   |
+| 日记增强：心情记录 + 记忆联动                                                 | ✅   | ✅   |
+| 阶段 9：Embedding 配置 + 语义记忆检索 + `web_search` 收口能力                 | ✅   | ✅   |
+| 阶段 10：IM 限流 + 钉钉 / 飞书通道 + `delegate_task` 委托 MVP                 | ✅   | ✅   |
+| 阶段 11：工具风险元数据 + 审批状态机 + 审计日志 + 前端审批 UI                 | ✅   | ✅   |
+| 阶段 12（步骤1-6）：计划模式数据结构 + 执行引擎 + 持久化 + 时间线 UI          | ✅   | ✅   |
+| 阶段 13：统一扩展运行时（catalog、manifest、API + 前端扩展管理页）            | ✅   | ✅   |
+| 阶段 14：统一观测事件、trace、指标聚合、DB 迁移收敛、备份恢复、错误码         | ✅   | ✅   |
+| 阶段 15a：API 鉴权、CORS、`zod` 校验、字段加密、Security 设置页               | ✅   | ✅   |
+| 阶段 15b：docx / xlsx / pptx 工具 + 技能模板 + Skills「文档生成」             | ✅   | ✅   |
+| 阶段 15c：browser_automation、email_send（SMTP）+ 技能模板 + Skills「自动化」 | ✅   | ✅   |
 
 ### 规划中
 
-| 功能                                                                                                                                            | 后端 | 前端 |
-| ----------------------------------------------------------------------------------------------------------------------------------------------- | ---- | ---- |
-| 阶段 [15c](./phases/phase15-security-productivity-skills.md#p15-subphases)：browser_automation、email_send（SMTP）+ 技能模板 + Skills「自动化」 | ⏳   | ⏳   |
+| 功能                               | 后端 | 前端 |
+| ---------------------------------- | ---- | ---- |
+| 阶段 16：OS 级沙箱与出站策略默认值 | ⏳   | ⏳   |
 
 ### 核心功能完整度
 
@@ -68,6 +69,7 @@
 - Status 页观测面板（最近失败、慢调用、审批阻塞、MCP 健康状态）
 - API 鉴权、本机/远程 token、鉴权失败限流、CORS 白名单、敏感字段加密与 Security 设置页
 - 文档导出工具（docx/xlsx/pptx）、文档技能模板与 Skills「文档生成」分类
+- 浏览器自动化与 SMTP 发件工具、自动化技能模板与 Skills「自动化」分类
 
 ---
 
@@ -89,7 +91,7 @@
 阶段14：观测性与稳定性 ✅    → trace、指标、migration、备份恢复、发布基线全部完成
 阶段15a：安全底座 ✅        → token 鉴权、CORS、zod 校验、敏感字段加密、Security 设置页
 阶段15b：文档导出能力 ✅    → docx/xlsx/pptx tools、文档技能模板、Skills 文档分组
-阶段15c：自动化能力 ⏳      → browser_automation、email_send（SMTP），当前主线
+阶段15c：自动化能力 ✅      → browser_automation、email_send（SMTP）、Skills 自动化分组
 ```
 
 注：同上子阶段释义与验收清单见 [phase15-security-productivity-skills.md](./phases/phase15-security-productivity-skills.md#p15-subphases)。
@@ -102,7 +104,7 @@
   └── 阶段3 ── 阶段4 ── 阶段5 ── 阶段6 ── 阶段7 ── 阶段9 ── 阶段10 ── 阶段11 ── 阶段12 ── 阶段13 ── 阶段14 ── 阶段15
 ```
 
-阶段 15 在交付上已完成 **15a**、**15b**；当前进入 **15c**（见 phase15）。
+阶段 15 在交付上已完成 **15a**、**15b**、**15c**；当前进入阶段 15 根级验收收口与阶段 16 准备。
 
 ---
 
@@ -131,15 +133,15 @@
 
 ## 新增 npm 依赖汇总
 
-| 阶段 | 包                                           | 用途                                                       |
-| ---- | -------------------------------------------- | ---------------------------------------------------------- |
-| 1    | 无                                           | 纯业务逻辑                                                 |
-| 2    | `recharts`（前端，可选）                     | Token 趋势图表                                             |
-| 3    | 无                                           | undici 已有                                                |
-| 4    | `node-cron`、`@modelcontextprotocol/sdk`     | 定时任务、MCP 集成                                         |
-| 5    | `grammy`、`gray-matter`                      | Telegram Bot、frontmatter 解析                             |
-| 6    | `pdfjs-dist`                                 | PDF 解析                                                   |
-| 15   | `docx`、`exceljs`、`pptxgenjs`、`nodemailer` | Phase15 文档导出与 SMTP 发件（`nodemailer` 仍待 15c 接入） |
+| 阶段 | 包                                                              | 用途                                      |
+| ---- | --------------------------------------------------------------- | ----------------------------------------- |
+| 1    | 无                                                              | 纯业务逻辑                                |
+| 2    | `recharts`（前端，可选）                                        | Token 趋势图表                            |
+| 3    | 无                                                              | undici 已有                               |
+| 4    | `node-cron`、`@modelcontextprotocol/sdk`                        | 定时任务、MCP 集成                        |
+| 5    | `grammy`、`gray-matter`                                         | Telegram Bot、frontmatter 解析            |
+| 6    | `pdfjs-dist`                                                    | PDF 解析                                  |
+| 15   | `docx`、`exceljs`、`pptxgenjs`、`nodemailer`、`playwright-core` | Phase15 文档导出、SMTP 发件与浏览器自动化 |
 
 ---
 
@@ -160,14 +162,14 @@
 
 ## 当前推荐顺序
 
-阶段 15a / 15b 已完成，桌面端已完成实机验证。当前主线进入 [阶段 15c](./phases/phase15-security-productivity-skills.md)（文档内 **[15b / 15c](./phases/phase15-security-productivity-skills.md#p15-subphases)** 子里程碑）。
+阶段 15a / 15b / 15c 已完成，桌面端已完成实机验证。当前主线进入阶段 15 根级验收收口，并为阶段 16 执行面硬化做准备。
 
 阶段 15 范围（与文档子阶段对齐）：
 
 - **15b（办公导出）** 已完成：文档生成工具、对应技能模板、Skills「文档生成」分组已落地
-- **15c（外向自动化）** 待启动：1. 浏览器自动化（Playwright，`browser_automation`）2. 邮件发送（SMTP MVP，`nodemailer`；IMAP / 收件后续）
+- **15c（外向自动化）** 已完成：浏览器自动化（Playwright，`browser_automation`）、邮件发送（SMTP MVP，`email_send`）与 Skills「自动化」分组已落地；IMAP / 收件留后续
 
-建议顺序：先做一次 **15b verify 收口**，再进入 **15c-merge**；15c 内部优先 `browser_automation`，后做 `email_send`。
+建议顺序：先做一次阶段 15 根级 `verify` 收口，再进入阶段 16；阶段 16 内部优先梳理 OS 级沙箱与出站策略默认值。
 
 剩余技术债务（按优先级，不在阶段 15 必做范围）：
 

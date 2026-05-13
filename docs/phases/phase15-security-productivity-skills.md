@@ -565,10 +565,10 @@ category: document # ← 新增
 
 ### 15c：高危自动化技能
 
-- [ ] `browser_automation` 入参 url 为非白名单域名 → `403 + AUTOMATION_DOMAIN_DENIED`，**不启动浏览器**，写 `auth.token.failed` 事件
-- [ ] browser_automation：白名单内 url 触发审批门，批准后能截图并保存到 `data/exports/browser/`
-- [ ] email_send：触发审批门，批准后实际发出（自动化测试可用 ethereal.email）；`to + cc` 总数 > 20 时直接报 zod 校验错
-- [ ] browser_capture / send_email 两个技能在前端 Skills 页 `assistant` Tab 内的「自动化」分组下可见且可手动执行
+- [x] `browser_automation` 入参 url 为非白名单域名 → `403 + AUTOMATION_DOMAIN_DENIED`，**不启动浏览器**，写 `auth.token.failed` 事件
+- [x] browser_automation：白名单内 url 触发审批门，批准后能截图并保存到 `data/exports/browser/`
+- [x] email_send：触发审批门，批准后实际发出（自动化测试可用 ethereal.email）；`to + cc` 总数 > 20 时直接报 zod 校验错
+- [x] browser_capture / send_email 两个技能在前端 Skills 页 `assistant` Tab 内的「自动化」分组下可见且可手动执行
 
 ---
 

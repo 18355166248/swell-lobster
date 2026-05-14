@@ -24,6 +24,7 @@ import { builtinModules } from 'node:module';
 import { settings } from '../../config.js';
 import { ToolRiskLevel, type ToolDef } from '../types.js';
 import { getExecuteAllowedRoots, getScriptWritableRoot, isPathWithinRoots } from '../policy.js';
+import { sanitizeChildEnv } from '../../utils/sanitizeEnv.js';
 
 const ALLOWED_EXTENSIONS = new Set(['.py', '.js', '.mjs']);
 const DEFAULT_TIMEOUT_S = 30;
@@ -440,7 +441,7 @@ export const runScriptTool: ToolDef = {
       .filter(Boolean)
       .join(sep === '\\' ? ';' : ':');
 
-    const env: NodeJS.ProcessEnv = {
+    const rawEnv: NodeJS.ProcessEnv = {
       ...process.env,
       SKILLS_ROOT: join(settings.projectRoot, 'SKILLS'),
       SKILLS_PPTX_SCRIPTS_DIR: skillsPptxScriptsDir,
@@ -448,6 +449,9 @@ export const runScriptTool: ToolDef = {
       OUTPUT_DIR: outputDir,
       NODE_PATH: nodePath,
     };
+
+    // 净化子进程环境，剥离宿主敏感凭据（API Key、Token、SWELL_* 等）
+    const env = sanitizeChildEnv(rawEnv);
 
     // 9. 执行
     const timeoutMs =

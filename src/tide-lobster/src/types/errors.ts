@@ -15,6 +15,7 @@ export const ErrorCode = {
   DELEGATE_TIMEOUT: 'DELEGATE_TIMEOUT',
   PLAN_STEP_FAILED: 'PLAN_STEP_FAILED',
   MCP_SERVER_UNAVAILABLE: 'MCP_SERVER_UNAVAILABLE',
+  OUTBOUND_POLICY_DENIED: 'OUTBOUND_POLICY_DENIED',
 } as const
 
 export type ErrorCodeValue = (typeof ErrorCode)[keyof typeof ErrorCode]

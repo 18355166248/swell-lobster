@@ -9,6 +9,7 @@ import {
   InputNumber,
   Modal,
   Popconfirm,
+  Radio,
   Space,
   Switch,
   Table,
@@ -16,8 +17,8 @@ import {
   Typography,
   message,
 } from 'antd';
-import { CopyOutlined, ReloadOutlined } from '@ant-design/icons';
-import { apiDelete, apiGet, apiPost } from '../../../api/base';
+import { CopyOutlined, DeleteOutlined, PlusOutlined, ReloadOutlined } from '@ant-design/icons';
+import { apiDelete, apiGet, apiPatch, apiPost } from '../../../api/base';
 import { clearTokenCache, setStoredToken } from '../../../api/authToken';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router';
@@ -62,6 +63,11 @@ type HealthView = {
   remote_mode_active?: boolean;
 };
 
+type SandboxConfig = {
+  mode: 'open' | 'allowlist';
+  allowlist: string[];
+};
+
 function formatTime(ms: number | null | undefined): string {
   if (!ms) return '—';
   const d = new Date(ms);
@@ -77,6 +83,12 @@ export default function SecuritySettingsPage() {
   const [remoteEnabled, setRemoteEnabled] = useState<boolean>(false);
   const [health, setHealth] = useState<HealthView | null>(null);
   const [smtpConfig, setSmtpConfig] = useState<SmtpConfigView | null>(null);
+  const [sandboxConfig, setSandboxConfig] = useState<SandboxConfig>({
+    mode: 'open',
+    allowlist: [],
+  });
+  const [sandboxSaving, setSandboxSaving] = useState<boolean>(false);
+  const [newRule, setNewRule] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(false);
   const [smtpSaving, setSmtpSaving] = useState<boolean>(false);
   const [createForm] = Form.useForm<{ label: string }>();
@@ -89,18 +101,20 @@ export default function SecuritySettingsPage() {
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
-      const [statusRes, tokensRes, remoteRes, smtpRes, healthRes] = await Promise.all([
+      const [statusRes, tokensRes, remoteRes, smtpRes, healthRes, sandboxRes] = await Promise.all([
         apiGet<{ status: MasterKeyStatus }>('/api/auth/master-key/status'),
         apiGet<{ tokens: RemoteToken[] }>('/api/auth/tokens'),
         apiGet<{ enabled: boolean }>('/api/auth/remote-mode'),
         apiGet<{ config: SmtpConfigView | null }>('/api/config/email-smtp'),
         apiGet<HealthView>('/api/health'),
+        apiGet<SandboxConfig>('/api/config/sandbox'),
       ]);
       setMasterKeyStatus(statusRes.status);
       setTokens(tokensRes.tokens);
       setRemoteEnabled(remoteRes.enabled);
       setSmtpConfig(smtpRes.config);
       setHealth(healthRes);
+      setSandboxConfig(sandboxRes);
     } catch (e) {
       message.error(t('security.errors.load', { message: (e as Error).message }));
     } finally {
@@ -231,6 +245,50 @@ export default function SecuritySettingsPage() {
       message.error(t('security.errors.saveSmtp', { message: (e as Error).message }));
     } finally {
       setSmtpSaving(false);
+    }
+  };
+
+  const handleSandboxModeChange = async (mode: 'open' | 'allowlist') => {
+    setSandboxSaving(true);
+    try {
+      const res = await apiPatch<SandboxConfig>('/api/config/sandbox', { mode });
+      setSandboxConfig(res);
+      message.success(t('security.messages.sandboxModeSaved'));
+    } catch (e) {
+      message.error(t('security.errors.saveSandbox', { message: (e as Error).message }));
+    } finally {
+      setSandboxSaving(false);
+    }
+  };
+
+  const handleAddSandboxRule = async () => {
+    const rule = newRule.trim();
+    if (!rule) return;
+    setSandboxSaving(true);
+    try {
+      const res = await apiPost<SandboxConfig>('/api/config/sandbox/allowlist', { rule });
+      setSandboxConfig(res);
+      setNewRule('');
+      message.success(t('security.messages.sandboxRuleAdded'));
+    } catch (e) {
+      message.error(t('security.errors.saveSandbox', { message: (e as Error).message }));
+    } finally {
+      setSandboxSaving(false);
+    }
+  };
+
+  const handleDeleteSandboxRule = async (rule: string) => {
+    setSandboxSaving(true);
+    try {
+      const res = await apiDelete<SandboxConfig>(
+        `/api/config/sandbox/allowlist/${encodeURIComponent(rule)}`
+      );
+      setSandboxConfig(res);
+      message.success(t('security.messages.sandboxRuleDeleted'));
+    } catch (e) {
+      message.error(t('security.errors.saveSandbox', { message: (e as Error).message }));
+    } finally {
+      setSandboxSaving(false);
     }
   };
 
@@ -450,6 +508,90 @@ export default function SecuritySettingsPage() {
           size="small"
           pagination={false}
         />
+      </Card>
+
+      <Card title={t('security.sandbox.title')} className="mb-4">
+        <p className="text-sm text-gray-500 mb-4">{t('security.sandbox.description')}</p>
+
+        <div className="mb-4">
+          <div className="font-medium mb-2">{t('security.sandbox.modeLabel')}</div>
+          <Radio.Group
+            value={sandboxConfig.mode}
+            onChange={(e) => void handleSandboxModeChange(e.target.value as 'open' | 'allowlist')}
+            disabled={sandboxSaving}
+          >
+            <Space direction="vertical">
+              <Radio value="open">
+                <span className="font-medium">{t('security.sandbox.modeOpen')}</span>
+                <span className="text-gray-400 ml-2 text-sm">
+                  {t('security.sandbox.modeOpenDesc')}
+                </span>
+              </Radio>
+              <Radio value="allowlist">
+                <span className="font-medium">{t('security.sandbox.modeAllowlist')}</span>
+                <span className="text-gray-400 ml-2 text-sm">
+                  {t('security.sandbox.modeAllowlistDesc')}
+                </span>
+              </Radio>
+            </Space>
+          </Radio.Group>
+        </div>
+
+        {sandboxConfig.mode === 'allowlist' && (
+          <>
+            <Divider />
+            <div className="mb-3 font-medium">{t('security.sandbox.allowlistTitle')}</div>
+            <div className="flex gap-2 mb-3">
+              <Input
+                value={newRule}
+                onChange={(e) => setNewRule(e.target.value)}
+                placeholder={t('security.sandbox.addRulePlaceholder')}
+                onPressEnter={() => void handleAddSandboxRule()}
+                disabled={sandboxSaving}
+                className="max-w-sm"
+              />
+              <Button
+                type="primary"
+                icon={<PlusOutlined />}
+                loading={sandboxSaving}
+                onClick={() => void handleAddSandboxRule()}
+              >
+                {t('security.sandbox.addRule')}
+              </Button>
+            </div>
+            {sandboxConfig.allowlist.length === 0 ? (
+              <p className="text-gray-400 text-sm">{t('security.sandbox.noRules')}</p>
+            ) : (
+              <Space wrap>
+                {sandboxConfig.allowlist.map((rule) => (
+                  <Tag
+                    key={rule}
+                    closable
+                    onClose={() => void handleDeleteSandboxRule(rule)}
+                    icon={<DeleteOutlined />}
+                  >
+                    {rule}
+                  </Tag>
+                ))}
+              </Space>
+            )}
+          </>
+        )}
+
+        <Divider />
+        <div className="mb-1 font-medium">{t('security.sandbox.envSanitizeTitle')}</div>
+        <p className="text-sm text-gray-500 mb-2">{t('security.sandbox.envSanitizeDesc')}</p>
+        <Tag color="green">{t('security.sandbox.envSanitizeStatus')}</Tag>
+
+        <Divider />
+        <div className="mb-1 font-medium">{t('security.sandbox.managedTools')}</div>
+        <Space wrap>
+          {['web_search', 'browser_automation', 'email_send'].map((tool) => (
+            <Tag key={tool} color="blue">
+              {tool}
+            </Tag>
+          ))}
+        </Space>
       </Card>
 
       <Modal

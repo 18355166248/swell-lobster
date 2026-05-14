@@ -172,7 +172,9 @@
       "Bash(rustc --version)",
       "Bash(where rustup *)",
       "Bash(cat vitest.config.ts)",
-      "Bash(cat vitest.config.js)"
+      "Bash(cat vitest.config.js)",
+      "Bash(Select-Object FullName)",
+      "Bash(Format-Table -HideTableHeaders)"
     ]
   }
 }

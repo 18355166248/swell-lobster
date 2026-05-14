@@ -12,6 +12,11 @@ vi.mock('../../config.js', () => ({
   readConfiguredEnvValue: (envName: string) => mockEnv[envName] ?? '',
 }));
 
+// 策略层不在 web_search 单元测试范围内，直接放行
+vi.mock('../../net/outboundPolicy.js', () => ({
+  checkOutbound: vi.fn(),
+}));
+
 describe('webSearchTool', () => {
   const originalFetch = global.fetch;
 

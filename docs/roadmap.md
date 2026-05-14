@@ -6,7 +6,7 @@
 
 ---
 
-## 当前状态（2026-05-13）
+## 当前状态（2026-05-15）
 
 ### 已完成（可用）
 
@@ -36,12 +36,15 @@
 | 阶段 15a：API 鉴权、CORS、`zod` 校验、字段加密、Security 设置页               | ✅   | ✅   |
 | 阶段 15b：docx / xlsx / pptx 工具 + 技能模板 + Skills「文档生成」             | ✅   | ✅   |
 | 阶段 15c：browser_automation、email_send（SMTP）+ 技能模板 + Skills「自动化」 | ✅   | ✅   |
+| 阶段 16a：统一出站网络策略层（outboundPolicy + 配置 API）                     | ✅   | —    |
+| 阶段 16b：run_script 子进程环境净化                                           | ✅   | —    |
+| 阶段 16c：前端沙箱与网络设置页                                                | —    | ✅   |
 
 ### 规划中
 
-| 功能                               | 后端 | 前端 |
-| ---------------------------------- | ---- | ---- |
-| 阶段 16：OS 级沙箱与出站策略默认值 | ⏳   | ⏳   |
+| 功能                             | 后端 | 前端 |
+| -------------------------------- | ---- | ---- |
+| （暂无，阶段 16 已完成，规划中） | —    | —    |
 
 ### 核心功能完整度
 
@@ -92,6 +95,9 @@
 阶段15a：安全底座 ✅        → token 鉴权、CORS、zod 校验、敏感字段加密、Security 设置页
 阶段15b：文档导出能力 ✅    → docx/xlsx/pptx tools、文档技能模板、Skills 文档分组
 阶段15c：自动化能力 ✅      → browser_automation、email_send（SMTP）、Skills 自动化分组
+阶段16a：统一出站网络策略 ✅  → outboundPolicy、checkOutbound、配置 API（/api/config/sandbox）
+阶段16b：子进程环境净化 ✅    → run_script 剥离 SWELL_*、*_API_KEY 等敏感环境变量
+阶段16c：沙箱设置页 ✅        → 前端可视化出站模式与规则、子进程净化状态
 ```
 
 注：同上子阶段释义与验收清单见 [phase15-security-productivity-skills.md](./phases/phase15-security-productivity-skills.md#p15-subphases)。
@@ -104,7 +110,7 @@
   └── 阶段3 ── 阶段4 ── 阶段5 ── 阶段6 ── 阶段7 ── 阶段9 ── 阶段10 ── 阶段11 ── 阶段12 ── 阶段13 ── 阶段14 ── 阶段15
 ```
 
-阶段 15 在交付上已完成 **15a**、**15b**、**15c**；当前进入阶段 15 根级验收收口与阶段 16 准备。
+阶段 15 在交付上已完成 **15a**、**15b**、**15c**，根级 `npm run verify` 通过，阶段 15 收口完成。阶段 16（**16a/16b/16c**）已全部交付，根级 `npm run verify` 通过，阶段 16 收口完成。
 
 ---
 
@@ -126,6 +132,7 @@
 | [phases/phase13-extension-runtime-unification.md](./phases/phase13-extension-runtime-unification.md)           | 统一扩展运行时                                                  |
 | [phases/phase14-observability-stability-governance.md](./phases/phase14-observability-stability-governance.md) | 观测性 + 稳定性 + 数据治理                                      |
 | [phases/phase15-security-productivity-skills.md](./phases/phase15-security-productivity-skills.md)             | 安全加固 + 生产力技能（**15a/15b/15c**，锚点 `#p15-subphases`） |
+| [phases/phase16-sandbox-outbound-policy.md](./phases/phase16-sandbox-outbound-policy.md)                       | OS 级沙箱与出站网络策略（**16a/16b/16c**）                      |
 | [architecture/database-schema.md](./architecture/database-schema.md)                                           | 完整 SQLite Schema                                              |
 | [architecture/api-reference.md](./architecture/api-reference.md)                                               | 所有 API 端点汇总                                               |
 
@@ -162,16 +169,17 @@
 
 ## 当前推荐顺序
 
-阶段 15a / 15b / 15c 已完成，桌面端已完成实机验证。当前主线进入阶段 15 根级验收收口，并为阶段 16 执行面硬化做准备。
+阶段 15a / 15b / 15c 已完成，阶段 15 根级 `verify` 通过，桌面端实机验证通过。当前主线进入**阶段 16**。
 
-阶段 15 范围（与文档子阶段对齐）：
+阶段 16 范围（与文档子阶段对齐）：
 
-- **15b（办公导出）** 已完成：文档生成工具、对应技能模板、Skills「文档生成」分组已落地
-- **15c（外向自动化）** 已完成：浏览器自动化（Playwright，`browser_automation`）、邮件发送（SMTP MVP，`email_send`）与 Skills「自动化」分组已落地；IMAP / 收件留后续
+- **16a（统一出站策略）** 进行中：新建 `net/outboundPolicy.ts`，网络工具均接入策略校验，暴露 `/api/config/sandbox` 配置端点
+- **16b（子进程环境净化）** 进行中：`run_script` 启动子进程前剥离所有宿主敏感环境变量
+- **16c（沙箱设置页）** 待 16a 后启动：Security 页新增「沙箱与网络」面板
 
-建议顺序：先做一次阶段 15 根级 `verify` 收口，再进入阶段 16；阶段 16 内部优先梳理 OS 级沙箱与出站策略默认值。
+建议顺序：16a → 16b（可并行）→ 16c → 阶段 16 根级 `verify` 收口。
 
-剩余技术债务（按优先级，不在阶段 15 必做范围）：
+剩余技术债务（按优先级，不在阶段 16 必做范围）：
 
 1. 部署文档与运行说明收尾
 2. 数据库查询优化

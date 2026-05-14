@@ -6,5 +6,7 @@ export default defineConfig({
     // 限制并发数让 DB 操作和定时器有足够的事件循环时间。
     maxWorkers: 4,
     minWorkers: 1,
+    // 提高超时上限，防止 Windows 并发 SQLite 慢操作误判超时
+    testTimeout: 15000,
   },
 });

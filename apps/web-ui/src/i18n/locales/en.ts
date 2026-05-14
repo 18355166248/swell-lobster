@@ -383,6 +383,9 @@ const en = {
       copied: 'Copied to clipboard',
       copyUnavailable: 'Clipboard unavailable, copy manually',
       smtpSaved: 'SMTP configuration saved',
+      sandboxModeSaved: 'Outbound mode updated',
+      sandboxRuleAdded: 'Allowlist rule added',
+      sandboxRuleDeleted: 'Allowlist rule deleted',
     },
     errors: {
       load: 'Load failed: {{message}}',
@@ -392,6 +395,27 @@ const en = {
       enableRemote: 'Enable failed: {{message}}',
       disableRemote: 'Disable failed: {{message}}',
       saveSmtp: 'Failed to save SMTP config: {{message}}',
+      saveSandbox: 'Failed to save sandbox config: {{message}}',
+    },
+    sandbox: {
+      title: 'Sandbox & Outbound Network',
+      description:
+        'Control which outbound network requests tools (web_search, browser_automation, email_send, etc.) are allowed to make.',
+      modeLabel: 'Outbound Mode',
+      modeOpen: 'Open',
+      modeOpenDesc: 'All tools may access any external address (default)',
+      modeAllowlist: 'Allowlist',
+      modeAllowlistDesc: 'Only hosts/domains in the list below are permitted',
+      allowlistTitle: 'Outbound Allowlist',
+      addRulePlaceholder: 'Enter hostname, e.g. api.example.com or *.example.com',
+      addRule: 'Add',
+      noRules: 'No allowlist rules yet',
+      deleteRule: 'Delete',
+      envSanitizeTitle: 'Child Process Environment Sanitization',
+      envSanitizeDesc:
+        'run_script strips SWELL_*, *_API_KEY, *_TOKEN, and similar host credentials before launching scripts, preventing skill scripts from reading them.',
+      envSanitizeStatus: 'Enabled (permanent)',
+      managedTools: 'Tools covered by this policy',
     },
   },
 

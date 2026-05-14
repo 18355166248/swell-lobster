@@ -1,5 +1,6 @@
 import { readConfiguredEnvValue, type SearchProvider } from '../../config.js';
 import { getFetchDispatcherForUrl } from '../../net/fetchDispatcher.js';
+import { checkOutbound } from '../../net/outboundPolicy.js';
 import { ToolRiskLevel, type ToolDef } from '../types.js';
 
 type SearchResult = { title: string; url: string; snippet: string };
@@ -146,6 +147,15 @@ export const webSearchTool: ToolDef = {
     let providerLabel = '';
 
     try {
+      // 出站策略检查：根据实际使用的 provider 校验目标 URL
+      const providerUrl =
+        configuredProvider === 'brave' || (configuredProvider === 'auto' && braveKey)
+          ? 'https://api.search.brave.com'
+          : configuredProvider === 'tavily' || (configuredProvider === 'auto' && tavilyKey)
+          ? 'https://api.tavily.com'
+          : 'https://html.duckduckgo.com';
+      checkOutbound(providerUrl, 'web_search');
+
       if (configuredProvider === 'brave') {
         if (!braveKey) {
           return `搜索失败：当前已强制使用 Brave Search，但未配置 ${braveEnvKey}`;

@@ -6,7 +6,7 @@ import type { Browser, BrowserContext, Page } from 'playwright-core';
 
 import { settings } from '../../config.js';
 import { getProxyUrlForTarget } from '../../net/fetchDispatcher.js';
-import { isOriginAllowed } from '../../net/originAllowlist.js';
+import { checkOutbound } from '../../net/outboundPolicy.js';
 import { recordEvent } from '../../observability/traceStore.js';
 import { ToolRiskLevel, type ToolDef } from '../types.js';
 import {
@@ -256,15 +256,20 @@ export const browserAutomationTool: ToolDef = {
 
     const { action, url, selector, fullPage, selectors, fields, submitSelector } = parsed.data;
 
-    if (!isOriginAllowed(url)) {
+    if (false) {
+      // 出站策略检查已由 checkOutbound 统一处理，此分支仅占位保留原有 recordEvent 逻辑
+    }
+    try {
+      checkOutbound(url, 'browser_automation');
+    } catch (err) {
       const host = new URL(url).host;
       recordEvent({
         category: 'auth.token.failed',
         status: 'error',
         sessionId: context?.sessionId,
-        meta: { reason: 'automation-domain-denied', host, url },
+        meta: { reason: 'outbound-policy-denied', host, url },
       });
-      throw new Error(`AUTOMATION_DOMAIN_DENIED: ${host} 未命中自动化域名白名单`);
+      throw err;
     }
 
     let browser: Browser | undefined;

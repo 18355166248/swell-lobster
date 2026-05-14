@@ -14,6 +14,7 @@ import { configEnvRouter } from './routes/configEnv.js';
 import { configEmailRouter } from './routes/configEmail.js';
 import { configViewsRouter } from './routes/configViews.js';
 import { configSkillsRouter } from './routes/configSkills.js';
+import { configSandboxRouter } from './routes/configSandbox.js';
 import { identityRouter } from './routes/identity.js';
 import { skillsRouter } from './routes/skills.js';
 import { chatRouter } from './routes/chat.js';
@@ -105,6 +106,7 @@ export function createApp(): Hono {
   app.route('/', configEmailRouter);
   app.route('/', configViewsRouter);
   app.route('/', configSkillsRouter);
+  app.route('/', configSandboxRouter); // /api/config/sandbox — 出站网络策略
 
   // 其他路由
   app.route('/', identityRouter);

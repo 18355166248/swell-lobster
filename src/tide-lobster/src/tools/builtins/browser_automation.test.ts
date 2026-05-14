@@ -35,13 +35,17 @@ describe('browserAutomationTool', () => {
   });
 
   it('rejects urls outside the allowlist before launching the browser', async () => {
+    // 切换到 allowlist 模式，让策略层拦截非白名单 URL
+    const { setSandboxMode } = await import('../../store/sandboxConfig.js');
+    setSandboxMode('allowlist');
+
     const { browserAutomationTool } = await import('./browser_automation.js');
     await expect(
       browserAutomationTool.execute({
         action: 'screenshot',
         url: 'https://blocked.test/path',
       })
-    ).rejects.toThrow(/AUTOMATION_DOMAIN_DENIED/);
+    ).rejects.toThrow(/出站策略拒绝|OUTBOUND_POLICY_DENIED/i);
   });
 
   it('writes a screenshot into data/exports/browser', async () => {

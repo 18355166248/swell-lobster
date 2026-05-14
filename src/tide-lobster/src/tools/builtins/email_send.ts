@@ -6,6 +6,7 @@ import type Mail from 'nodemailer/lib/mailer/index.js';
 
 import { settings } from '../../config.js';
 import { getSmtpConfig } from '../../store/emailSmtpConfig.js';
+import { checkOutbound } from '../../net/outboundPolicy.js';
 import { ToolRiskLevel, type ToolDef } from '../types.js';
 
 const emailSchema = z.object({
@@ -117,6 +118,9 @@ export const emailSendTool: ToolDef = {
     }));
 
     const { transporter, config } = await buildTransporter();
+
+    // 出站策略检查：校验 SMTP 服务器主机
+    checkOutbound(`smtp://${config.host}:${config.port}`, 'email_send');
     const payload: Mail.Options = {
       from: config.from,
       to: to.join(', '),

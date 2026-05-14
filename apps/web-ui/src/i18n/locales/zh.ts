@@ -389,6 +389,9 @@ const zh = {
       copied: '已复制到剪贴板',
       copyUnavailable: '剪贴板不可用，请手动复制',
       smtpSaved: 'SMTP 配置已保存',
+      sandboxModeSaved: '出站模式已更新',
+      sandboxRuleAdded: '白名单规则已添加',
+      sandboxRuleDeleted: '白名单规则已删除',
     },
     errors: {
       load: '加载失败：{{message}}',
@@ -398,6 +401,27 @@ const zh = {
       enableRemote: '启用失败：{{message}}',
       disableRemote: '关闭失败：{{message}}',
       saveSmtp: '保存 SMTP 配置失败：{{message}}',
+      saveSandbox: '沙箱配置保存失败：{{message}}',
+    },
+    sandbox: {
+      title: '沙箱与出站网络',
+      description:
+        '控制工具（web_search、browser_automation、email_send 等）发起出站网络请求的权限。',
+      modeLabel: '出站模式',
+      modeOpen: '开放',
+      modeOpenDesc: '所有工具均可自由访问任意外部地址（默认）',
+      modeAllowlist: '白名单',
+      modeAllowlistDesc: '仅允许以下列表中的主机/域',
+      allowlistTitle: '出站白名单',
+      addRulePlaceholder: '输入主机名，如 api.example.com 或 *.example.com',
+      addRule: '添加',
+      noRules: '暂无白名单规则',
+      deleteRule: '删除',
+      envSanitizeTitle: '子进程环境净化',
+      envSanitizeDesc:
+        'run_script 启动脚本前自动剥离 SWELL_*、*_API_KEY、*_TOKEN 等宿主凭据，防止技能脚本读取。',
+      envSanitizeStatus: '已启用（永久）',
+      managedTools: '受策略管控的工具',
     },
   },
 
